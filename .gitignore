@@ -1,0 +1,5 @@
+.manual
+.env
+.env.*
+.cursor
+.cursorignore
