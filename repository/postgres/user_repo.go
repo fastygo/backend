@@ -9,8 +9,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/e-go/backend/domain"
-	"github.com/e-go/backend/repository"
+	"github.com/fastygo/backend/domain"
+	"github.com/fastygo/backend/repository"
 )
 
 type userRepository struct {

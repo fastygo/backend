@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 
-	"github.com/e-go/backend/internal/config"
+	"github.com/fastygo/backend/internal/config"
 )
 
 // NewPool creates and validates a pgx connection pool.

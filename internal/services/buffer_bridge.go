@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/e-go/backend/domain"
-	"github.com/e-go/backend/internal/infrastructure/buffer"
-	"github.com/e-go/backend/usecase"
+	"github.com/fastygo/backend/domain"
+	"github.com/fastygo/backend/internal/infrastructure/buffer"
+	"github.com/fastygo/backend/usecase"
 )
 
 type BufferBridge struct {

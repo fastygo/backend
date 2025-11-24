@@ -8,9 +8,9 @@ import (
 	"github.com/valyala/fasthttp"
 	"go.uber.org/zap"
 
-	"github.com/e-go/backend/api/transport"
-	"github.com/e-go/backend/domain"
-	"github.com/e-go/backend/pkg/httpcontext"
+	"github.com/fastygo/backend/api/transport"
+	"github.com/fastygo/backend/domain"
+	"github.com/fastygo/backend/pkg/httpcontext"
 )
 
 type baseHandler struct {

@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/e-go/backend/domain"
+	"github.com/fastygo/backend/domain"
 )
 
 type TaskFilter struct {

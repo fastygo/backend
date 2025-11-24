@@ -3,7 +3,7 @@ package usecase
 import (
 	"context"
 
-	"github.com/e-go/backend/domain"
+	"github.com/fastygo/backend/domain"
 )
 
 // OperationBuffer abstracts the buffer processor so use cases stay storage-agnostic.

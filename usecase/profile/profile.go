@@ -5,9 +5,9 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/e-go/backend/domain"
-	"github.com/e-go/backend/repository"
-	"github.com/e-go/backend/usecase"
+	"github.com/fastygo/backend/domain"
+	"github.com/fastygo/backend/repository"
+	"github.com/fastygo/backend/usecase"
 )
 
 type UseCase struct {

@@ -6,7 +6,7 @@ import (
 
 	goRedis "github.com/redis/go-redis/v9"
 
-	"github.com/e-go/backend/internal/config"
+	"github.com/fastygo/backend/internal/config"
 )
 
 // NewClient creates a Redis client and performs a health check.

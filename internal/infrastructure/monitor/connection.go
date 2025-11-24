@@ -9,7 +9,7 @@ import (
 	redislib "github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"github.com/e-go/backend/internal/infrastructure/buffer"
+	"github.com/fastygo/backend/internal/infrastructure/buffer"
 )
 
 type Monitor struct {

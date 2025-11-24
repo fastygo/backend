@@ -7,9 +7,9 @@ import (
 	"github.com/valyala/fasthttp"
 	"go.uber.org/zap"
 
-	"github.com/e-go/backend/api/transport"
-	"github.com/e-go/backend/internal/infrastructure/monitor"
-	"github.com/e-go/backend/pkg/httpcontext"
+	"github.com/fastygo/backend/api/transport"
+	"github.com/fastygo/backend/internal/infrastructure/monitor"
+	"github.com/fastygo/backend/pkg/httpcontext"
 )
 
 type HealthHandler struct {

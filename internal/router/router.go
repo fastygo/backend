@@ -4,7 +4,7 @@ import (
 	"github.com/fasthttp/router"
 	"github.com/valyala/fasthttp"
 
-	apiHandler "github.com/e-go/backend/api/handler"
+	apiHandler "github.com/fastygo/backend/api/handler"
 )
 
 type Handlers struct {

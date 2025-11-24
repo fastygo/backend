@@ -11,7 +11,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"go.uber.org/zap"
 
-	"github.com/e-go/backend/internal/config"
+	"github.com/fastygo/backend/internal/config"
 )
 
 // RunMigrations executes DB migrations when enabled in configuration.

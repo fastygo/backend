@@ -8,8 +8,8 @@ import (
 
 	redislib "github.com/redis/go-redis/v9"
 
-	"github.com/e-go/backend/domain"
-	"github.com/e-go/backend/repository"
+	"github.com/fastygo/backend/domain"
+	"github.com/fastygo/backend/repository"
 )
 
 type sessionRepository struct {

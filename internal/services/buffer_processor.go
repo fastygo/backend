@@ -9,9 +9,9 @@ import (
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 
-	"github.com/e-go/backend/domain"
-	"github.com/e-go/backend/internal/infrastructure/buffer"
-	"github.com/e-go/backend/repository"
+	"github.com/fastygo/backend/domain"
+	"github.com/fastygo/backend/internal/infrastructure/buffer"
+	"github.com/fastygo/backend/repository"
 )
 
 // ConnectionHealth abstracts the connection monitor functionality.

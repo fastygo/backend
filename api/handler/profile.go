@@ -7,10 +7,10 @@ import (
 	"github.com/valyala/fasthttp"
 	"go.uber.org/zap"
 
-	"github.com/e-go/backend/api/transport"
-	"github.com/e-go/backend/domain"
-	"github.com/e-go/backend/pkg/httpcontext"
-	profileUC "github.com/e-go/backend/usecase/profile"
+	"github.com/fastygo/backend/api/transport"
+	"github.com/fastygo/backend/domain"
+	"github.com/fastygo/backend/pkg/httpcontext"
+	profileUC "github.com/fastygo/backend/usecase/profile"
 )
 
 type ProfileHandler struct {

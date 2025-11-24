@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/e-go/backend/domain"
-	"github.com/e-go/backend/repository"
+	"github.com/fastygo/backend/domain"
+	"github.com/fastygo/backend/repository"
 )
 
 type UseCase struct {

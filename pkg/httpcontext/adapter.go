@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/valyala/fasthttp"
 
-	appLogger "github.com/e-go/backend/pkg/logger"
+	appLogger "github.com/fastygo/backend/pkg/logger"
 )
 
 // Key represents a context value key exported for reuse.

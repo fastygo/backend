@@ -1,4 +1,4 @@
-module github.com/e-go/backend
+module github.com/fastygo/backend
 
 go 1.24.0
 
