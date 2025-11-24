@@ -1,0 +1,10 @@
+version: "3.9"
+
+services:
+  backend-test:
+    build: .
+    command: go test ./...
+    volumes:
+      - .:/app
+    working_dir: /app
+
