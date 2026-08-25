@@ -1,0 +1,11 @@
+.manual
+.env
+.env.*
+!.env.example
+.cursor
+.cursorignore
+dist/
+var/
+*.exe
+*.test
+coverage.out

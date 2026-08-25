@@ -1,0 +1,10 @@
+name: headless-backend-test
+
+services:
+  test:
+    build:
+      context: .
+      target: build
+    command: go test -count=1 ./...
+    environment:
+      CGO_ENABLED: "0"

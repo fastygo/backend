@@ -1,0 +1,147 @@
+name: headless-backend
+
+x-backend: &backend
+  build:
+    context: .
+  restart: unless-stopped
+  environment: &backend-env
+    APP_BIND: 0.0.0.0:8080
+    APP_AVAILABLE_LOCALES: ${APP_AVAILABLE_LOCALES:-en,ru}
+    HEALTH_LIVE_PATH: /healthz
+    HEALTH_READY_PATH: /readyz
+    METRICS_PATH: /metrics
+    HEADLESS_TOKEN_SECRET: ${HEADLESS_TOKEN_SECRET:?set HEADLESS_TOKEN_SECRET to at least 32 bytes}
+    HEADLESS_TOKEN_ISSUER: ${HEADLESS_TOKEN_ISSUER:-headless-backend}
+    HEADLESS_ADMIN_EMAIL: ${HEADLESS_ADMIN_EMAIL:-}
+    HEADLESS_ADMIN_PASSWORD: ${HEADLESS_ADMIN_PASSWORD:-}
+    HEADLESS_MEDIA_ROOT: /var/lib/headless/media
+    HEADLESS_MANIFEST_PATH: ${HEADLESS_MANIFEST_PATH:-}
+  volumes:
+    - headless_media:/var/lib/headless/media
+  healthcheck:
+    test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/readyz"]
+    interval: 15s
+    timeout: 3s
+    retries: 5
+    start_period: 10s
+
+services:
+  backend:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      HEADLESS_STORAGE: bbolt
+      HEADLESS_BBOLT_PATH: /var/lib/headless/backend.db
+    ports:
+      - "${HEADLESS_PORT:-8080}:8080"
+    volumes:
+      - headless_bbolt:/var/lib/headless
+
+  backend-sqlite:
+    <<: *backend
+    profiles: ["sqlite"]
+    environment:
+      <<: *backend-env
+      HEADLESS_STORAGE: sqlite
+      DATABASE_URL: /var/lib/headless/backend.sqlite
+    ports:
+      - "${HEADLESS_SQLITE_PORT:-8084}:8080"
+    volumes:
+      - headless_sqlite:/var/lib/headless
+
+  postgres:
+    image: postgres:18-alpine
+    profiles: ["postgres"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: headless
+      POSTGRES_USER: headless
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U headless -d headless"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend-postgres:
+    <<: *backend
+    profiles: ["postgres"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *backend-env
+      HEADLESS_STORAGE: postgres
+      DATABASE_URL: postgres://headless:${POSTGRES_PASSWORD}@postgres:5432/headless?sslmode=disable
+    ports:
+      - "${HEADLESS_POSTGRES_PORT:-8081}:8080"
+
+  mysql:
+    image: mysql:9
+    profiles: ["mysql"]
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: headless
+      MYSQL_USER: headless
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  backend-mysql:
+    <<: *backend
+    profiles: ["mysql"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      <<: *backend-env
+      HEADLESS_STORAGE: mysql
+      DATABASE_URL: headless:${MYSQL_PASSWORD}@tcp(mysql:3306)/headless?parseTime=true&charset=utf8mb4
+    ports:
+      - "${HEADLESS_MYSQL_PORT:-8082}:8080"
+
+  mariadb:
+    image: mariadb:12
+    profiles: ["mariadb"]
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: headless
+      MARIADB_USER: headless
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:?set MARIADB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?set MARIADB_ROOT_PASSWORD}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  backend-mariadb:
+    <<: *backend
+    profiles: ["mariadb"]
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      <<: *backend-env
+      HEADLESS_STORAGE: mariadb
+      DATABASE_URL: headless:${MARIADB_PASSWORD}@tcp(mariadb:3306)/headless?parseTime=true&charset=utf8mb4
+    ports:
+      - "${HEADLESS_MARIADB_PORT:-8083}:8080"
+
+volumes:
+  headless_bbolt:
+  headless_sqlite:
+  headless_media:
+  postgres_data:
+  mysql_data:
+  mariadb_data:

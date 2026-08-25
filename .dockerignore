@@ -1,0 +1,9 @@
+.git
+.cursor
+.env
+.project
+dist
+var
+*.exe
+*.test
+coverage.out

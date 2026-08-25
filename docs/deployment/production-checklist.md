@@ -1,0 +1,21 @@
+# Production checklist
+
+- Build with the Go version declared in `go.mod`.
+- Run `go test ./...`, `go vet ./...`, and `go mod verify`.
+- Use a random `HEADLESS_TOKEN_SECRET` of at least 32 bytes.
+- Remove bootstrap administrator credentials after the first verified login.
+- Keep `HEADLESS_ALLOW_INSECURE_AUTH` disabled.
+- Keep token TTLs short and issue only required capabilities.
+- Use TLS at the reverse proxy and a private backend bind address.
+- Set explicit request, proxy, and media size limits.
+- Persist both metadata storage and `HEADLESS_MEDIA_ROOT`.
+- Use verified TLS for external SQL databases.
+- Give the SQL account access only to backend-owned tables.
+- Monitor `/readyz`, `/metrics`, process logs, and audit events.
+- Export both metadata and `.media.tar` backups.
+- Copy backups to independent encrypted storage.
+- Test cross-host restore before every production rollout.
+- Keep the manifest under version control and back it up with each release.
+- Verify scheduled publishing, private records, and media access after deployment.
+- Run the process as a dedicated unprivileged user.
+- Apply the systemd or container filesystem restrictions supplied by the repository.
