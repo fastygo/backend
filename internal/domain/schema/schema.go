@@ -1,11 +1,7 @@
 package schema
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"regexp"
 	"slices"
 	"strings"
@@ -119,10 +115,7 @@ func (manifest Manifest) Validate() error {
 	return nil
 }
 
-func (manifest Manifest) Digest() (string, error) {
-	if err := manifest.Validate(); err != nil {
-		return "", err
-	}
+func (manifest Manifest) Canonical() Manifest {
 	canonical := manifest
 	canonical.Resources = append([]Resource(nil), manifest.Resources...)
 	slices.SortFunc(canonical.Resources, func(left, right Resource) int {
@@ -136,12 +129,7 @@ func (manifest Manifest) Digest() (string, error) {
 		canonical.Resources[index].Taxonomies = append([]string(nil), canonical.Resources[index].Taxonomies...)
 		slices.Sort(canonical.Resources[index].Taxonomies)
 	}
-	encoded, err := json.Marshal(digestManifest(canonical))
-	if err != nil {
-		return "", fmt.Errorf("failed to encode manifest digest: %w", err)
-	}
-	sum := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(sum[:]), nil
+	return canonical
 }
 
 func validateFields(fields []Field) error {
@@ -217,74 +205,4 @@ func (cardinality Cardinality) Valid() bool {
 
 func (policy DeletePolicy) Valid() bool {
 	return policy == DeleteRestrict || policy == DeleteNullify || policy == DeleteCascade
-}
-
-type digestRelation struct {
-	Resource    string       `json:"resource"`
-	Cardinality Cardinality  `json:"cardinality"`
-	OnDelete    DeletePolicy `json:"on_delete"`
-}
-
-type digestField struct {
-	ID        string          `json:"id"`
-	Type      FieldType       `json:"type"`
-	Required  bool            `json:"required,omitempty"`
-	Nullable  bool            `json:"nullable,omitempty"`
-	ReadOnly  bool            `json:"read_only,omitempty"`
-	Sensitive bool            `json:"sensitive,omitempty"`
-	Localized bool            `json:"localized,omitempty"`
-	Enum      []string        `json:"enum,omitempty"`
-	Relation  *digestRelation `json:"relation,omitempty"`
-	Items     *digestField    `json:"items,omitempty"`
-}
-
-type digestResource struct {
-	ID             string        `json:"id"`
-	Collection     string        `json:"collection"`
-	Fields         []digestField `json:"fields"`
-	Taxonomies     []string      `json:"taxonomies,omitempty"`
-	Public         bool          `json:"public,omitempty"`
-	RESTVisible    bool          `json:"rest_visible,omitempty"`
-	GraphQLVisible bool          `json:"graphql_visible,omitempty"`
-}
-
-type digestDocument struct {
-	Name      string           `json:"name"`
-	Version   string           `json:"version"`
-	Resources []digestResource `json:"resources"`
-}
-
-func digestManifest(manifest Manifest) digestDocument {
-	resources := make([]digestResource, 0, len(manifest.Resources))
-	for _, resource := range manifest.Resources {
-		fields := make([]digestField, 0, len(resource.Fields))
-		for _, field := range resource.Fields {
-			fields = append(fields, digestFieldFrom(field))
-		}
-		resources = append(resources, digestResource{
-			ID: resource.ID, Collection: resource.Collection, Fields: fields,
-			Taxonomies: resource.Taxonomies, Public: resource.Public,
-			RESTVisible: resource.RESTVisible, GraphQLVisible: resource.GraphQLVisible,
-		})
-	}
-	return digestDocument{Name: manifest.Name, Version: manifest.Version, Resources: resources}
-}
-
-func digestFieldFrom(field Field) digestField {
-	document := digestField{
-		ID: field.ID, Type: field.Type, Required: field.Required, Nullable: field.Nullable,
-		ReadOnly: field.ReadOnly, Sensitive: field.Sensitive, Localized: field.Localized,
-		Enum: field.Enum,
-	}
-	if field.Relation != nil {
-		document.Relation = &digestRelation{
-			Resource: field.Relation.Resource, Cardinality: field.Relation.Cardinality,
-			OnDelete: field.Relation.OnDelete,
-		}
-	}
-	if field.Items != nil {
-		item := digestFieldFrom(*field.Items)
-		document.Items = &item
-	}
-	return document
 }

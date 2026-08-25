@@ -53,7 +53,7 @@ func (service *Service) Export(ctx context.Context, destination io.Writer) error
 	if destination == nil {
 		return errors.New("backup destination is required")
 	}
-	digest, err := service.manifest.Digest()
+	digest, err := persist.ManifestDigest(service.manifest)
 	if err != nil {
 		return err
 	}
@@ -134,11 +134,11 @@ func (service *Service) Restore(ctx context.Context, source io.Reader) error {
 	if document.FormatVersion != FormatVersion {
 		return errors.New("backup format version is unsupported")
 	}
-	digest, err := document.Manifest.Domain().Digest()
+	digest, err := persist.ManifestDigest(document.Manifest.Domain())
 	if err != nil || digest != document.ManifestDigest {
 		return errors.New("backup manifest digest is invalid")
 	}
-	currentDigest, err := service.manifest.Digest()
+	currentDigest, err := persist.ManifestDigest(service.manifest)
 	if err != nil || currentDigest != digest {
 		return errors.New("backup manifest does not match runtime manifest")
 	}

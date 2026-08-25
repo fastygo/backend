@@ -15,6 +15,7 @@ import (
 )
 
 func TestContentRESTCreateReadAndOptimisticUpdate(t *testing.T) {
+	t.Parallel()
 	adapter, err := bboltstorage.Open(filepath.Join(t.TempDir(), "rest.db"), 0o600, nil)
 	if err != nil {
 		t.Fatalf("open storage: %v", err)

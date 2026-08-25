@@ -166,3 +166,14 @@ func TestLoadConfigReadsProductDefinedManifest(t *testing.T) {
 		t.Fatalf("external manifest was not loaded")
 	}
 }
+
+func TestFrameworkConfigBoundsHTTPShutdown(t *testing.T) {
+	t.Parallel()
+	config, err := app.LoadConfig()
+	if err != nil {
+		t.Fatalf("load framework config: %v", err)
+	}
+	if config.HTTPShutdownTimeout <= 0 || config.HTTPReadTimeout <= 0 || config.HTTPWriteTimeout <= 0 {
+		t.Fatalf("HTTP timeouts must be bounded: %#v", config)
+	}
+}

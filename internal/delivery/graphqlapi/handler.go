@@ -14,6 +14,7 @@ import (
 	"github.com/fastygo/backend/internal/domain/authz"
 	domaincontent "github.com/fastygo/backend/internal/domain/content"
 	domainschema "github.com/fastygo/backend/internal/domain/schema"
+	"github.com/fastygo/backend/internal/persist"
 	"github.com/google/uuid"
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
@@ -110,7 +111,7 @@ func (handler *Handler) buildSchema(manifest domainschema.Manifest) (graphql.Sch
 	jsonScalar := newJSONScalar()
 	queryFields := graphql.Fields{}
 	mutationFields := graphql.Fields{}
-	digest, _ := manifest.Digest()
+	digest, _ := persist.ManifestDigest(manifest)
 	identity := graphql.NewObject(graphql.ObjectConfig{
 		Name: "SchemaIdentity",
 		Fields: graphql.Fields{

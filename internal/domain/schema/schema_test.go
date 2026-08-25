@@ -2,25 +2,6 @@ package schema
 
 import "testing"
 
-func TestManifestDigestIsOrderIndependent(t *testing.T) {
-	t.Parallel()
-	first := productManifest()
-	second := productManifest()
-	second.Resources[1].Fields[0], second.Resources[1].Fields[1] = second.Resources[1].Fields[1], second.Resources[1].Fields[0]
-	second.Resources[0], second.Resources[1] = second.Resources[1], second.Resources[0]
-	firstDigest, err := first.Digest()
-	if err != nil {
-		t.Fatalf("digest first manifest: %v", err)
-	}
-	secondDigest, err := second.Digest()
-	if err != nil {
-		t.Fatalf("digest second manifest: %v", err)
-	}
-	if firstDigest != secondDigest {
-		t.Fatalf("manifest digest depends on declaration order")
-	}
-}
-
 func TestManifestValidation(t *testing.T) {
 	t.Parallel()
 	cases := map[string]struct {

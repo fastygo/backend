@@ -1,6 +1,8 @@
 package persist
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
@@ -134,4 +136,16 @@ func DecodeManifest(encoded []byte) (schema.Manifest, error) {
 		return schema.Manifest{}, fmt.Errorf("failed to decode schema manifest: %w", err)
 	}
 	return document.Domain(), nil
+}
+
+func ManifestDigest(manifest schema.Manifest) (string, error) {
+	if err := manifest.Validate(); err != nil {
+		return "", err
+	}
+	encoded, err := EncodeManifest(manifest.Canonical())
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(encoded)
+	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }

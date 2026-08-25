@@ -8,7 +8,7 @@ import (
 )
 
 func (handler *ContentHandler) schemaIdentity(response http.ResponseWriter, request *http.Request) {
-	digest, err := handler.manifest.Digest()
+	digest, err := persist.ManifestDigest(handler.manifest)
 	if err != nil {
 		writeError(response, request, err)
 		return
