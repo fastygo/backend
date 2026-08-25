@@ -47,7 +47,7 @@ func TestAdapterPersistsContentAndRevisionsAcrossReopen(t *testing.T) {
 	if resolved.Version != 2 || resolved.Title["en"] != "Durable title" {
 		t.Fatalf("unexpected durable content: %#v", resolved)
 	}
-	if err := adapter.WithinTransaction(context.Background(), func(transaction application.Transaction) error {
+	if err := adapter.WithinContentTransaction(context.Background(), func(transaction application.Transaction) error {
 		items, page, err := transaction.Revisions().List(context.Background(), resolved.ID, 1, 20)
 		if err != nil {
 			return err
@@ -74,7 +74,7 @@ func TestAdapterRollsBackFailedTransaction(t *testing.T) {
 	adapter := openTestAdapter(t, filepath.Join(t.TempDir(), "rollback.db"))
 	t.Cleanup(func() { _ = adapter.Close() })
 	sentinel := errors.New("abort")
-	err := adapter.WithinTransaction(context.Background(), func(transaction application.Transaction) error {
+	err := adapter.WithinContentTransaction(context.Background(), func(transaction application.Transaction) error {
 		if err := transaction.Content().Create(context.Background(), testEntry(time.Now().UTC())); err != nil {
 			return err
 		}
@@ -84,7 +84,7 @@ func TestAdapterRollsBackFailedTransaction(t *testing.T) {
 		t.Fatalf("unexpected rollback error: %v", err)
 	}
 
-	err = adapter.WithinTransaction(context.Background(), func(transaction application.Transaction) error {
+	err = adapter.WithinContentTransaction(context.Background(), func(transaction application.Transaction) error {
 		_, err := transaction.Content().Get(context.Background(), "post_1")
 		if !errors.Is(err, ErrNotFound) {
 			t.Fatalf("rolled back content remains visible: %v", err)
@@ -100,7 +100,7 @@ func TestAdapterFiltersPublicContentAndTaxonomy(t *testing.T) {
 	adapter := openTestAdapter(t, filepath.Join(t.TempDir(), "filter.db"))
 	t.Cleanup(func() { _ = adapter.Close() })
 	now := time.Now().UTC()
-	err := adapter.WithinTransaction(context.Background(), func(transaction application.Transaction) error {
+	err := adapter.WithinContentTransaction(context.Background(), func(transaction application.Transaction) error {
 		public := testEntry(now)
 		public.Terms = []content.TermRef{{Taxonomy: "topic", TermID: "go"}}
 		if err := transaction.Content().Create(context.Background(), public); err != nil {
@@ -116,7 +116,7 @@ func TestAdapterFiltersPublicContentAndTaxonomy(t *testing.T) {
 		t.Fatalf("seed content: %v", err)
 	}
 
-	err = adapter.WithinTransaction(context.Background(), func(transaction application.Transaction) error {
+	err = adapter.WithinContentTransaction(context.Background(), func(transaction application.Transaction) error {
 		result, err := transaction.Content().List(context.Background(), application.Query{
 			Page: 1, PerPage: 10, PublicOnly: true, PublicAt: now,
 			TaxonomyID: "topic", TermID: "go",

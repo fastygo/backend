@@ -12,9 +12,12 @@ import (
 	"strings"
 	"time"
 
-	application "github.com/fastygo/backend/internal/application/content"
+	contentapplication "github.com/fastygo/backend/internal/application/content"
+	identityapplication "github.com/fastygo/backend/internal/application/identity"
+	taxonomyapplication "github.com/fastygo/backend/internal/application/taxonomy"
 	"github.com/fastygo/backend/internal/domain/content"
 	"github.com/fastygo/backend/internal/domain/revision"
+	"github.com/fastygo/backend/internal/operations/backup"
 	"github.com/google/uuid"
 	bolt "go.etcd.io/bbolt"
 )
@@ -39,6 +42,13 @@ var (
 type Adapter struct {
 	database *bolt.DB
 }
+
+var (
+	_ contentapplication.Transactor  = (*Adapter)(nil)
+	_ taxonomyapplication.Transactor = (*Adapter)(nil)
+	_ identityapplication.Transactor = (*Adapter)(nil)
+	_ backup.Transactor              = (*Adapter)(nil)
+)
 
 func Open(path string, mode os.FileMode, options *bolt.Options) (*Adapter, error) {
 	path = strings.TrimSpace(path)
@@ -102,7 +112,7 @@ func (adapter *Adapter) Ping(ctx context.Context) error {
 	})
 }
 
-func (adapter *Adapter) WithinTransaction(ctx context.Context, operation func(application.Transaction) error) error {
+func (adapter *Adapter) update(ctx context.Context, operation func(*bolt.Tx) error) error {
 	if adapter == nil || adapter.database == nil {
 		return errors.New("bbolt is not open")
 	}
@@ -113,31 +123,121 @@ func (adapter *Adapter) WithinTransaction(ctx context.Context, operation func(ap
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		return operation(tx{transaction: transaction})
+		return operation(transaction)
 	})
 }
 
-type tx struct {
+func (adapter *Adapter) WithinContentTransaction(
+	ctx context.Context,
+	operation func(contentapplication.Transaction) error,
+) error {
+	if operation == nil {
+		return errors.New("content transaction operation is required")
+	}
+	return adapter.update(ctx, func(transaction *bolt.Tx) error {
+		return operation(contentTx{transaction: transaction})
+	})
+}
+
+func (adapter *Adapter) WithinTaxonomyTransaction(
+	ctx context.Context,
+	operation func(taxonomyapplication.Transaction) error,
+) error {
+	if operation == nil {
+		return errors.New("taxonomy transaction operation is required")
+	}
+	return adapter.update(ctx, func(transaction *bolt.Tx) error {
+		return operation(taxonomyTx{transaction: transaction})
+	})
+}
+
+func (adapter *Adapter) WithinIdentityTransaction(
+	ctx context.Context,
+	operation func(identityapplication.Transaction) error,
+) error {
+	if operation == nil {
+		return errors.New("identity transaction operation is required")
+	}
+	return adapter.update(ctx, func(transaction *bolt.Tx) error {
+		return operation(identityTx{transaction: transaction})
+	})
+}
+
+func (adapter *Adapter) WithinBackupTransaction(
+	ctx context.Context,
+	operation func(backup.Transaction) error,
+) error {
+	if operation == nil {
+		return errors.New("backup transaction operation is required")
+	}
+	return adapter.update(ctx, func(transaction *bolt.Tx) error {
+		return operation(backupTx{transaction: transaction})
+	})
+}
+
+type contentTx struct {
 	transaction *bolt.Tx
 }
 
-func (transaction tx) Content() application.Repository {
+func (transaction contentTx) Content() contentapplication.Repository {
 	return contentRepository{transaction: transaction.transaction}
 }
 
-func (transaction tx) Revisions() application.RevisionRepository {
+func (transaction contentTx) Revisions() contentapplication.RevisionRepository {
 	return revisionRepository{transaction: transaction.transaction}
 }
 
-func (transaction tx) Audit() application.AuditRepository {
+func (transaction contentTx) Audit() contentapplication.AuditRepository {
 	return auditRepository{transaction: transaction.transaction}
 }
 
-func (transaction tx) Taxonomies() application.TaxonomyRepository {
+func (transaction contentTx) Taxonomies() contentapplication.TaxonomyReader {
 	return taxonomyRepository{transaction: transaction.transaction}
 }
 
-func (transaction tx) Identity() application.IdentityRepository {
+type taxonomyTx struct{ transaction *bolt.Tx }
+
+func (transaction taxonomyTx) Taxonomies() taxonomyapplication.Repository {
+	return taxonomyRepository{transaction: transaction.transaction}
+}
+
+func (transaction taxonomyTx) Content() taxonomyapplication.ContentRepository {
+	return contentRepository{transaction: transaction.transaction}
+}
+
+func (transaction taxonomyTx) Audit() taxonomyapplication.AuditRepository {
+	return auditRepository{transaction: transaction.transaction}
+}
+
+type identityTx struct{ transaction *bolt.Tx }
+
+func (transaction identityTx) Identity() identityapplication.Repository {
+	return identityRepository{transaction: transaction.transaction}
+}
+
+func (transaction identityTx) Audit() identityapplication.AuditRepository {
+	return auditRepository{transaction: transaction.transaction}
+}
+
+type backupTx struct{ transaction *bolt.Tx }
+
+func (transaction backupTx) Content() backup.ContentRepository {
+	return contentRepository{transaction: transaction.transaction}
+}
+
+func (transaction backupTx) Revisions() backup.RevisionRepository {
+	return revisionRepository{transaction: transaction.transaction}
+}
+
+func (transaction backupTx) Audit() backup.AuditRepository {
+	return auditRepository{transaction: transaction.transaction}
+}
+
+func (transaction backupTx) Taxonomies() backup.TaxonomyRepository {
+	return taxonomyRepository{transaction: transaction.transaction}
+}
+
+func (transaction backupTx) Identity() backup.IdentityRepository {
 	return identityRepository{transaction: transaction.transaction}
 }
 
@@ -177,9 +277,9 @@ func (repository contentRepository) GetBySlug(_ context.Context, kind content.Ki
 	return content.Entry{}, ErrNotFound
 }
 
-func (repository contentRepository) List(_ context.Context, query application.Query) (application.ListResult, error) {
+func (repository contentRepository) List(_ context.Context, query contentapplication.Query) (contentapplication.ListResult, error) {
 	if query.Page < 1 || query.PerPage < 1 {
-		return application.ListResult{}, errors.New("invalid pagination")
+		return contentapplication.ListResult{}, errors.New("invalid pagination")
 	}
 	if query.PublicOnly && query.PublicAt.IsZero() {
 		query.PublicAt = time.Now().UTC()
@@ -196,7 +296,7 @@ func (repository contentRepository) List(_ context.Context, query application.Qu
 		return nil
 	})
 	if err != nil {
-		return application.ListResult{}, err
+		return contentapplication.ListResult{}, err
 	}
 	sortEntries(entries, query.Sort, query.Descending)
 	total := len(entries)
@@ -210,9 +310,9 @@ func (repository contentRepository) List(_ context.Context, query application.Qu
 	if total > 0 {
 		totalPages = int(math.Ceil(float64(total) / float64(query.PerPage)))
 	}
-	return application.ListResult{
+	return contentapplication.ListResult{
 		Entries: pageEntries,
-		Page: application.Page{
+		Page: contentapplication.Page{
 			Number: query.Page, PerPage: query.PerPage, Total: total, TotalPages: totalPages,
 		},
 	}, nil
@@ -327,9 +427,9 @@ func (repository revisionRepository) List(
 	entryID content.ID,
 	page int,
 	perPage int,
-) ([]revision.Revision, application.Page, error) {
+) ([]revision.Revision, contentapplication.Page, error) {
 	if page < 1 || perPage < 1 {
-		return nil, application.Page{}, errors.New("invalid pagination")
+		return nil, contentapplication.Page{}, errors.New("invalid pagination")
 	}
 	items := make([]revision.Revision, 0)
 	err := repository.transaction.Bucket(revisionsBucket).ForEach(func(_, value []byte) error {
@@ -343,7 +443,7 @@ func (repository revisionRepository) List(
 		return nil
 	})
 	if err != nil {
-		return nil, application.Page{}, err
+		return nil, contentapplication.Page{}, err
 	}
 	slices.SortFunc(items, func(left, right revision.Revision) int {
 		return right.CreatedAt.Compare(left.CreatedAt)
@@ -358,7 +458,7 @@ func (repository revisionRepository) List(
 	if total > 0 {
 		totalPages = int(math.Ceil(float64(total) / float64(perPage)))
 	}
-	return append([]revision.Revision(nil), items[start:end]...), application.Page{
+	return append([]revision.Revision(nil), items[start:end]...), contentapplication.Page{
 		Number: page, PerPage: perPage, Total: total, TotalPages: totalPages,
 	}, nil
 }
@@ -381,7 +481,7 @@ func putJSON(bucket *bolt.Bucket, key []byte, value any) error {
 	return bucket.Put(key, encoded)
 }
 
-func matches(entry content.Entry, query application.Query) bool {
+func matches(entry content.Entry, query contentapplication.Query) bool {
 	if query.PublicOnly && !entry.IsPublicAt(query.PublicAt) {
 		return false
 	}

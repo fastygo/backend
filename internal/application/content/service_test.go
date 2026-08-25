@@ -176,7 +176,7 @@ type memoryTransactor struct {
 	taxonomies *memoryTaxonomies
 }
 
-func (transactor memoryTransactor) WithinTransaction(ctx context.Context, operation func(Transaction) error) error {
+func (transactor memoryTransactor) WithinContentTransaction(ctx context.Context, operation func(Transaction) error) error {
 	return operation(memoryTransaction(transactor))
 }
 
@@ -200,15 +200,11 @@ func (transaction memoryTransaction) Audit() AuditRepository {
 	return transaction.audit
 }
 
-func (transaction memoryTransaction) Taxonomies() TaxonomyRepository {
+func (transaction memoryTransaction) Taxonomies() TaxonomyReader {
 	if transaction.taxonomies == nil {
 		return newMemoryTaxonomies()
 	}
 	return transaction.taxonomies
-}
-
-func (transaction memoryTransaction) Identity() IdentityRepository {
-	return nil
 }
 
 type memoryRepository struct {

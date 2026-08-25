@@ -19,6 +19,7 @@ import (
 	"github.com/fastygo/backend/internal/delivery/rest"
 	"github.com/fastygo/backend/internal/domain/schema"
 	"github.com/fastygo/backend/internal/identity"
+	"github.com/fastygo/backend/internal/operations/backup"
 	"github.com/fastygo/backend/internal/platform"
 	bboltstorage "github.com/fastygo/backend/internal/storage/bbolt"
 	"github.com/fastygo/backend/internal/storage/localmedia"
@@ -28,6 +29,9 @@ import (
 
 type Storage interface {
 	application.Transactor
+	applicationtaxonomy.Transactor
+	applicationidentity.Transactor
+	backup.Transactor
 	platform.HealthResource
 	platform.CloseResource
 }

@@ -6,7 +6,6 @@ import (
 
 	"github.com/fastygo/backend/internal/domain/audit"
 	"github.com/fastygo/backend/internal/domain/content"
-	domainidentity "github.com/fastygo/backend/internal/domain/identity"
 	"github.com/fastygo/backend/internal/domain/revision"
 	"github.com/fastygo/backend/internal/domain/taxonomy"
 )
@@ -64,12 +63,11 @@ type Transaction interface {
 	Content() Repository
 	Revisions() RevisionRepository
 	Audit() AuditRepository
-	Taxonomies() TaxonomyRepository
-	Identity() IdentityRepository
+	Taxonomies() TaxonomyReader
 }
 
 type Transactor interface {
-	WithinTransaction(context.Context, func(Transaction) error) error
+	WithinContentTransaction(context.Context, func(Transaction) error) error
 }
 
 type LifecycleEvent struct {
@@ -105,25 +103,7 @@ type AuditRepository interface {
 	List(context.Context, AuditQuery) ([]audit.Event, Page, error)
 }
 
-type TaxonomyRepository interface {
+type TaxonomyReader interface {
 	GetDefinition(context.Context, string) (taxonomy.Definition, error)
-	ListDefinitions(context.Context) ([]taxonomy.Definition, error)
-	SaveDefinition(context.Context, taxonomy.Definition, uint64) error
-	DeleteDefinition(context.Context, string, uint64) error
 	GetTerm(context.Context, taxonomy.ID) (taxonomy.Term, error)
-	ListTerms(context.Context, string) ([]taxonomy.Term, error)
-	SaveTerm(context.Context, taxonomy.Term, uint64) error
-	DeleteTerm(context.Context, taxonomy.ID, uint64) error
-}
-
-type IdentityRepository interface {
-	GetUser(context.Context, string) (domainidentity.User, error)
-	GetUserByEmail(context.Context, string) (domainidentity.User, error)
-	ListUsers(context.Context) ([]domainidentity.User, error)
-	SaveUser(context.Context, domainidentity.User, uint64) error
-	DeleteUser(context.Context, string, uint64) error
-	GetRole(context.Context, string) (domainidentity.Role, error)
-	ListRoles(context.Context) ([]domainidentity.Role, error)
-	SaveRole(context.Context, domainidentity.Role, uint64) error
-	DeleteRole(context.Context, string, uint64) error
 }

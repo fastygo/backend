@@ -77,7 +77,7 @@ func (service *Service) GetBySlug(
 	slug string,
 ) (domaincontent.Entry, error) {
 	var entry domaincontent.Entry
-	err := service.transactor.WithinTransaction(ctx, func(transaction Transaction) error {
+	err := service.transactor.WithinContentTransaction(ctx, func(transaction Transaction) error {
 		resolved, err := transaction.Content().GetBySlug(ctx, kind, locale, slug)
 		if err != nil {
 			return core.WrapDomainError(core.ErrorCodeNotFound, "content was not found", err)
@@ -116,7 +116,7 @@ func (service *Service) GetAuthorized(
 
 func (service *Service) load(ctx context.Context, id domaincontent.ID) (domaincontent.Entry, error) {
 	var entry domaincontent.Entry
-	err := service.transactor.WithinTransaction(ctx, func(transaction Transaction) error {
+	err := service.transactor.WithinContentTransaction(ctx, func(transaction Transaction) error {
 		resolved, err := transaction.Content().Get(ctx, id)
 		if err != nil {
 			return core.WrapDomainError(core.ErrorCodeNotFound, "content was not found", err)
@@ -140,7 +140,7 @@ func (service *Service) List(ctx context.Context, principal authz.Principal, que
 		query.PublicAt = service.now().UTC()
 	}
 	var result ListResult
-	err := service.transactor.WithinTransaction(ctx, func(transaction Transaction) error {
+	err := service.transactor.WithinContentTransaction(ctx, func(transaction Transaction) error {
 		resolved, err := transaction.Content().List(ctx, query)
 		if err != nil {
 			return core.WrapDomainError(core.ErrorCodeInternal, "content list failed", err)
@@ -178,7 +178,7 @@ func (service *Service) ListAudit(
 	}
 	var events []audit.Event
 	var page Page
-	err := service.transactor.WithinTransaction(ctx, func(transaction Transaction) error {
+	err := service.transactor.WithinContentTransaction(ctx, func(transaction Transaction) error {
 		resolved, resolvedPage, err := transaction.Audit().List(ctx, query)
 		if err != nil {
 			return core.WrapDomainError(core.ErrorCodeInternal, "audit list failed", err)
@@ -223,7 +223,7 @@ func (service *Service) Create(ctx context.Context, principal authz.Principal, e
 	if err := service.before(ctx, event); err != nil {
 		return domaincontent.Entry{}, err
 	}
-	err := service.transactor.WithinTransaction(ctx, func(transaction Transaction) error {
+	err := service.transactor.WithinContentTransaction(ctx, func(transaction Transaction) error {
 		if err := validateTaxonomyAssignments(ctx, principal, transaction.Taxonomies(), entry); err != nil {
 			return err
 		}
@@ -262,7 +262,7 @@ func (service *Service) Update(
 ) (domaincontent.Entry, error) {
 	var before domaincontent.Entry
 	var event LifecycleEvent
-	err := service.transactor.WithinTransaction(ctx, func(transaction Transaction) error {
+	err := service.transactor.WithinContentTransaction(ctx, func(transaction Transaction) error {
 		current, err := transaction.Content().Get(ctx, entry.ID)
 		if err != nil {
 			return core.WrapDomainError(core.ErrorCodeNotFound, "content was not found", err)
@@ -863,7 +863,7 @@ func validateRelationIDs(
 func validateTaxonomyAssignments(
 	ctx context.Context,
 	principal authz.Principal,
-	repository TaxonomyRepository,
+	repository TaxonomyReader,
 	entry domaincontent.Entry,
 ) error {
 	if len(entry.Terms) == 0 {
@@ -962,7 +962,7 @@ func (service *Service) Revisions(
 	}
 	var items []revision.Revision
 	var pagination Page
-	err = service.transactor.WithinTransaction(ctx, func(transaction Transaction) error {
+	err = service.transactor.WithinContentTransaction(ctx, func(transaction Transaction) error {
 		resolved, resolvedPage, err := transaction.Revisions().List(ctx, entryID, page, perPage)
 		if err != nil {
 			return core.WrapDomainError(core.ErrorCodeInternal, "revision list failed", err)
@@ -989,7 +989,7 @@ func (service *Service) RestoreRevision(
 		return domaincontent.Entry{}, core.NewDomainError(core.ErrorCodeForbidden, "content.manage_revisions is required")
 	}
 	var item revision.Revision
-	err := service.transactor.WithinTransaction(ctx, func(transaction Transaction) error {
+	err := service.transactor.WithinContentTransaction(ctx, func(transaction Transaction) error {
 		resolved, err := transaction.Revisions().Get(ctx, revisionID)
 		if err != nil {
 			return core.WrapDomainError(core.ErrorCodeNotFound, "revision was not found", err)

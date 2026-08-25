@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	application "github.com/fastygo/backend/internal/application/content"
+	contentapplication "github.com/fastygo/backend/internal/application/content"
 	"github.com/fastygo/backend/internal/domain/audit"
 	"github.com/fastygo/backend/internal/domain/authz"
 	domaintaxonomy "github.com/fastygo/backend/internal/domain/taxonomy"
@@ -14,11 +14,11 @@ import (
 )
 
 type Service struct {
-	transactor application.Transactor
+	transactor Transactor
 	now        func() time.Time
 }
 
-func NewService(transactor application.Transactor, clock application.Clock) (*Service, error) {
+func NewService(transactor Transactor, clock Clock) (*Service, error) {
 	if transactor == nil {
 		return nil, errors.New("taxonomy transactor is required")
 	}
@@ -34,7 +34,7 @@ func (service *Service) ListDefinitions(
 	principal authz.Principal,
 ) ([]domaintaxonomy.Definition, error) {
 	var definitions []domaintaxonomy.Definition
-	err := service.transactor.WithinTransaction(ctx, func(transaction application.Transaction) error {
+	err := service.transactor.WithinTaxonomyTransaction(ctx, func(transaction Transaction) error {
 		items, err := transaction.Taxonomies().ListDefinitions(ctx)
 		if err != nil {
 			return core.WrapDomainError(core.ErrorCodeInternal, "taxonomy list failed", err)
@@ -67,7 +67,7 @@ func (service *Service) SaveDefinition(
 			err,
 		)
 	}
-	err := service.transactor.WithinTransaction(ctx, func(transaction application.Transaction) error {
+	err := service.transactor.WithinTaxonomyTransaction(ctx, func(transaction Transaction) error {
 		if expectedVersion > 0 {
 			current, err := transaction.Taxonomies().GetDefinition(ctx, definition.ID)
 			if err != nil {
@@ -101,7 +101,7 @@ func (service *Service) DeleteDefinition(
 	if err := requireManage(principal); err != nil {
 		return err
 	}
-	return service.transactor.WithinTransaction(ctx, func(transaction application.Transaction) error {
+	return service.transactor.WithinTaxonomyTransaction(ctx, func(transaction Transaction) error {
 		terms, err := transaction.Taxonomies().ListTerms(ctx, id)
 		if err != nil {
 			return core.WrapDomainError(core.ErrorCodeInternal, "taxonomy terms could not be loaded", err)
@@ -122,7 +122,7 @@ func (service *Service) ListTerms(
 	taxonomyID string,
 ) ([]domaintaxonomy.Term, error) {
 	var terms []domaintaxonomy.Term
-	err := service.transactor.WithinTransaction(ctx, func(transaction application.Transaction) error {
+	err := service.transactor.WithinTaxonomyTransaction(ctx, func(transaction Transaction) error {
 		definition, err := transaction.Taxonomies().GetDefinition(ctx, taxonomyID)
 		if err != nil {
 			return core.WrapDomainError(core.ErrorCodeNotFound, "taxonomy was not found", err)
@@ -151,7 +151,7 @@ func (service *Service) SaveTerm(
 	term.ID = domaintaxonomy.ID(strings.TrimSpace(string(term.ID)))
 	term.TaxonomyID = strings.TrimSpace(term.TaxonomyID)
 	term.Version = expectedVersion + 1
-	err := service.transactor.WithinTransaction(ctx, func(transaction application.Transaction) error {
+	err := service.transactor.WithinTaxonomyTransaction(ctx, func(transaction Transaction) error {
 		definition, err := transaction.Taxonomies().GetDefinition(ctx, term.TaxonomyID)
 		if err != nil {
 			return core.WrapDomainError(core.ErrorCodeNotFound, "taxonomy was not found", err)
@@ -197,7 +197,7 @@ func (service *Service) DeleteTerm(
 	if err := requireManage(principal); err != nil {
 		return err
 	}
-	return service.transactor.WithinTransaction(ctx, func(transaction application.Transaction) error {
+	return service.transactor.WithinTaxonomyTransaction(ctx, func(transaction Transaction) error {
 		term, err := transaction.Taxonomies().GetTerm(ctx, id)
 		if err != nil {
 			return core.WrapDomainError(core.ErrorCodeNotFound, "taxonomy term was not found", err)
@@ -234,11 +234,11 @@ func requireManage(principal authz.Principal) error {
 
 func termIsAssigned(
 	ctx context.Context,
-	repository application.Repository,
+	repository ContentRepository,
 	term domaintaxonomy.Term,
 ) (bool, error) {
 	for page := 1; ; page++ {
-		result, err := repository.List(ctx, application.Query{Page: page, PerPage: 100})
+		result, err := repository.List(ctx, contentapplication.Query{Page: page, PerPage: 100})
 		if err != nil {
 			return false, err
 		}
@@ -257,7 +257,7 @@ func termIsAssigned(
 
 func saveAudit(
 	ctx context.Context,
-	repository application.AuditRepository,
+	repository AuditRepository,
 	actorID string,
 	action string,
 	resourceID string,

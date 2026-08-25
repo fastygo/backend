@@ -36,6 +36,9 @@ func TestBootstrapLoginAndUserRoleManagement(t *testing.T) {
 	if err := service.Initialize(ctx, "admin@example.com", "correct horse battery staple"); err != nil {
 		t.Fatalf("initialize identity: %v", err)
 	}
+	if err := service.Initialize(ctx, "admin@example.com", ""); err != nil {
+		t.Fatalf("reinitialize existing identity without bootstrap password: %v", err)
+	}
 	token, err := service.Authenticate(ctx, "ADMIN@example.com", "correct horse battery staple", time.Hour)
 	if err != nil || token == "" {
 		t.Fatalf("authenticate bootstrap admin: %v", err)

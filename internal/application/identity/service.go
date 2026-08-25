@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	application "github.com/fastygo/backend/internal/application/content"
 	"github.com/fastygo/backend/internal/domain/audit"
 	"github.com/fastygo/backend/internal/domain/authz"
 	domainidentity "github.com/fastygo/backend/internal/domain/identity"
@@ -20,7 +19,7 @@ type TokenIssuer interface {
 }
 
 type Service struct {
-	transactor application.Transactor
+	transactor Transactor
 	tokens     TokenIssuer
 	now        func() time.Time
 }
@@ -35,9 +34,9 @@ type UserInput struct {
 }
 
 func NewService(
-	transactor application.Transactor,
+	transactor Transactor,
 	tokens TokenIssuer,
-	clock application.Clock,
+	clock Clock,
 ) (*Service, error) {
 	if transactor == nil {
 		return nil, errors.New("identity transactor is required")
@@ -54,7 +53,29 @@ func (service *Service) Initialize(
 	adminEmail string,
 	adminPassword string,
 ) error {
-	return service.transactor.WithinTransaction(ctx, func(transaction application.Transaction) error {
+	var hasUsers bool
+	if err := service.transactor.WithinIdentityTransaction(ctx, func(transaction Transaction) error {
+		users, err := transaction.Identity().ListUsers(ctx)
+		hasUsers = len(users) > 0
+		return err
+	}); err != nil {
+		return err
+	}
+	var bootstrapHash string
+	if !hasUsers && strings.TrimSpace(adminEmail) != "" {
+		if strings.TrimSpace(adminPassword) == "" {
+			return errors.New("bootstrap admin password is required when admin email is configured")
+		}
+		if len(adminPassword) < 12 {
+			return errors.New("bootstrap admin password must contain at least 12 characters")
+		}
+		hash, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
+		if err != nil {
+			return err
+		}
+		bootstrapHash = string(hash)
+	}
+	return service.transactor.WithinIdentityTransaction(ctx, func(transaction Transaction) error {
 		repository := transaction.Identity()
 		for _, builtin := range []authz.Role{authz.AdministratorRole(), authz.EditorRole()} {
 			if _, err := repository.GetRole(ctx, builtin.ID); err == nil {
@@ -72,20 +93,10 @@ func (service *Service) Initialize(
 		if err != nil || len(users) > 0 || strings.TrimSpace(adminEmail) == "" {
 			return err
 		}
-		if strings.TrimSpace(adminPassword) == "" {
-			return errors.New("bootstrap admin password is required when admin email is configured")
-		}
-		if len(adminPassword) < 12 {
-			return errors.New("bootstrap admin password must contain at least 12 characters")
-		}
-		hash, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
-		if err != nil {
-			return err
-		}
 		now := service.now().UTC()
 		user := domainidentity.User{
 			ID: uuid.NewString(), Email: adminEmail, DisplayName: "Administrator",
-			PasswordHash: string(hash), RoleIDs: []string{"administrator"}, Active: true,
+			PasswordHash: bootstrapHash, RoleIDs: []string{"administrator"}, Active: true,
 			Version: 1, CreatedAt: now, UpdatedAt: now,
 		}
 		user.Normalize()
@@ -105,14 +116,14 @@ func (service *Service) Authenticate(
 	if service.tokens == nil {
 		return "", core.NewDomainError(core.ErrorCodeInternal, "token issuer is unavailable")
 	}
-	var principal authz.Principal
-	err := service.transactor.WithinTransaction(ctx, func(transaction application.Transaction) error {
-		user, err := transaction.Identity().GetUserByEmail(ctx, strings.ToLower(strings.TrimSpace(email)))
-		if err != nil || !user.Active ||
-			bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)) != nil {
+	var user domainidentity.User
+	var capabilities []authz.Capability
+	err := service.transactor.WithinIdentityTransaction(ctx, func(transaction Transaction) error {
+		var err error
+		user, err = transaction.Identity().GetUserByEmail(ctx, strings.ToLower(strings.TrimSpace(email)))
+		if err != nil || !user.Active {
 			return core.NewDomainError(core.ErrorCodeUnauthorized, "invalid credentials")
 		}
-		capabilities := make([]authz.Capability, 0)
 		for _, roleID := range user.RoleIDs {
 			role, err := transaction.Identity().GetRole(ctx, roleID)
 			if err != nil {
@@ -120,12 +131,15 @@ func (service *Service) Authenticate(
 			}
 			capabilities = append(capabilities, role.Capabilities...)
 		}
-		principal = authz.NewPrincipal(user.ID, capabilities...)
 		return nil
 	})
 	if err != nil {
 		return "", err
 	}
+	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)) != nil {
+		return "", core.NewDomainError(core.ErrorCodeUnauthorized, "invalid credentials")
+	}
+	principal := authz.NewPrincipal(user.ID, capabilities...)
 	token, err := service.tokens.Issue(principal, ttl)
 	if err != nil {
 		return "", core.WrapDomainError(core.ErrorCodeInternal, "token issue failed", err)
@@ -141,7 +155,7 @@ func (service *Service) ListUsers(
 		return nil, core.NewDomainError(core.ErrorCodeForbidden, "users.view is required")
 	}
 	var users []domainidentity.User
-	err := service.transactor.WithinTransaction(ctx, func(transaction application.Transaction) error {
+	err := service.transactor.WithinIdentityTransaction(ctx, func(transaction Transaction) error {
 		var err error
 		users, err = transaction.Identity().ListUsers(ctx)
 		return err
@@ -162,8 +176,22 @@ func (service *Service) SaveUser(
 	if !principal.Has(required) {
 		return domainidentity.User{}, core.NewDomainError(core.ErrorCodeForbidden, string(required)+" is required")
 	}
+	passwordHash := ""
+	if input.Password != "" {
+		if len(input.Password) < 12 {
+			return domainidentity.User{}, core.NewDomainError(
+				core.ErrorCodeValidation,
+				"password must contain at least 12 characters",
+			)
+		}
+		encoded, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return domainidentity.User{}, err
+		}
+		passwordHash = string(encoded)
+	}
 	var saved domainidentity.User
-	err := service.transactor.WithinTransaction(ctx, func(transaction application.Transaction) error {
+	err := service.transactor.WithinIdentityTransaction(ctx, func(transaction Transaction) error {
 		repository := transaction.Identity()
 		now := service.now().UTC()
 		hash := ""
@@ -181,15 +209,8 @@ func (service *Service) SaveUser(
 		} else if id == "" {
 			id = uuid.NewString()
 		}
-		if input.Password != "" {
-			if len(input.Password) < 12 {
-				return core.NewDomainError(core.ErrorCodeValidation, "password must contain at least 12 characters")
-			}
-			encoded, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
-			if err != nil {
-				return err
-			}
-			hash = string(encoded)
+		if passwordHash != "" {
+			hash = passwordHash
 		}
 		for _, roleID := range input.RoleIDs {
 			if _, err := repository.GetRole(ctx, roleID); err != nil {
@@ -225,7 +246,7 @@ func (service *Service) DeleteUser(
 	if principal.ID == id {
 		return core.NewDomainError(core.ErrorCodeConflict, "current user cannot delete itself")
 	}
-	return service.transactor.WithinTransaction(ctx, func(transaction application.Transaction) error {
+	return service.transactor.WithinIdentityTransaction(ctx, func(transaction Transaction) error {
 		if err := transaction.Identity().DeleteUser(ctx, id, expectedVersion); err != nil {
 			return core.WrapDomainError(core.ErrorCodeConflict, "user delete failed", err)
 		}
@@ -241,7 +262,7 @@ func (service *Service) ListRoles(
 		return nil, core.NewDomainError(core.ErrorCodeForbidden, "roles.view is required")
 	}
 	var roles []domainidentity.Role
-	err := service.transactor.WithinTransaction(ctx, func(transaction application.Transaction) error {
+	err := service.transactor.WithinIdentityTransaction(ctx, func(transaction Transaction) error {
 		var err error
 		roles, err = transaction.Identity().ListRoles(ctx)
 		return err
@@ -263,7 +284,7 @@ func (service *Service) SaveRole(
 	if err := role.Validate(); err != nil {
 		return domainidentity.Role{}, core.WrapDomainError(core.ErrorCodeValidation, "role is invalid", err)
 	}
-	err := service.transactor.WithinTransaction(ctx, func(transaction application.Transaction) error {
+	err := service.transactor.WithinIdentityTransaction(ctx, func(transaction Transaction) error {
 		if err := transaction.Identity().SaveRole(ctx, role, expectedVersion); err != nil {
 			return core.WrapDomainError(core.ErrorCodeConflict, "role save failed", err)
 		}
@@ -284,7 +305,7 @@ func (service *Service) DeleteRole(
 	if id == "administrator" || id == "editor" {
 		return core.NewDomainError(core.ErrorCodeConflict, "built-in role cannot be deleted")
 	}
-	return service.transactor.WithinTransaction(ctx, func(transaction application.Transaction) error {
+	return service.transactor.WithinIdentityTransaction(ctx, func(transaction Transaction) error {
 		users, err := transaction.Identity().ListUsers(ctx)
 		if err != nil {
 			return err
@@ -305,7 +326,7 @@ func (service *Service) DeleteRole(
 
 func (service *Service) saveAudit(
 	ctx context.Context,
-	repository application.AuditRepository,
+	repository AuditRepository,
 	actorID string,
 	action string,
 	resourceID string,

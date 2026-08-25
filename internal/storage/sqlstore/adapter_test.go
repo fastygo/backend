@@ -2,7 +2,11 @@ package sqlstore
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -46,7 +50,7 @@ func TestSQLitePersistsContentRevisionsAndSlugs(t *testing.T) {
 	if resolved.Version != 2 || resolved.Title["en"] != "Updated" {
 		t.Fatalf("unexpected reopened entry: %#v", resolved)
 	}
-	err = adapter.WithinTransaction(context.Background(), func(transaction application.Transaction) error {
+	err = adapter.WithinContentTransaction(context.Background(), func(transaction application.Transaction) error {
 		bySlug, err := transaction.Content().GetBySlug(context.Background(), "product", "en", "product-one")
 		if err != nil || bySlug.ID != created.ID {
 			t.Fatalf("slug index failed: entry=%#v err=%v", bySlug, err)
@@ -78,7 +82,7 @@ func TestSQLiteTransactionRollbackAndVersionConflict(t *testing.T) {
 	adapter := openSQLite(t, filepath.Join(t.TempDir(), "rollback.db"))
 	t.Cleanup(func() { _ = adapter.Close() })
 	sentinel := errors.New("abort")
-	err := adapter.WithinTransaction(context.Background(), func(transaction application.Transaction) error {
+	err := adapter.WithinContentTransaction(context.Background(), func(transaction application.Transaction) error {
 		if err := transaction.Content().Create(context.Background(), sqlEntry(time.Now().UTC())); err != nil {
 			return err
 		}
@@ -87,7 +91,7 @@ func TestSQLiteTransactionRollbackAndVersionConflict(t *testing.T) {
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("unexpected rollback result: %v", err)
 	}
-	err = adapter.WithinTransaction(context.Background(), func(transaction application.Transaction) error {
+	err = adapter.WithinContentTransaction(context.Background(), func(transaction application.Transaction) error {
 		_, err := transaction.Content().Get(context.Background(), "product_1")
 		if !errors.Is(err, ErrNotFound) {
 			t.Fatalf("transaction was not rolled back: %v", err)
@@ -107,6 +111,160 @@ func TestSQLiteTransactionRollbackAndVersionConflict(t *testing.T) {
 	}
 }
 
+func TestSQLiteListFiltersSortsAndPaginatesInSQL(t *testing.T) {
+	adapter := openSQLite(t, filepath.Join(t.TempDir(), "list.db"))
+	t.Cleanup(func() { _ = adapter.Close() })
+	now := time.Date(2026, time.August, 25, 13, 0, 0, 0, time.UTC)
+	entries := []content.Entry{
+		sqlEntry(now),
+		{
+			ID: "product_2", Kind: "product", Status: content.StatusPublished,
+			Visibility: content.VisibilityPublic, AuthorID: "author-2",
+			Title:   content.LocalizedText{"en": "Alpha", "ru": "Альфа"},
+			Content: content.LocalizedText{"en": "Needle description", "ru": "Описание"},
+			Terms:   []content.TermRef{{Taxonomy: "catalog", TermID: "featured"}},
+			Version: 1, CreatedAt: now.Add(time.Minute), UpdatedAt: now.Add(time.Minute),
+			PublishedAt: timePointer(now),
+		},
+		{
+			ID: "product_3", Kind: "product", Status: content.StatusDraft,
+			Visibility: content.VisibilityPublic,
+			Title:      content.LocalizedText{"en": "Hidden needle"},
+			Version:    1, CreatedAt: now.Add(2 * time.Minute), UpdatedAt: now.Add(2 * time.Minute),
+		},
+		{
+			ID: "product_4", Kind: "product", Status: content.StatusPublished,
+			Visibility: content.VisibilityPublic, AuthorID: "legacy",
+			Title:   content.LocalizedText{"en": "Zebra"},
+			Version: 1, CreatedAt: now.Add(3 * time.Minute), UpdatedAt: now.Add(3 * time.Minute),
+		},
+		{
+			ID: "product_5", Kind: "product", Status: content.StatusPublished,
+			Visibility: content.VisibilityPublic, AuthorID: "legacy",
+			Title:   content.LocalizedText{"en": "Deleted"},
+			Version: 1, CreatedAt: now.Add(4 * time.Minute), UpdatedAt: now.Add(4 * time.Minute),
+			DeletedAt: timePointer(now),
+		},
+		{
+			ID: "product_6", Kind: "product", Status: content.StatusPublished,
+			Visibility: content.VisibilityPublic, AuthorID: "legacy",
+			Title:   content.LocalizedText{"en": "apple"},
+			Version: 1, CreatedAt: now.Add(5 * time.Minute), UpdatedAt: now.Add(5 * time.Minute),
+		},
+	}
+	err := adapter.WithinContentTransaction(context.Background(), func(transaction application.Transaction) error {
+		for _, entry := range entries {
+			if err := transaction.Content().Create(context.Background(), entry); err != nil {
+				return err
+			}
+		}
+		result, err := transaction.Content().List(context.Background(), application.Query{
+			Kinds: []content.Kind{"product"}, Search: "needle", Locale: "en",
+			PublicOnly: true, PublicAt: now.Add(time.Hour),
+			Page: 1, PerPage: 1, Sort: "title",
+		})
+		if err != nil {
+			return err
+		}
+		if result.Page.Total != 1 || result.Page.TotalPages != 1 ||
+			len(result.Entries) != 1 || result.Entries[0].ID != "product_2" {
+			t.Fatalf("unexpected SQL search page: %#v", result)
+		}
+		result, err = transaction.Content().List(context.Background(), application.Query{
+			TaxonomyID: "catalog", TermID: "featured", Page: 1, PerPage: 10,
+		})
+		if err != nil {
+			return err
+		}
+		if result.Page.Total != 1 || result.Entries[0].ID != "product_2" {
+			t.Fatalf("unexpected SQL taxonomy page: %#v", result)
+		}
+		result, err = transaction.Content().List(context.Background(), application.Query{
+			AuthorID: "legacy", PublicOnly: true, PublicAt: now.Add(time.Hour),
+			Page: 1, PerPage: 10, Sort: "title",
+		})
+		if err != nil {
+			return err
+		}
+		if result.Page.Total != 2 || len(result.Entries) != 2 ||
+			result.Entries[0].ID != "product_4" || result.Entries[1].ID != "product_6" {
+			t.Fatalf("SQL public or title-sort contract diverged: %#v", result)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("list content through SQL projections: %v", err)
+	}
+}
+
+func TestSQLiteMigrationBackfillsContentProjections(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "upgrade.db")
+	database, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open legacy SQLite database: %v", err)
+	}
+	if _, err := database.Exec(`CREATE TABLE schema_migrations (
+		version BIGINT PRIMARY KEY,
+		applied_at BIGINT NOT NULL
+	)`); err != nil {
+		t.Fatalf("create legacy migration table: %v", err)
+	}
+	for _, migration := range migrations(DialectSQLite)[:3] {
+		for _, statement := range migration.statements {
+			if _, err := database.Exec(statement); err != nil {
+				t.Fatalf("apply legacy migration %d: %v", migration.version, err)
+			}
+		}
+		if _, err := database.Exec(
+			"INSERT INTO schema_migrations (version, applied_at) VALUES (?, 0)",
+			migration.version,
+		); err != nil {
+			t.Fatalf("record legacy migration %d: %v", migration.version, err)
+		}
+	}
+	entry := sqlEntry(time.Now().UTC())
+	entry.Terms = []content.TermRef{{Taxonomy: "catalog", TermID: "legacy"}}
+	for index := range 105 {
+		entry.ID = content.ID(fmt.Sprintf("legacy_%03d", index))
+		entry.Slug = content.LocalizedText{"en": string(entry.ID)}
+		encoded, err := json.Marshal(entry)
+		if err != nil {
+			t.Fatalf("encode legacy content %d: %v", index, err)
+		}
+		if _, err := database.Exec(
+			`INSERT INTO content_entries
+			 (id, kind, status, visibility, author_id, version, updated_at, payload)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			entry.ID, entry.Kind, entry.Status, entry.Visibility, entry.AuthorID,
+			entry.Version, entry.UpdatedAt.UnixNano(), encoded,
+		); err != nil {
+			t.Fatalf("insert legacy content %d: %v", index, err)
+		}
+	}
+	if err := database.Close(); err != nil {
+		t.Fatalf("close legacy SQLite database: %v", err)
+	}
+
+	adapter := openSQLite(t, path)
+	t.Cleanup(func() { _ = adapter.Close() })
+	err = adapter.WithinContentTransaction(context.Background(), func(transaction application.Transaction) error {
+		result, err := transaction.Content().List(context.Background(), application.Query{
+			Search: "description", TaxonomyID: "catalog", TermID: "legacy",
+			Page: 1, PerPage: 200,
+		})
+		if err != nil {
+			return err
+		}
+		if result.Page.Total != 105 || len(result.Entries) != 105 {
+			t.Fatalf("migration did not backfill content projections: %#v", result)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("verify upgraded SQLite database: %v", err)
+	}
+}
+
 func TestPostgreSQLPlaceholderBinding(t *testing.T) {
 	statement := bind(DialectPostgreSQL, "SELECT * FROM entries WHERE id = ? AND version = ?")
 	if statement != "SELECT * FROM entries WHERE id = $1 AND version = $2" {
@@ -115,6 +273,108 @@ func TestPostgreSQLPlaceholderBinding(t *testing.T) {
 	if bind(DialectMySQL, "SELECT ?") != "SELECT ?" {
 		t.Fatalf("MySQL placeholders must remain unchanged")
 	}
+}
+
+func TestLiveSQLDialects(t *testing.T) {
+	tests := map[string]struct {
+		environment string
+		driver      string
+		dialect     Dialect
+	}{
+		"MariaDB": {
+			environment: "TEST_MARIADB_DSN",
+			driver:      "mysql",
+			dialect:     DialectMySQL,
+		},
+		"MySQL": {
+			environment: "TEST_MYSQL_DSN",
+			driver:      "mysql",
+			dialect:     DialectMySQL,
+		},
+		"PostgreSQL": {
+			environment: "TEST_POSTGRES_DSN",
+			driver:      "pgx",
+			dialect:     DialectPostgreSQL,
+		},
+	}
+	for name, test := range tests {
+		test := test
+		t.Run(name, func(t *testing.T) {
+			dataSource := os.Getenv(test.environment)
+			if dataSource == "" {
+				t.Skip(test.environment + " is not configured")
+			}
+			ctx := context.Background()
+			adapter, err := Open(ctx, test.driver, dataSource, test.dialect)
+			if err != nil {
+				t.Fatalf("open live %s database: %v", name, err)
+			}
+			t.Cleanup(func() { _ = adapter.Close() })
+			entry := sqlEntry(time.Now().UTC())
+			entry.ID = content.ID(fmt.Sprintf("live_%s_%d", test.dialect, time.Now().UnixNano()))
+			entry.Slug = content.LocalizedText{"en": string(entry.ID)}
+			entry.Title = content.LocalizedText{"en": "Live indexed " + string(entry.ID)}
+			entry.Terms = []content.TermRef{{Taxonomy: "live", TermID: "indexed"}}
+			upper := entry
+			upper.ID += "_upper"
+			upper.Slug = content.LocalizedText{"en": string(upper.ID)}
+			upper.Title = content.LocalizedText{"en": "Zebra"}
+			upper.AuthorID = string(entry.ID)
+			upper.PublishedAt = nil
+			upper.Terms = nil
+			lower := upper
+			lower.ID = entry.ID + "_lower"
+			lower.Slug = content.LocalizedText{"en": string(lower.ID)}
+			lower.Title = content.LocalizedText{"en": "apple"}
+			entries := []content.Entry{entry, upper, lower}
+			err = adapter.WithinContentTransaction(ctx, func(transaction application.Transaction) error {
+				for _, candidate := range entries {
+					if err := transaction.Content().Create(ctx, candidate); err != nil {
+						return err
+					}
+				}
+				result, err := transaction.Content().List(ctx, application.Query{
+					Kinds: []content.Kind{"product"}, Search: string(entry.ID),
+					TaxonomyID: "live", TermID: "indexed",
+					Page: 1, PerPage: 10,
+				})
+				if err != nil {
+					return err
+				}
+				found := false
+				for _, resolved := range result.Entries {
+					found = found || resolved.ID == entry.ID
+				}
+				if !found {
+					t.Fatalf("live SQL query did not return indexed content: %#v", result)
+				}
+				result, err = transaction.Content().List(ctx, application.Query{
+					AuthorID: string(entry.ID), PublicOnly: true, PublicAt: time.Now().Add(time.Hour),
+					Page: 1, PerPage: 10, Sort: "title",
+				})
+				if err != nil {
+					return err
+				}
+				if result.Page.Total != 2 || len(result.Entries) != 2 ||
+					result.Entries[0].ID != upper.ID || result.Entries[1].ID != lower.ID {
+					t.Fatalf("live SQL public or title-sort contract diverged: %#v", result)
+				}
+				for _, candidate := range entries {
+					if err := transaction.Content().Delete(ctx, candidate.ID, candidate.Version); err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+			if err != nil {
+				t.Fatalf("verify live %s database: %v", name, err)
+			}
+		})
+	}
+}
+
+func timePointer(value time.Time) *time.Time {
+	return &value
 }
 
 type sqlClock struct {

@@ -62,12 +62,12 @@ type Document struct {
 }
 
 type Service struct {
-	storage  application.Transactor
+	storage  Transactor
 	manifest schema.Manifest
 	now      func() time.Time
 }
 
-func New(storage application.Transactor, manifest schema.Manifest) (*Service, error) {
+func New(storage Transactor, manifest schema.Manifest) (*Service, error) {
 	if storage == nil {
 		return nil, errors.New("backup storage is required")
 	}
@@ -89,7 +89,7 @@ func (service *Service) Export(ctx context.Context, destination io.Writer) error
 		FormatVersion: FormatVersion, CreatedAt: service.now().UTC(),
 		Manifest: service.manifest, ManifestDigest: digest,
 	}
-	err = service.storage.WithinTransaction(ctx, func(transaction application.Transaction) error {
+	err = service.storage.WithinBackupTransaction(ctx, func(transaction Transaction) error {
 		entries, err := allEntries(ctx, transaction.Content())
 		if err != nil {
 			return err
@@ -202,7 +202,7 @@ func (service *Service) Restore(ctx context.Context, source io.Reader) error {
 			}
 		}
 	}
-	return service.storage.WithinTransaction(ctx, func(transaction application.Transaction) error {
+	return service.storage.WithinBackupTransaction(ctx, func(transaction Transaction) error {
 		existing, err := transaction.Content().List(ctx, application.Query{Page: 1, PerPage: 1})
 		if err != nil {
 			return err
@@ -267,7 +267,7 @@ func (service *Service) Restore(ctx context.Context, source io.Reader) error {
 	})
 }
 
-func allEntries(ctx context.Context, repository application.Repository) ([]content.Entry, error) {
+func allEntries(ctx context.Context, repository ContentRepository) ([]content.Entry, error) {
 	var entries []content.Entry
 	for page := 1; ; page++ {
 		result, err := repository.List(ctx, application.Query{Page: page, PerPage: 100})
@@ -283,7 +283,7 @@ func allEntries(ctx context.Context, repository application.Repository) ([]conte
 
 func allRevisions(
 	ctx context.Context,
-	repository application.RevisionRepository,
+	repository RevisionRepository,
 	entryID content.ID,
 ) ([]revision.Revision, error) {
 	var revisions []revision.Revision
@@ -299,7 +299,7 @@ func allRevisions(
 	}
 }
 
-func allAudit(ctx context.Context, repository application.AuditRepository) ([]audit.Event, error) {
+func allAudit(ctx context.Context, repository AuditRepository) ([]audit.Event, error) {
 	var events []audit.Event
 	for page := 1; ; page++ {
 		items, pagination, err := repository.List(ctx, application.AuditQuery{Page: page, PerPage: 100})

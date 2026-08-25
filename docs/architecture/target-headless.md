@@ -164,8 +164,11 @@ The supported adapters are:
 
 The bbolt adapter uses buckets and transactional documents. SQL adapters use a
 portable normalized core with JSON metadata and driver-specific migration
-dialects. Stable IDs and localized slugs are indexed; adapter conformance tests
-protect behavioral equivalence while payload filtering remains portable.
+dialects. Stable IDs, localized slugs, lifecycle timestamps, and taxonomy
+assignments are indexed; localized search text is materialized outside the JSON
+payload. Filtering, deterministic sorting, counting, and pagination run in SQL;
+only the selected page payloads are decoded. Versioned migrations backfill
+these projections for existing data.
 
 Binary media storage is separate from metadata storage. The core distribution
 ships a path-safe local filesystem adapter behind an object-store port; remote
