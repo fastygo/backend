@@ -438,18 +438,6 @@ func timePointer(value time.Time) *time.Time {
 	return &value
 }
 
-func (service *Service) manifestResource(kind domaincontent.Kind) *schema.Resource {
-	if service.manifest == nil {
-		return nil
-	}
-	for index := range service.manifest.Resources {
-		if service.manifest.Resources[index].ID == string(kind) {
-			return &service.manifest.Resources[index]
-		}
-	}
-	return nil
-}
-
 func listRelatedContent(
 	ctx context.Context,
 	repository Repository,

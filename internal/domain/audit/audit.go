@@ -9,15 +9,15 @@ import (
 type ID string
 
 type Event struct {
-	ID            ID             `json:"id"`
-	OccurredAt    time.Time      `json:"occurred_at"`
-	ActorID       string         `json:"actor_id"`
-	Action        string         `json:"action"`
-	Resource      string         `json:"resource"`
-	ResourceID    string         `json:"resource_id"`
-	BeforeVersion uint64         `json:"before_version,omitempty"`
-	AfterVersion  uint64         `json:"after_version,omitempty"`
-	Metadata      map[string]any `json:"metadata,omitempty"`
+	ID            ID
+	OccurredAt    time.Time
+	ActorID       string
+	Action        string
+	Resource      string
+	ResourceID    string
+	BeforeVersion uint64
+	AfterVersion  uint64
+	Metadata      map[string]any
 }
 
 func (event Event) Validate() error {

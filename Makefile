@@ -39,9 +39,11 @@ endif
 live-sql:
 	$(GO) test -count=1 -run TestLiveSQLDialects -v ./internal/storage/sqlstore
 
-verify: test conformance vet lint vuln race
+verify-light: test conformance vet lint vuln
 	$(GO) mod verify
 	$(GO) build ./cmd/server ./cmd/headless-token ./cmd/headless-backup
+
+verify: verify-light race
 
 token:
 	$(GO) run ./cmd/headless-token -subject "$(SUBJECT)" -role "$(ROLE)" -ttl "$(TTL)"

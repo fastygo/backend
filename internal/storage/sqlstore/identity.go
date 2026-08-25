@@ -3,12 +3,12 @@ package sqlstore
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
 
 	domainidentity "github.com/fastygo/backend/internal/domain/identity"
+	"github.com/fastygo/backend/internal/persist"
 )
 
 type identityRepository struct {
@@ -44,9 +44,7 @@ func (repository identityRepository) getUser(
 	if err != nil {
 		return domainidentity.User{}, err
 	}
-	var record domainidentity.UserRecord
-	err = json.Unmarshal(encoded, &record)
-	return record.User(), err
+	return persist.DecodeUser(encoded)
 }
 
 func (repository identityRepository) ListUsers(ctx context.Context) ([]domainidentity.User, error) {
@@ -61,11 +59,11 @@ func (repository identityRepository) ListUsers(ctx context.Context) ([]domainide
 		if err := rows.Scan(&encoded); err != nil {
 			return nil, err
 		}
-		var record domainidentity.UserRecord
-		if err := json.Unmarshal(encoded, &record); err != nil {
+		user, err := persist.DecodeUser(encoded)
+		if err != nil {
 			return nil, err
 		}
-		users = append(users, record.User())
+		users = append(users, user)
 	}
 	slices.SortFunc(users, func(left, right domainidentity.User) int {
 		return strings.Compare(left.Email, right.Email)
@@ -78,7 +76,7 @@ func (repository identityRepository) SaveUser(
 	user domainidentity.User,
 	expectedVersion uint64,
 ) error {
-	encoded, err := json.Marshal(domainidentity.RecordFromUser(user))
+	encoded, err := persist.EncodeUser(user)
 	if err != nil {
 		return err
 	}
@@ -131,9 +129,7 @@ func (repository identityRepository) GetRole(ctx context.Context, id string) (do
 	if err != nil {
 		return domainidentity.Role{}, err
 	}
-	var role domainidentity.Role
-	err = json.Unmarshal(encoded, &role)
-	return role, err
+	return persist.DecodeRole(encoded)
 }
 
 func (repository identityRepository) ListRoles(ctx context.Context) ([]domainidentity.Role, error) {
@@ -148,8 +144,8 @@ func (repository identityRepository) ListRoles(ctx context.Context) ([]domainide
 		if err := rows.Scan(&encoded); err != nil {
 			return nil, err
 		}
-		var role domainidentity.Role
-		if err := json.Unmarshal(encoded, &role); err != nil {
+		role, err := persist.DecodeRole(encoded)
+		if err != nil {
 			return nil, err
 		}
 		roles = append(roles, role)
@@ -165,7 +161,7 @@ func (repository identityRepository) SaveRole(
 	role domainidentity.Role,
 	expectedVersion uint64,
 ) error {
-	encoded, err := json.Marshal(role)
+	encoded, err := persist.EncodeRole(role)
 	if err != nil {
 		return err
 	}

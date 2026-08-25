@@ -8,6 +8,7 @@ import (
 	"time"
 
 	domaincontent "github.com/fastygo/backend/internal/domain/content"
+	"github.com/fastygo/backend/internal/persist"
 	"github.com/fastygo/framework/pkg/core"
 )
 
@@ -64,10 +65,8 @@ func decodeEntryRequest(responseBody []byte) (domaincontent.Entry, error) {
 		return domaincontent.Entry{}, core.WrapDomainError(core.ErrorCodeValidation, "invalid JSON body", err)
 	}
 	if _, valuesEnvelope := probe["values"]; !valuesEnvelope {
-		var entry domaincontent.Entry
-		decoder := json.NewDecoder(strings.NewReader(string(responseBody)))
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&entry); err != nil {
+		entry, err := persist.DecodeEntry(responseBody)
+		if err != nil {
 			return domaincontent.Entry{}, core.WrapDomainError(core.ErrorCodeValidation, "invalid JSON body", err)
 		}
 		return entry, nil
@@ -111,7 +110,7 @@ func decodeEntryRequest(responseBody []byte) (domaincontent.Entry, error) {
 		case key == "terms":
 			encoded, _ := json.Marshal(value)
 			if err := json.Unmarshal(encoded, &entry.Terms); err != nil {
-				return domaincontent.Entry{}, fmt.Errorf("decode terms: %w", err)
+				return domaincontent.Entry{}, fmt.Errorf("failed to decode terms: %w", err)
 			}
 		default:
 			entry.Metadata[key] = domaincontent.MetadataValue{Value: value}

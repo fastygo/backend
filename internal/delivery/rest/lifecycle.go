@@ -90,7 +90,7 @@ func (handler *ContentHandler) revisions(response http.ResponseWriter, request *
 		writeError(response, request, err)
 		return
 	}
-	writeJSON(response, http.StatusOK, map[string]any{"data": items, "pagination": pagination})
+	writeJSON(response, http.StatusOK, map[string]any{"data": projectRevisions(items), "pagination": projectPage(pagination)})
 }
 
 func (handler *ContentHandler) restoreRevision(response http.ResponseWriter, request *http.Request) {

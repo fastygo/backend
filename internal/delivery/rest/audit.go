@@ -50,5 +50,5 @@ func (handler *ContentHandler) listAudit(response http.ResponseWriter, request *
 		writeError(response, request, err)
 		return
 	}
-	writeJSON(response, http.StatusOK, map[string]any{"data": events, "pagination": pagination})
+	writeJSON(response, http.StatusOK, map[string]any{"data": projectEvents(events), "pagination": projectPage(pagination)})
 }

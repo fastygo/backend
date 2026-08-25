@@ -25,12 +25,12 @@ type Service struct {
 }
 
 type UserInput struct {
-	ID          string   `json:"id"`
-	Email       string   `json:"email"`
-	DisplayName string   `json:"display_name"`
-	Password    string   `json:"password"`
-	RoleIDs     []string `json:"role_ids"`
-	Active      bool     `json:"active"`
+	ID          string
+	Email       string
+	DisplayName string
+	Password    string
+	RoleIDs     []string
+	Active      bool
 }
 
 func NewService(

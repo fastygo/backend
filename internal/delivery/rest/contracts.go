@@ -3,6 +3,7 @@ package rest
 import (
 	"net/http"
 
+	"github.com/fastygo/backend/internal/persist"
 	"github.com/fastygo/framework/pkg/core"
 )
 
@@ -12,9 +13,10 @@ func (handler *ContentHandler) schemaIdentity(response http.ResponseWriter, requ
 		writeError(response, request, err)
 		return
 	}
+	document := persist.ManifestFromDomain(handler.manifest)
 	writeJSON(response, http.StatusOK, map[string]any{
-		"name": handler.manifest.Name, "version": handler.manifest.Version, "digest": digest,
-		"resources": handler.manifest.Resources,
+		"name": document.Name, "version": document.Version, "digest": digest,
+		"resources": document.Resources,
 	})
 }
 

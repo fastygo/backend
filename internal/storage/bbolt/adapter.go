@@ -18,6 +18,7 @@ import (
 	"github.com/fastygo/backend/internal/domain/content"
 	"github.com/fastygo/backend/internal/domain/revision"
 	"github.com/fastygo/backend/internal/operations/backup"
+	"github.com/fastygo/backend/internal/persist"
 	"github.com/google/uuid"
 	bolt "go.etcd.io/bbolt"
 )
@@ -56,11 +57,11 @@ func Open(path string, mode os.FileMode, options *bolt.Options) (*Adapter, error
 		return nil, errors.New("bbolt path is required")
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		return nil, fmt.Errorf("create bbolt directory: %w", err)
+		return nil, fmt.Errorf("failed to create bbolt directory: %w", err)
 	}
 	database, err := bolt.Open(path, mode, options)
 	if err != nil {
-		return nil, fmt.Errorf("open bbolt: %w", err)
+		return nil, fmt.Errorf("failed to open bbolt: %w", err)
 	}
 	if err := database.Update(func(transaction *bolt.Tx) error {
 		if _, err := transaction.CreateBucketIfNotExists(entriesBucket); err != nil {
@@ -91,7 +92,7 @@ func Open(path string, mode os.FileMode, options *bolt.Options) (*Adapter, error
 		return migrations.Put(schemaVersionKey, []byte("3"))
 	}); err != nil {
 		_ = database.Close()
-		return nil, fmt.Errorf("initialize bbolt: %w", err)
+		return nil, fmt.Errorf("failed to initialize bbolt: %w", err)
 	}
 	return &Adapter{database: database}, nil
 }
@@ -324,7 +325,7 @@ func (repository contentRepository) Create(_ context.Context, entry content.Entr
 	if bucket.Get(key) != nil {
 		return ErrConflict
 	}
-	return putJSON(bucket, key, entry)
+	return putJSON(bucket, key, persist.EntryFromDomain(entry))
 }
 
 func (repository contentRepository) Update(_ context.Context, entry content.Entry, expectedVersion uint64) error {
@@ -341,7 +342,7 @@ func (repository contentRepository) Update(_ context.Context, entry content.Entr
 	if current.Version != expectedVersion {
 		return ErrConflict
 	}
-	return putJSON(bucket, key, entry)
+	return putJSON(bucket, key, persist.EntryFromDomain(entry))
 }
 
 func (repository contentRepository) Delete(_ context.Context, id content.ID, expectedVersion uint64) error {
@@ -407,7 +408,7 @@ func (repository revisionRepository) Save(_ context.Context, item revision.Revis
 	if bucket.Get(key) != nil {
 		return ErrConflict
 	}
-	return putJSON(bucket, key, item)
+	return putJSON(bucket, key, persist.RevisionFromDomain(item))
 }
 
 func (repository revisionRepository) Get(_ context.Context, id revision.ID) (revision.Revision, error) {
@@ -415,9 +416,9 @@ func (repository revisionRepository) Get(_ context.Context, id revision.ID) (rev
 	if value == nil {
 		return revision.Revision{}, ErrNotFound
 	}
-	var item revision.Revision
-	if err := json.Unmarshal(value, &item); err != nil {
-		return revision.Revision{}, fmt.Errorf("decode revision: %w", err)
+	item, err := persist.DecodeRevision(value)
+	if err != nil {
+		return revision.Revision{}, err
 	}
 	return item, nil
 }
@@ -433,9 +434,9 @@ func (repository revisionRepository) List(
 	}
 	items := make([]revision.Revision, 0)
 	err := repository.transaction.Bucket(revisionsBucket).ForEach(func(_, value []byte) error {
-		var item revision.Revision
-		if err := json.Unmarshal(value, &item); err != nil {
-			return fmt.Errorf("decode revision: %w", err)
+		item, err := persist.DecodeRevision(value)
+		if err != nil {
+			return err
 		}
 		if item.EntryID == entryID {
 			items = append(items, item)
@@ -466,11 +467,7 @@ func (repository revisionRepository) List(
 var errStopIteration = errors.New("stop iteration")
 
 func decodeEntry(value []byte) (content.Entry, error) {
-	var entry content.Entry
-	if err := json.Unmarshal(value, &entry); err != nil {
-		return content.Entry{}, fmt.Errorf("decode content entry: %w", err)
-	}
-	return entry, nil
+	return persist.DecodeEntry(value)
 }
 
 func putJSON(bucket *bolt.Bucket, key []byte, value any) error {

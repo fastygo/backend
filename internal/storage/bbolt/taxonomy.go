@@ -2,11 +2,11 @@ package bbolt
 
 import (
 	"context"
-	"encoding/json"
 	"slices"
 	"strings"
 
 	"github.com/fastygo/backend/internal/domain/taxonomy"
+	"github.com/fastygo/backend/internal/persist"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -19,18 +19,14 @@ func (repository taxonomyRepository) GetDefinition(_ context.Context, id string)
 	if value == nil {
 		return taxonomy.Definition{}, ErrNotFound
 	}
-	var item taxonomy.Definition
-	if err := json.Unmarshal(value, &item); err != nil {
-		return taxonomy.Definition{}, err
-	}
-	return item, nil
+	return persist.DecodeDefinition(value)
 }
 
 func (repository taxonomyRepository) ListDefinitions(context.Context) ([]taxonomy.Definition, error) {
 	items := make([]taxonomy.Definition, 0)
 	err := repository.transaction.Bucket(taxonomiesBucket).ForEach(func(_, value []byte) error {
-		var item taxonomy.Definition
-		if err := json.Unmarshal(value, &item); err != nil {
+		item, err := persist.DecodeDefinition(value)
+		if err != nil {
 			return err
 		}
 		items = append(items, item)
@@ -58,15 +54,15 @@ func (repository taxonomyRepository) SaveDefinition(
 		if currentValue == nil {
 			return ErrNotFound
 		}
-		var current taxonomy.Definition
-		if err := json.Unmarshal(currentValue, &current); err != nil {
+		current, err := persist.DecodeDefinition(currentValue)
+		if err != nil {
 			return err
 		}
 		if current.Version != expectedVersion {
 			return ErrConflict
 		}
 	}
-	return putJSON(bucket, key, item)
+	return putJSON(bucket, key, persist.DefinitionFromDomain(item))
 }
 
 func (repository taxonomyRepository) DeleteDefinition(
@@ -90,18 +86,14 @@ func (repository taxonomyRepository) GetTerm(_ context.Context, id taxonomy.ID) 
 	if value == nil {
 		return taxonomy.Term{}, ErrNotFound
 	}
-	var item taxonomy.Term
-	if err := json.Unmarshal(value, &item); err != nil {
-		return taxonomy.Term{}, err
-	}
-	return item, nil
+	return persist.DecodeTerm(value)
 }
 
 func (repository taxonomyRepository) ListTerms(_ context.Context, taxonomyID string) ([]taxonomy.Term, error) {
 	items := make([]taxonomy.Term, 0)
 	err := repository.transaction.Bucket(termsBucket).ForEach(func(_, value []byte) error {
-		var item taxonomy.Term
-		if err := json.Unmarshal(value, &item); err != nil {
+		item, err := persist.DecodeTerm(value)
+		if err != nil {
 			return err
 		}
 		if item.TaxonomyID == taxonomyID {
@@ -131,15 +123,15 @@ func (repository taxonomyRepository) SaveTerm(
 		if currentValue == nil {
 			return ErrNotFound
 		}
-		var current taxonomy.Term
-		if err := json.Unmarshal(currentValue, &current); err != nil {
+		current, err := persist.DecodeTerm(currentValue)
+		if err != nil {
 			return err
 		}
 		if current.Version != expectedVersion {
 			return ErrConflict
 		}
 	}
-	return putJSON(bucket, key, item)
+	return putJSON(bucket, key, persist.TermFromDomain(item))
 }
 
 func (repository taxonomyRepository) DeleteTerm(

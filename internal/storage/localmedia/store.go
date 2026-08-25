@@ -25,10 +25,10 @@ func Open(root string) (*Store, error) {
 	}
 	absolute, err := filepath.Abs(root)
 	if err != nil {
-		return nil, fmt.Errorf("resolve media root: %w", err)
+		return nil, fmt.Errorf("failed to resolve media root: %w", err)
 	}
 	if err := os.MkdirAll(absolute, 0o750); err != nil {
-		return nil, fmt.Errorf("create media root: %w", err)
+		return nil, fmt.Errorf("failed to create media root: %w", err)
 	}
 	return &Store{root: absolute}, nil
 }

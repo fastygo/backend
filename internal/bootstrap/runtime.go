@@ -20,6 +20,7 @@ import (
 	"github.com/fastygo/backend/internal/domain/schema"
 	"github.com/fastygo/backend/internal/identity"
 	"github.com/fastygo/backend/internal/operations/backup"
+	"github.com/fastygo/backend/internal/persist"
 	"github.com/fastygo/backend/internal/platform"
 	bboltstorage "github.com/fastygo/backend/internal/storage/bbolt"
 	"github.com/fastygo/backend/internal/storage/localmedia"
@@ -282,17 +283,18 @@ func env(key, fallback string) string {
 func loadManifest(path string) (schema.Manifest, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return schema.Manifest{}, fmt.Errorf("open headless manifest: %w", err)
+		return schema.Manifest{}, fmt.Errorf("failed to open headless manifest: %w", err)
 	}
 	defer file.Close()
-	var manifest schema.Manifest
+	var document persist.Manifest
 	decoder := json.NewDecoder(file)
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&manifest); err != nil {
-		return schema.Manifest{}, fmt.Errorf("decode headless manifest: %w", err)
+	if err := decoder.Decode(&document); err != nil {
+		return schema.Manifest{}, fmt.Errorf("failed to decode headless manifest: %w", err)
 	}
+	manifest := document.Domain()
 	if err := manifest.Validate(); err != nil {
-		return schema.Manifest{}, fmt.Errorf("validate headless manifest: %w", err)
+		return schema.Manifest{}, fmt.Errorf("failed to validate headless manifest: %w", err)
 	}
 	return manifest, nil
 }

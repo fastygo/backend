@@ -3,7 +3,6 @@ package sqlstore
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -14,6 +13,7 @@ import (
 	application "github.com/fastygo/backend/internal/application/content"
 	"github.com/fastygo/backend/internal/domain/authz"
 	"github.com/fastygo/backend/internal/domain/content"
+	"github.com/fastygo/backend/internal/persist"
 )
 
 func TestSQLitePersistsContentRevisionsAndSlugs(t *testing.T) {
@@ -237,7 +237,7 @@ func TestSQLiteMigrationBackfillsContentProjections(t *testing.T) {
 	for index := range 105 {
 		entry.ID = content.ID(fmt.Sprintf("legacy_%03d", index))
 		entry.Slug = content.LocalizedText{"en": string(entry.ID)}
-		encoded, err := json.Marshal(entry)
+		encoded, err := persist.EncodeEntry(entry)
 		if err != nil {
 			t.Fatalf("encode legacy content %d: %v", index, err)
 		}

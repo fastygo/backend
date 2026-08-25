@@ -106,7 +106,7 @@ func (handler *CodexHandler) list(kind domaincontent.Kind) http.HandlerFunc {
 			return
 		}
 		writeJSON(response, http.StatusOK, map[string]any{
-			"data": codexEntries(result.Entries), "pagination": result.Page,
+			"data": codexEntries(result.Entries), "pagination": projectPage(result.Page),
 		})
 	}
 }
@@ -287,7 +287,7 @@ func (handler *CodexHandler) search(response http.ResponseWriter, request *http.
 		return
 	}
 	writeJSON(response, http.StatusOK, map[string]any{
-		"data": codexEntries(result.Entries), "pagination": result.Page,
+		"data": codexEntries(result.Entries), "pagination": projectPage(result.Page),
 	})
 }
 

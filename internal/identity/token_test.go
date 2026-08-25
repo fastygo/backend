@@ -10,6 +10,7 @@ import (
 )
 
 func TestSignedBearerTokenRoundTripAndTamperDetection(t *testing.T) {
+	t.Parallel()
 	manager, err := NewTokenManager("0123456789abcdef0123456789abcdef", "headless")
 	if err != nil {
 		t.Fatalf("create token manager: %v", err)
@@ -40,6 +41,7 @@ func TestSignedBearerTokenRoundTripAndTamperDetection(t *testing.T) {
 }
 
 func TestSignedBearerTokenExpiryAndAnonymousAccess(t *testing.T) {
+	t.Parallel()
 	manager, _ := NewTokenManager("0123456789abcdef0123456789abcdef", "headless")
 	now := time.Now().UTC()
 	manager.now = func() time.Time { return now }
@@ -62,6 +64,7 @@ func TestSignedBearerTokenExpiryAndAnonymousAccess(t *testing.T) {
 }
 
 func TestTokenManagerRejectsWeakSecretsAndUnknownCapabilities(t *testing.T) {
+	t.Parallel()
 	if _, err := NewTokenManager("weak", "headless"); err == nil {
 		t.Fatalf("weak secret was accepted")
 	}

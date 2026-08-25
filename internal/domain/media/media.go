@@ -16,16 +16,16 @@ const (
 )
 
 type Asset struct {
-	ID         content.ID            `json:"id"`
-	Status     content.Status        `json:"status"`
-	Visibility content.Visibility    `json:"visibility"`
-	Filename   string                `json:"filename"`
-	MIMEType   string                `json:"mime_type"`
-	Size       int64                 `json:"size"`
-	Checksum   string                `json:"checksum_sha256"`
-	StorageKey string                `json:"storage_key"`
-	Alt        content.LocalizedText `json:"alt"`
-	Version    uint64                `json:"version"`
+	ID         content.ID
+	Status     content.Status
+	Visibility content.Visibility
+	Filename   string
+	MIMEType   string
+	Size       int64
+	Checksum   string
+	StorageKey string
+	Alt        content.LocalizedText
+	Version    uint64
 }
 
 func FromEntry(entry content.Entry) (Asset, error) {

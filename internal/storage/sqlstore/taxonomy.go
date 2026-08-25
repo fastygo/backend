@@ -3,12 +3,12 @@ package sqlstore
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
 
 	"github.com/fastygo/backend/internal/domain/taxonomy"
+	"github.com/fastygo/backend/internal/persist"
 )
 
 type taxonomyRepository struct {
@@ -32,11 +32,7 @@ func (repository taxonomyRepository) GetDefinition(
 	if err != nil {
 		return taxonomy.Definition{}, err
 	}
-	var item taxonomy.Definition
-	if err := json.Unmarshal(encoded, &item); err != nil {
-		return taxonomy.Definition{}, err
-	}
-	return item, nil
+	return persist.DecodeDefinition(encoded)
 }
 
 func (repository taxonomyRepository) ListDefinitions(ctx context.Context) ([]taxonomy.Definition, error) {
@@ -51,8 +47,8 @@ func (repository taxonomyRepository) ListDefinitions(ctx context.Context) ([]tax
 		if err := rows.Scan(&encoded); err != nil {
 			return nil, err
 		}
-		var item taxonomy.Definition
-		if err := json.Unmarshal(encoded, &item); err != nil {
+		item, err := persist.DecodeDefinition(encoded)
+		if err != nil {
 			return nil, err
 		}
 		items = append(items, item)
@@ -71,7 +67,7 @@ func (repository taxonomyRepository) SaveDefinition(
 	item taxonomy.Definition,
 	expectedVersion uint64,
 ) error {
-	encoded, err := json.Marshal(item)
+	encoded, err := persist.EncodeDefinition(item)
 	if err != nil {
 		return err
 	}
@@ -128,11 +124,7 @@ func (repository taxonomyRepository) GetTerm(ctx context.Context, id taxonomy.ID
 	if err != nil {
 		return taxonomy.Term{}, err
 	}
-	var item taxonomy.Term
-	if err := json.Unmarshal(encoded, &item); err != nil {
-		return taxonomy.Term{}, err
-	}
-	return item, nil
+	return persist.DecodeTerm(encoded)
 }
 
 func (repository taxonomyRepository) ListTerms(
@@ -154,8 +146,8 @@ func (repository taxonomyRepository) ListTerms(
 		if err := rows.Scan(&encoded); err != nil {
 			return nil, err
 		}
-		var item taxonomy.Term
-		if err := json.Unmarshal(encoded, &item); err != nil {
+		item, err := persist.DecodeTerm(encoded)
+		if err != nil {
 			return nil, err
 		}
 		items = append(items, item)
@@ -174,7 +166,7 @@ func (repository taxonomyRepository) SaveTerm(
 	item taxonomy.Term,
 	expectedVersion uint64,
 ) error {
-	encoded, err := json.Marshal(item)
+	encoded, err := persist.EncodeTerm(item)
 	if err != nil {
 		return err
 	}

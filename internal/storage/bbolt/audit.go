@@ -3,13 +3,13 @@ package bbolt
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"math"
 	"slices"
 
 	application "github.com/fastygo/backend/internal/application/content"
 	"github.com/fastygo/backend/internal/domain/audit"
+	"github.com/fastygo/backend/internal/persist"
 	"github.com/google/uuid"
 	bolt "go.etcd.io/bbolt"
 )
@@ -27,7 +27,7 @@ func (repository auditRepository) Save(_ context.Context, event audit.Event) err
 	if bucket.Get([]byte(event.ID)) != nil {
 		return ErrConflict
 	}
-	return putJSON(bucket, []byte(event.ID), event)
+	return putJSON(bucket, []byte(event.ID), persist.EventFromDomain(event))
 }
 
 func (repository auditRepository) List(
@@ -42,8 +42,8 @@ func (repository auditRepository) List(
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		var event audit.Event
-		if err := json.Unmarshal(value, &event); err != nil {
+		event, err := persist.DecodeEvent(value)
+		if err != nil {
 			return err
 		}
 		if matchesAudit(event, query) {

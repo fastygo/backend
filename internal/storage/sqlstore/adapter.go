@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -17,6 +16,7 @@ import (
 	"github.com/fastygo/backend/internal/domain/content"
 	"github.com/fastygo/backend/internal/domain/revision"
 	"github.com/fastygo/backend/internal/operations/backup"
+	"github.com/fastygo/backend/internal/persist"
 	"github.com/google/uuid"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -55,7 +55,7 @@ func Open(ctx context.Context, driver, dataSource string, dialect Dialect) (*Ada
 	}
 	database, err := sql.Open(driver, dataSource)
 	if err != nil {
-		return nil, fmt.Errorf("open SQL database: %w", err)
+		return nil, fmt.Errorf("failed to open SQL database: %w", err)
 	}
 	if dialect == DialectSQLite {
 		database.SetMaxOpenConns(1)
@@ -63,7 +63,7 @@ func Open(ctx context.Context, driver, dataSource string, dialect Dialect) (*Ada
 	adapter := &Adapter{database: database, dialect: dialect}
 	if err := adapter.Ping(ctx); err != nil {
 		_ = database.Close()
-		return nil, fmt.Errorf("ping SQL database: %w", err)
+		return nil, fmt.Errorf("failed to ping SQL database: %w", err)
 	}
 	if err := adapter.Migrate(ctx); err != nil {
 		_ = database.Close()
@@ -92,33 +92,33 @@ func (adapter *Adapter) Migrate(ctx context.Context) error {
 	}
 	transaction, err := adapter.database.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("begin SQL migration: %w", err)
+		return fmt.Errorf("failed to begin SQL migration: %w", err)
 	}
 	defer func() { _ = transaction.Rollback() }()
 	if _, err := transaction.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
 		version BIGINT PRIMARY KEY,
 		applied_at BIGINT NOT NULL
 	)`); err != nil {
-		return fmt.Errorf("create SQL migration table: %w", err)
+		return fmt.Errorf("failed to create SQL migration table: %w", err)
 	}
 	rows, err := transaction.QueryContext(ctx, "SELECT version FROM schema_migrations")
 	if err != nil {
-		return fmt.Errorf("list SQL migrations: %w", err)
+		return fmt.Errorf("failed to list SQL migrations: %w", err)
 	}
 	applied := make(map[int]struct{})
 	for rows.Next() {
 		var version int
 		if err := rows.Scan(&version); err != nil {
 			_ = rows.Close()
-			return fmt.Errorf("scan SQL migration: %w", err)
+			return fmt.Errorf("failed to scan SQL migration: %w", err)
 		}
 		applied[version] = struct{}{}
 	}
 	if err := rows.Close(); err != nil {
-		return fmt.Errorf("close SQL migration rows: %w", err)
+		return fmt.Errorf("failed to close SQL migration rows: %w", err)
 	}
 	if err := rows.Err(); err != nil {
-		return fmt.Errorf("iterate SQL migrations: %w", err)
+		return fmt.Errorf("failed to iterate SQL migrations: %w", err)
 	}
 	for _, migration := range migrations(adapter.dialect) {
 		if _, exists := applied[migration.version]; exists {
@@ -126,15 +126,15 @@ func (adapter *Adapter) Migrate(ctx context.Context) error {
 		}
 		for _, statement := range migration.statements {
 			if _, err := transaction.ExecContext(ctx, statement); err != nil {
-				return fmt.Errorf("execute SQL migration %d: %w", migration.version, err)
+				return fmt.Errorf("failed to execute SQL migration %d: %w", migration.version, err)
 			}
 		}
 		if migration.version == 4 || migration.version == 5 {
 			if err := ensureContentIndexes(ctx, transaction, adapter.dialect); err != nil {
-				return fmt.Errorf("create SQL content indexes: %w", err)
+				return fmt.Errorf("failed to create SQL content indexes: %w", err)
 			}
 			if err := backfillContentProjections(ctx, transaction, adapter.dialect); err != nil {
-				return fmt.Errorf("backfill SQL content projections: %w", err)
+				return fmt.Errorf("failed to backfill SQL content projections: %w", err)
 			}
 		}
 		if _, err := transaction.ExecContext(
@@ -143,11 +143,11 @@ func (adapter *Adapter) Migrate(ctx context.Context) error {
 				"INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)"),
 			migration.version, time.Now().UTC().UnixNano(),
 		); err != nil {
-			return fmt.Errorf("record SQL migration %d: %w", migration.version, err)
+			return fmt.Errorf("failed to record SQL migration %d: %w", migration.version, err)
 		}
 	}
 	if err := transaction.Commit(); err != nil {
-		return fmt.Errorf("commit SQL migration: %w", err)
+		return fmt.Errorf("failed to commit SQL migration: %w", err)
 	}
 	return nil
 }
@@ -390,7 +390,7 @@ func (repository contentRepository) List(ctx context.Context, query contentappli
 }
 
 func (repository contentRepository) Create(ctx context.Context, entry content.Entry) error {
-	encoded, err := json.Marshal(entry)
+	encoded, err := persist.EncodeEntry(entry)
 	if err != nil {
 		return err
 	}
@@ -411,7 +411,7 @@ func (repository contentRepository) Update(
 	entry content.Entry,
 	expectedVersion uint64,
 ) error {
-	encoded, err := json.Marshal(entry)
+	encoded, err := persist.EncodeEntry(entry)
 	if err != nil {
 		return err
 	}
@@ -637,7 +637,7 @@ func (repository revisionRepository) NextID(context.Context) (revision.ID, error
 }
 
 func (repository revisionRepository) Save(ctx context.Context, item revision.Revision) error {
-	encoded, err := json.Marshal(item)
+	encoded, err := persist.EncodeRevision(item)
 	if err != nil {
 		return err
 	}
@@ -664,8 +664,8 @@ func (repository revisionRepository) Get(ctx context.Context, id revision.ID) (r
 	if err != nil {
 		return revision.Revision{}, err
 	}
-	var item revision.Revision
-	if err := json.Unmarshal(encoded, &item); err != nil {
+	item, err := persist.DecodeRevision(encoded)
+	if err != nil {
 		return revision.Revision{}, err
 	}
 	return item, nil
@@ -701,8 +701,8 @@ func (repository revisionRepository) List(
 		if err := rows.Scan(&encoded); err != nil {
 			return nil, contentapplication.Page{}, err
 		}
-		var item revision.Revision
-		if err := json.Unmarshal(encoded, &item); err != nil {
+		item, err := persist.DecodeRevision(encoded)
+		if err != nil {
 			return nil, contentapplication.Page{}, err
 		}
 		items = append(items, item)
@@ -737,11 +737,7 @@ func bind(dialect Dialect, statement string) string {
 }
 
 func decodeEntry(encoded []byte) (content.Entry, error) {
-	var entry content.Entry
-	if err := json.Unmarshal(encoded, &entry); err != nil {
-		return content.Entry{}, err
-	}
-	return entry, nil
+	return persist.DecodeEntry(encoded)
 }
 
 func contentListWhere(query contentapplication.Query) (string, []any) {

@@ -9,6 +9,7 @@ import (
 	applicationtaxonomy "github.com/fastygo/backend/internal/application/taxonomy"
 	"github.com/fastygo/backend/internal/domain/authz"
 	domaintaxonomy "github.com/fastygo/backend/internal/domain/taxonomy"
+	"github.com/fastygo/backend/internal/persist"
 	"github.com/fastygo/framework/pkg/core"
 )
 
@@ -48,7 +49,7 @@ func (handler *TaxonomyHandler) listDefinitions(response http.ResponseWriter, re
 		writeError(response, request, err)
 		return
 	}
-	writeJSON(response, http.StatusOK, map[string]any{"data": items})
+	writeJSON(response, http.StatusOK, map[string]any{"data": projectDefinitions(items)})
 }
 
 func (handler *TaxonomyHandler) createDefinition(response http.ResponseWriter, request *http.Request) {
@@ -56,19 +57,19 @@ func (handler *TaxonomyHandler) createDefinition(response http.ResponseWriter, r
 	if !ok {
 		return
 	}
-	var item domaintaxonomy.Definition
-	if err := decodeTaxonomyJSON(response, request, &item); err != nil {
+	var document persist.Definition
+	if err := decodeTaxonomyJSON(response, request, &document); err != nil {
 		writeError(response, request, err)
 		return
 	}
-	saved, err := handler.service.SaveDefinition(request.Context(), principal, item, 0)
+	saved, err := handler.service.SaveDefinition(request.Context(), principal, document.Domain(), 0)
 	if err != nil {
 		writeError(response, request, err)
 		return
 	}
 	response.Header().Set("ETag", versionETag(saved.Version))
 	response.Header().Set("Location", request.URL.Path+"/"+saved.ID)
-	writeJSON(response, http.StatusCreated, map[string]any{"data": saved})
+	writeJSON(response, http.StatusCreated, map[string]any{"data": persist.DefinitionFromDomain(saved)})
 }
 
 func (handler *TaxonomyHandler) updateDefinition(response http.ResponseWriter, request *http.Request) {
@@ -76,11 +77,12 @@ func (handler *TaxonomyHandler) updateDefinition(response http.ResponseWriter, r
 	if !ok {
 		return
 	}
-	var item domaintaxonomy.Definition
-	if err := decodeTaxonomyJSON(response, request, &item); err != nil {
+	var document persist.Definition
+	if err := decodeTaxonomyJSON(response, request, &document); err != nil {
 		writeError(response, request, err)
 		return
 	}
+	item := document.Domain()
 	item.ID = request.PathValue("taxonomy")
 	version, err := expectedVersion(request, item.Version)
 	if err != nil {
@@ -93,7 +95,7 @@ func (handler *TaxonomyHandler) updateDefinition(response http.ResponseWriter, r
 		return
 	}
 	response.Header().Set("ETag", versionETag(saved.Version))
-	writeJSON(response, http.StatusOK, map[string]any{"data": saved})
+	writeJSON(response, http.StatusOK, map[string]any{"data": persist.DefinitionFromDomain(saved)})
 }
 
 func (handler *TaxonomyHandler) deleteDefinition(response http.ResponseWriter, request *http.Request) {
@@ -123,7 +125,7 @@ func (handler *TaxonomyHandler) listTerms(response http.ResponseWriter, request 
 		writeError(response, request, err)
 		return
 	}
-	writeJSON(response, http.StatusOK, map[string]any{"data": items})
+	writeJSON(response, http.StatusOK, map[string]any{"data": projectTerms(items)})
 }
 
 func (handler *TaxonomyHandler) createTerm(response http.ResponseWriter, request *http.Request) {
@@ -131,11 +133,12 @@ func (handler *TaxonomyHandler) createTerm(response http.ResponseWriter, request
 	if !ok {
 		return
 	}
-	var item domaintaxonomy.Term
-	if err := decodeTaxonomyJSON(response, request, &item); err != nil {
+	var document persist.Term
+	if err := decodeTaxonomyJSON(response, request, &document); err != nil {
 		writeError(response, request, err)
 		return
 	}
+	item := document.Domain()
 	item.TaxonomyID = request.PathValue("taxonomy")
 	saved, err := handler.service.SaveTerm(request.Context(), principal, item, 0)
 	if err != nil {
@@ -144,7 +147,7 @@ func (handler *TaxonomyHandler) createTerm(response http.ResponseWriter, request
 	}
 	response.Header().Set("ETag", versionETag(saved.Version))
 	response.Header().Set("Location", request.URL.Path+"/"+string(saved.ID))
-	writeJSON(response, http.StatusCreated, map[string]any{"data": saved})
+	writeJSON(response, http.StatusCreated, map[string]any{"data": persist.TermFromDomain(saved)})
 }
 
 func (handler *TaxonomyHandler) updateTerm(response http.ResponseWriter, request *http.Request) {
@@ -152,11 +155,12 @@ func (handler *TaxonomyHandler) updateTerm(response http.ResponseWriter, request
 	if !ok {
 		return
 	}
-	var item domaintaxonomy.Term
-	if err := decodeTaxonomyJSON(response, request, &item); err != nil {
+	var document persist.Term
+	if err := decodeTaxonomyJSON(response, request, &document); err != nil {
 		writeError(response, request, err)
 		return
 	}
+	item := document.Domain()
 	item.ID = domaintaxonomy.ID(request.PathValue("term"))
 	item.TaxonomyID = request.PathValue("taxonomy")
 	version, err := expectedVersion(request, item.Version)
@@ -170,7 +174,7 @@ func (handler *TaxonomyHandler) updateTerm(response http.ResponseWriter, request
 		return
 	}
 	response.Header().Set("ETag", versionETag(saved.Version))
-	writeJSON(response, http.StatusOK, map[string]any{"data": saved})
+	writeJSON(response, http.StatusOK, map[string]any{"data": persist.TermFromDomain(saved)})
 }
 
 func (handler *TaxonomyHandler) deleteTerm(response http.ResponseWriter, request *http.Request) {

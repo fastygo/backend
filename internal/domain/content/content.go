@@ -43,36 +43,36 @@ func (text LocalizedText) Value(locale, fallback string) string {
 
 // MetadataValue carries an explicit visibility policy.
 type MetadataValue struct {
-	Value   any  `json:"value"`
-	Private bool `json:"private,omitempty"`
+	Value   any
+	Private bool
 }
 
 type TermRef struct {
-	Taxonomy string `json:"taxonomy"`
-	TermID   string `json:"term_id"`
+	Taxonomy string
+	TermID   string
 }
 
 // Entry is the protocol-neutral content aggregate shared by all adapters.
 type Entry struct {
-	ID              ID                       `json:"id"`
-	Kind            Kind                     `json:"kind"`
-	Status          Status                   `json:"status"`
-	Visibility      Visibility               `json:"visibility"`
-	Slug            LocalizedText            `json:"slug"`
-	Title           LocalizedText            `json:"title"`
-	Content         LocalizedText            `json:"content"`
-	Excerpt         LocalizedText            `json:"excerpt"`
-	AuthorID        string                   `json:"author_id"`
-	ParentID        ID                       `json:"parent_id,omitempty"`
-	FeaturedMediaID string                   `json:"featured_media_id,omitempty"`
-	Template        string                   `json:"template,omitempty"`
-	Metadata        map[string]MetadataValue `json:"metadata,omitempty"`
-	Terms           []TermRef                `json:"taxonomy_ids,omitempty"`
-	Version         uint64                   `json:"version"`
-	CreatedAt       time.Time                `json:"created_at"`
-	UpdatedAt       time.Time                `json:"updated_at"`
-	PublishedAt     *time.Time               `json:"published_at,omitempty"`
-	DeletedAt       *time.Time               `json:"deleted_at,omitempty"`
+	ID              ID
+	Kind            Kind
+	Status          Status
+	Visibility      Visibility
+	Slug            LocalizedText
+	Title           LocalizedText
+	Content         LocalizedText
+	Excerpt         LocalizedText
+	AuthorID        string
+	ParentID        ID
+	FeaturedMediaID string
+	Template        string
+	Metadata        map[string]MetadataValue
+	Terms           []TermRef
+	Version         uint64
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	PublishedAt     *time.Time
+	DeletedAt       *time.Time
 }
 
 // Validate verifies invariants that are independent from storage and delivery.

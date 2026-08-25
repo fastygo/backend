@@ -6,7 +6,7 @@ import (
 
 	applicationidentity "github.com/fastygo/backend/internal/application/identity"
 	"github.com/fastygo/backend/internal/domain/authz"
-	domainidentity "github.com/fastygo/backend/internal/domain/identity"
+	"github.com/fastygo/backend/internal/persist"
 	"github.com/fastygo/framework/pkg/core"
 )
 
@@ -67,7 +67,7 @@ func (handler *IdentityHandler) listUsers(response http.ResponseWriter, request 
 		writeError(response, request, err)
 		return
 	}
-	writeJSON(response, http.StatusOK, map[string]any{"data": users})
+	writeJSON(response, http.StatusOK, map[string]any{"data": projectUsers(users)})
 }
 
 func (handler *IdentityHandler) createUser(response http.ResponseWriter, request *http.Request) {
@@ -92,11 +92,12 @@ func (handler *IdentityHandler) saveUser(
 	if !ok {
 		return
 	}
-	var input applicationidentity.UserInput
-	if err := decodeTaxonomyJSON(response, request, &input); err != nil {
+	var document userWriteDocument
+	if err := decodeTaxonomyJSON(response, request, &document); err != nil {
 		writeError(response, request, err)
 		return
 	}
+	input := document.input()
 	if version > 0 {
 		input.ID = request.PathValue("id")
 	}
@@ -111,7 +112,7 @@ func (handler *IdentityHandler) saveUser(
 		status = http.StatusCreated
 		response.Header().Set("Location", request.URL.Path+"/"+user.ID)
 	}
-	writeJSON(response, status, map[string]any{"data": user})
+	writeJSON(response, status, map[string]any{"data": projectUser(user)})
 }
 
 func (handler *IdentityHandler) deleteUser(response http.ResponseWriter, request *http.Request) {
@@ -141,7 +142,7 @@ func (handler *IdentityHandler) listRoles(response http.ResponseWriter, request 
 		writeError(response, request, err)
 		return
 	}
-	writeJSON(response, http.StatusOK, map[string]any{"data": roles})
+	writeJSON(response, http.StatusOK, map[string]any{"data": projectRoles(roles)})
 }
 
 func (handler *IdentityHandler) createRole(response http.ResponseWriter, request *http.Request) {
@@ -166,11 +167,12 @@ func (handler *IdentityHandler) saveRole(
 	if !ok {
 		return
 	}
-	var role domainidentity.Role
-	if err := decodeTaxonomyJSON(response, request, &role); err != nil {
+	var document persist.Role
+	if err := decodeTaxonomyJSON(response, request, &document); err != nil {
 		writeError(response, request, err)
 		return
 	}
+	role := document.Domain()
 	if version > 0 {
 		role.ID = request.PathValue("id")
 	}
@@ -185,7 +187,7 @@ func (handler *IdentityHandler) saveRole(
 		status = http.StatusCreated
 		response.Header().Set("Location", request.URL.Path+"/"+saved.ID)
 	}
-	writeJSON(response, status, map[string]any{"data": saved})
+	writeJSON(response, status, map[string]any{"data": persist.RoleFromDomain(saved)})
 }
 
 func (handler *IdentityHandler) deleteRole(response http.ResponseWriter, request *http.Request) {

@@ -16,29 +16,29 @@ const (
 )
 
 type Definition struct {
-	ID              string                `json:"id"`
-	Label           content.LocalizedText `json:"label"`
-	Mode            Mode                  `json:"mode"`
-	AssignedToKinds []content.Kind        `json:"assigned_to_kinds"`
-	Public          bool                  `json:"public"`
-	Version         uint64                `json:"version"`
+	ID              string
+	Label           content.LocalizedText
+	Mode            Mode
+	AssignedToKinds []content.Kind
+	Public          bool
+	Version         uint64
 }
 
 type Term struct {
-	ID          ID                    `json:"id"`
-	TaxonomyID  string                `json:"taxonomy_id"`
-	Name        content.LocalizedText `json:"name"`
-	Slug        content.LocalizedText `json:"slug"`
-	Description content.LocalizedText `json:"description,omitempty"`
-	ParentID    ID                    `json:"parent_id,omitempty"`
-	Version     uint64                `json:"version"`
+	ID          ID
+	TaxonomyID  string
+	Name        content.LocalizedText
+	Slug        content.LocalizedText
+	Description content.LocalizedText
+	ParentID    ID
+	Version     uint64
 }
 
 type Assignment struct {
-	ResourceKind content.Kind `json:"resource_kind"`
-	ResourceID   string       `json:"resource_id"`
-	TaxonomyID   string       `json:"taxonomy_id"`
-	TermID       ID           `json:"term_id"`
+	ResourceKind content.Kind
+	ResourceID   string
+	TaxonomyID   string
+	TermID       ID
 }
 
 func (definition Definition) Validate() error {

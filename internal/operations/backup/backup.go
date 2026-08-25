@@ -11,54 +11,26 @@ import (
 	application "github.com/fastygo/backend/internal/application/content"
 	"github.com/fastygo/backend/internal/domain/audit"
 	"github.com/fastygo/backend/internal/domain/content"
-	domainidentity "github.com/fastygo/backend/internal/domain/identity"
 	"github.com/fastygo/backend/internal/domain/revision"
 	"github.com/fastygo/backend/internal/domain/schema"
 	"github.com/fastygo/backend/internal/domain/taxonomy"
+	"github.com/fastygo/backend/internal/persist"
 )
 
 const FormatVersion = 3
 
-type IdentityUser struct {
-	ID           string    `json:"id"`
-	Email        string    `json:"email"`
-	DisplayName  string    `json:"display_name"`
-	PasswordHash string    `json:"password_hash"`
-	RoleIDs      []string  `json:"role_ids"`
-	Active       bool      `json:"active"`
-	Version      uint64    `json:"version"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-}
-
-func identityUser(user domainidentity.User) IdentityUser {
-	return IdentityUser{
-		ID: user.ID, Email: user.Email, DisplayName: user.DisplayName,
-		PasswordHash: user.PasswordHash, RoleIDs: user.RoleIDs, Active: user.Active,
-		Version: user.Version, CreatedAt: user.CreatedAt, UpdatedAt: user.UpdatedAt,
-	}
-}
-
-func (user IdentityUser) domain() domainidentity.User {
-	return domainidentity.User{
-		ID: user.ID, Email: user.Email, DisplayName: user.DisplayName,
-		PasswordHash: user.PasswordHash, RoleIDs: user.RoleIDs, Active: user.Active,
-		Version: user.Version, CreatedAt: user.CreatedAt, UpdatedAt: user.UpdatedAt,
-	}
-}
-
 type Document struct {
-	FormatVersion  int                   `json:"format_version"`
-	CreatedAt      time.Time             `json:"created_at"`
-	Manifest       schema.Manifest       `json:"manifest"`
-	ManifestDigest string                `json:"manifest_digest"`
-	Entries        []content.Entry       `json:"entries"`
-	Revisions      []revision.Revision   `json:"revisions"`
-	Audit          []audit.Event         `json:"audit"`
-	Taxonomies     []taxonomy.Definition `json:"taxonomies"`
-	TaxonomyTerms  []taxonomy.Term       `json:"taxonomy_terms"`
-	Users          []IdentityUser        `json:"users"`
-	Roles          []domainidentity.Role `json:"roles"`
+	FormatVersion  int                  `json:"format_version"`
+	CreatedAt      time.Time            `json:"created_at"`
+	Manifest       persist.Manifest     `json:"manifest"`
+	ManifestDigest string               `json:"manifest_digest"`
+	Entries        []persist.Entry      `json:"entries"`
+	Revisions      []persist.Revision   `json:"revisions"`
+	Audit          []persist.Event      `json:"audit"`
+	Taxonomies     []persist.Definition `json:"taxonomies"`
+	TaxonomyTerms  []persist.Term       `json:"taxonomy_terms"`
+	Users          []persist.UserRecord `json:"users"`
+	Roles          []persist.Role       `json:"roles"`
 }
 
 type Service struct {
@@ -87,45 +59,59 @@ func (service *Service) Export(ctx context.Context, destination io.Writer) error
 	}
 	document := Document{
 		FormatVersion: FormatVersion, CreatedAt: service.now().UTC(),
-		Manifest: service.manifest, ManifestDigest: digest,
+		Manifest: persist.ManifestFromDomain(service.manifest), ManifestDigest: digest,
 	}
 	err = service.storage.WithinBackupTransaction(ctx, func(transaction Transaction) error {
 		entries, err := allEntries(ctx, transaction.Content())
 		if err != nil {
 			return err
 		}
-		document.Entries = entries
 		for _, entry := range entries {
+			document.Entries = append(document.Entries, persist.EntryFromDomain(entry))
 			items, err := allRevisions(ctx, transaction.Revisions(), entry.ID)
 			if err != nil {
 				return err
 			}
-			document.Revisions = append(document.Revisions, items...)
+			for _, item := range items {
+				document.Revisions = append(document.Revisions, persist.RevisionFromDomain(item))
+			}
 		}
-		document.Audit, err = allAudit(ctx, transaction.Audit())
+		events, err := allAudit(ctx, transaction.Audit())
 		if err != nil {
 			return err
 		}
-		document.Taxonomies, err = transaction.Taxonomies().ListDefinitions(ctx)
+		for _, event := range events {
+			document.Audit = append(document.Audit, persist.EventFromDomain(event))
+		}
+		definitions, err := transaction.Taxonomies().ListDefinitions(ctx)
 		if err != nil {
 			return err
 		}
-		for _, definition := range document.Taxonomies {
+		for _, definition := range definitions {
+			document.Taxonomies = append(document.Taxonomies, persist.DefinitionFromDomain(definition))
 			terms, err := transaction.Taxonomies().ListTerms(ctx, definition.ID)
 			if err != nil {
 				return err
 			}
-			document.TaxonomyTerms = append(document.TaxonomyTerms, terms...)
+			for _, term := range terms {
+				document.TaxonomyTerms = append(document.TaxonomyTerms, persist.TermFromDomain(term))
+			}
 		}
 		users, err := transaction.Identity().ListUsers(ctx)
 		if err != nil {
 			return err
 		}
 		for _, user := range users {
-			document.Users = append(document.Users, identityUser(user))
+			document.Users = append(document.Users, persist.UserFromDomain(user))
 		}
-		document.Roles, err = transaction.Identity().ListRoles(ctx)
-		return err
+		roles, err := transaction.Identity().ListRoles(ctx)
+		if err != nil {
+			return err
+		}
+		for _, role := range roles {
+			document.Roles = append(document.Roles, persist.RoleFromDomain(role))
+		}
+		return nil
 	})
 	if err != nil {
 		return err
@@ -143,12 +129,12 @@ func (service *Service) Restore(ctx context.Context, source io.Reader) error {
 	decoder := json.NewDecoder(source)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&document); err != nil {
-		return fmt.Errorf("decode backup: %w", err)
+		return fmt.Errorf("failed to decode backup: %w", err)
 	}
 	if document.FormatVersion != FormatVersion {
 		return errors.New("backup format version is unsupported")
 	}
-	digest, err := document.Manifest.Digest()
+	digest, err := document.Manifest.Domain().Digest()
 	if err != nil || digest != document.ManifestDigest {
 		return errors.New("backup manifest digest is invalid")
 	}
@@ -156,28 +142,30 @@ func (service *Service) Restore(ctx context.Context, source io.Reader) error {
 	if err != nil || currentDigest != digest {
 		return errors.New("backup manifest does not match runtime manifest")
 	}
-	for _, entry := range document.Entries {
-		if err := entry.Validate(); err != nil {
-			return fmt.Errorf("backup content is invalid: %w", err)
+	for _, encoded := range document.Entries {
+		if err := encoded.Domain().Validate(); err != nil {
+			return fmt.Errorf("failed to validate backup content: %w", err)
 		}
 	}
-	for _, item := range document.Revisions {
-		if err := item.Validate(); err != nil {
-			return fmt.Errorf("backup revision is invalid: %w", err)
+	for _, encoded := range document.Revisions {
+		if err := encoded.Domain().Validate(); err != nil {
+			return fmt.Errorf("failed to validate backup revision: %w", err)
 		}
 	}
-	for _, event := range document.Audit {
-		if err := event.Validate(); err != nil {
-			return fmt.Errorf("backup audit is invalid: %w", err)
+	for _, encoded := range document.Audit {
+		if err := encoded.Domain().Validate(); err != nil {
+			return fmt.Errorf("failed to validate backup audit: %w", err)
 		}
 	}
 	termsByTaxonomy := make(map[string][]taxonomy.Term)
-	for _, term := range document.TaxonomyTerms {
+	for _, encoded := range document.TaxonomyTerms {
+		term := encoded.Domain()
 		termsByTaxonomy[term.TaxonomyID] = append(termsByTaxonomy[term.TaxonomyID], term)
 	}
-	for _, definition := range document.Taxonomies {
+	for _, encoded := range document.Taxonomies {
+		definition := encoded.Domain()
 		if err := taxonomy.ValidateHierarchy(definition, termsByTaxonomy[definition.ID]); err != nil {
-			return fmt.Errorf("backup taxonomy is invalid: %w", err)
+			return fmt.Errorf("failed to validate backup taxonomy: %w", err)
 		}
 		delete(termsByTaxonomy, definition.ID)
 	}
@@ -185,16 +173,17 @@ func (service *Service) Restore(ctx context.Context, source io.Reader) error {
 		return errors.New("backup contains terms without taxonomy definitions")
 	}
 	roleIDs := make(map[string]struct{}, len(document.Roles))
-	for _, role := range document.Roles {
+	for _, encoded := range document.Roles {
+		role := encoded.Domain()
 		if err := role.Validate(); err != nil {
-			return fmt.Errorf("backup role is invalid: %w", err)
+			return fmt.Errorf("failed to validate backup role: %w", err)
 		}
 		roleIDs[role.ID] = struct{}{}
 	}
 	for _, encoded := range document.Users {
-		user := encoded.domain()
+		user := encoded.Domain()
 		if err := user.Validate(); err != nil {
-			return fmt.Errorf("backup user is invalid: %w", err)
+			return fmt.Errorf("failed to validate backup user: %w", err)
 		}
 		for _, roleID := range user.RoleIDs {
 			if _, exists := roleIDs[roleID]; !exists {
@@ -228,38 +217,38 @@ func (service *Service) Restore(ctx context.Context, source io.Reader) error {
 		if len(existingUsers) != 0 || len(existingRoles) != 0 {
 			return errors.New("restore requires an empty identity store")
 		}
-		for _, role := range document.Roles {
-			if err := transaction.Identity().SaveRole(ctx, role, 0); err != nil {
+		for _, encoded := range document.Roles {
+			if err := transaction.Identity().SaveRole(ctx, encoded.Domain(), 0); err != nil {
 				return err
 			}
 		}
 		for _, encoded := range document.Users {
-			if err := transaction.Identity().SaveUser(ctx, encoded.domain(), 0); err != nil {
+			if err := transaction.Identity().SaveUser(ctx, encoded.Domain(), 0); err != nil {
 				return err
 			}
 		}
-		for _, definition := range document.Taxonomies {
-			if err := transaction.Taxonomies().SaveDefinition(ctx, definition, 0); err != nil {
+		for _, encoded := range document.Taxonomies {
+			if err := transaction.Taxonomies().SaveDefinition(ctx, encoded.Domain(), 0); err != nil {
 				return err
 			}
 		}
-		for _, term := range document.TaxonomyTerms {
-			if err := transaction.Taxonomies().SaveTerm(ctx, term, 0); err != nil {
+		for _, encoded := range document.TaxonomyTerms {
+			if err := transaction.Taxonomies().SaveTerm(ctx, encoded.Domain(), 0); err != nil {
 				return err
 			}
 		}
-		for _, entry := range document.Entries {
-			if err := transaction.Content().Create(ctx, entry); err != nil {
+		for _, encoded := range document.Entries {
+			if err := transaction.Content().Create(ctx, encoded.Domain()); err != nil {
 				return err
 			}
 		}
-		for _, item := range document.Revisions {
-			if err := transaction.Revisions().Save(ctx, item); err != nil {
+		for _, encoded := range document.Revisions {
+			if err := transaction.Revisions().Save(ctx, encoded.Domain()); err != nil {
 				return err
 			}
 		}
-		for _, event := range document.Audit {
-			if err := transaction.Audit().Save(ctx, event); err != nil {
+		for _, encoded := range document.Audit {
+			if err := transaction.Audit().Save(ctx, encoded.Domain()); err != nil {
 				return err
 			}
 		}

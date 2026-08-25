@@ -78,7 +78,7 @@ func (handler *ContentHandler) list(response http.ResponseWriter, request *http.
 	}
 	writeJSON(response, http.StatusOK, map[string]any{
 		"data":       projectRecords(result.Entries),
-		"pagination": result.Page,
+		"pagination": projectPage(result.Page),
 	})
 }
 

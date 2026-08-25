@@ -58,9 +58,9 @@ var knownCapabilities = map[Capability]struct{}{
 }
 
 type Role struct {
-	ID           string       `json:"id"`
-	Label        string       `json:"label"`
-	Capabilities []Capability `json:"capabilities"`
+	ID           string
+	Label        string
+	Capabilities []Capability
 }
 
 type Principal struct {

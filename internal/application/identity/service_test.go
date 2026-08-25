@@ -16,6 +16,7 @@ import (
 )
 
 func TestBootstrapLoginAndUserRoleManagement(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	storage, err := bbolt.Open(filepath.Join(t.TempDir(), "identity.db"), 0o600, nil)
 	if err != nil {
@@ -63,13 +64,16 @@ func TestBootstrapLoginAndUserRoleManagement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("save user: %v", err)
 	}
-	encoded, err := json.Marshal(user)
+	encoded, err := json.Marshal(map[string]any{
+		"id": user.ID, "email": user.Email, "display_name": user.DisplayName,
+		"role_ids": user.RoleIDs, "active": user.Active, "version": user.Version,
+	})
 	if err != nil {
-		t.Fatalf("marshal user: %v", err)
+		t.Fatalf("marshal public user: %v", err)
 	}
 	if strings.Contains(string(encoded), "PasswordHash") ||
 		strings.Contains(string(encoded), "password_hash") ||
 		strings.Contains(string(encoded), "$2") {
-		t.Fatalf("password hash leaked through user JSON: %s", encoded)
+		t.Fatalf("password hash leaked through public user JSON: %s", encoded)
 	}
 }

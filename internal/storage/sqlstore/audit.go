@@ -4,13 +4,13 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"math"
 	"slices"
 
 	application "github.com/fastygo/backend/internal/application/content"
 	"github.com/fastygo/backend/internal/domain/audit"
+	"github.com/fastygo/backend/internal/persist"
 	"github.com/google/uuid"
 )
 
@@ -24,7 +24,7 @@ func (repository auditRepository) NextID(context.Context) (audit.ID, error) {
 }
 
 func (repository auditRepository) Save(ctx context.Context, event audit.Event) error {
-	encoded, err := json.Marshal(event)
+	encoded, err := persist.EncodeEvent(event)
 	if err != nil {
 		return err
 	}
@@ -58,8 +58,8 @@ func (repository auditRepository) List(
 		if err := rows.Scan(&encoded); err != nil {
 			return nil, application.Page{}, err
 		}
-		var event audit.Event
-		if err := json.Unmarshal(encoded, &event); err != nil {
+		event, err := persist.DecodeEvent(encoded)
+		if err != nil {
 			return nil, application.Page{}, err
 		}
 		if matchesAudit(event, query) {

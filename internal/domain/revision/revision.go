@@ -11,13 +11,13 @@ import (
 type ID string
 
 type Revision struct {
-	ID        ID            `json:"id"`
-	EntryID   content.ID    `json:"entry_id"`
-	Version   uint64        `json:"version"`
-	Snapshot  content.Entry `json:"snapshot"`
-	AuthorID  string        `json:"author_id"`
-	Reason    string        `json:"reason,omitempty"`
-	CreatedAt time.Time     `json:"created_at"`
+	ID        ID
+	EntryID   content.ID
+	Version   uint64
+	Snapshot  content.Entry
+	AuthorID  string
+	Reason    string
+	CreatedAt time.Time
 }
 
 func (revision Revision) Validate() error {

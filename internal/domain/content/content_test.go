@@ -6,35 +6,39 @@ import (
 )
 
 func TestPublicVisibilityContract(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, time.August, 25, 12, 0, 0, 0, time.UTC)
-	entry := validEntry(now)
-
-	if !entry.IsPublicAt(now) {
-		t.Fatalf("published public content must be visible")
+	cases := map[string]struct {
+		mutate  func(*Entry)
+		visible bool
+	}{
+		"published public": {mutate: func(*Entry) {}, visible: true},
+		"future publish": {
+			mutate: func(entry *Entry) {
+				future := now.Add(time.Hour)
+				entry.PublishedAt = &future
+			},
+		},
+		"draft":     {mutate: func(entry *Entry) { entry.Status = StatusDraft }},
+		"scheduled": {mutate: func(entry *Entry) { entry.Status = StatusScheduled }},
+		"archived":  {mutate: func(entry *Entry) { entry.Status = StatusArchived }},
+		"trashed":   {mutate: func(entry *Entry) { entry.Status = StatusTrashed }},
+		"private":   {mutate: func(entry *Entry) { entry.Visibility = VisibilityPrivate }},
 	}
-
-	future := now.Add(time.Hour)
-	entry.PublishedAt = &future
-	if entry.IsPublicAt(now) {
-		t.Fatalf("future content must not be visible")
-	}
-
-	entry.PublishedAt = nil
-	for _, status := range []Status{StatusDraft, StatusScheduled, StatusArchived, StatusTrashed} {
-		entry.Status = status
-		if entry.IsPublicAt(now) {
-			t.Fatalf("%s content must not be visible", status)
-		}
-	}
-
-	entry.Status = StatusPublished
-	entry.Visibility = VisibilityPrivate
-	if entry.IsPublicAt(now) {
-		t.Fatalf("private content must not be visible")
+	for name, test := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			entry := validEntry(now)
+			test.mutate(&entry)
+			if entry.IsPublicAt(now) != test.visible {
+				t.Fatalf("visibility=%v want %v", entry.IsPublicAt(now), test.visible)
+			}
+		})
 	}
 }
 
 func TestValidationAndPublicMetadataProjection(t *testing.T) {
+	t.Parallel()
 	now := time.Now().UTC()
 	entry := validEntry(now)
 	entry.Metadata = map[string]MetadataValue{
@@ -44,7 +48,6 @@ func TestValidationAndPublicMetadataProjection(t *testing.T) {
 	if err := entry.Validate(); err != nil {
 		t.Fatalf("valid entry rejected: %v", err)
 	}
-
 	projected := entry.PublicProjection()
 	if _, ok := projected.Metadata["internal_id"]; ok {
 		t.Fatalf("private metadata leaked")
@@ -52,7 +55,6 @@ func TestValidationAndPublicMetadataProjection(t *testing.T) {
 	if projected.Metadata["seo_title"].Value != "Public" {
 		t.Fatalf("public metadata missing")
 	}
-
 	entry.Status = StatusScheduled
 	entry.PublishedAt = nil
 	if err := entry.Validate(); err == nil {
@@ -61,13 +63,25 @@ func TestValidationAndPublicMetadataProjection(t *testing.T) {
 }
 
 func TestLocalizedTextAndUnicodeSlug(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		value string
+		want  string
+	}{
+		"cyrillic path": {value: "  Летнее платье / 2026  ", want: "летнее-платье-2026"},
+		"latin":         {value: "Hello World", want: "hello-world"},
+	}
+	for name, test := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if slug := NormalizeSlug(test.value); slug != test.want {
+				t.Fatalf("unexpected slug: %q", slug)
+			}
+		})
+	}
 	text := LocalizedText{"ru": "Название", "en": "Title"}
 	if value := text.Value("de", "ru"); value != "Название" {
 		t.Fatalf("unexpected fallback: %q", value)
-	}
-
-	if slug := NormalizeSlug("  Летнее платье / 2026  "); slug != "летнее-платье-2026" {
-		t.Fatalf("unexpected slug: %q", slug)
 	}
 	if !ValidKind("product_variant") || ValidKind("Product Variant") {
 		t.Fatalf("kind validation is inconsistent")
@@ -83,7 +97,8 @@ func validEntry(now time.Time) Entry {
 		Slug:       LocalizedText{"en": "hello"},
 		Title:      LocalizedText{"en": "Hello"},
 		Version:    1,
-		CreatedAt:  now.Add(-time.Hour),
+		CreatedAt:  now,
 		UpdatedAt:  now,
+		PublishedAt: &now,
 	}
 }

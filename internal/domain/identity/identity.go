@@ -11,43 +11,22 @@ import (
 )
 
 type User struct {
-	ID           string    `json:"id"`
-	Email        string    `json:"email"`
-	DisplayName  string    `json:"display_name"`
-	PasswordHash string    `json:"-"`
-	RoleIDs      []string  `json:"role_ids"`
-	Active       bool      `json:"active"`
-	Version      uint64    `json:"version"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-}
-
-// UserRecord is the durable representation. Delivery code must expose User instead.
-type UserRecord struct {
-	ID           string    `json:"id"`
-	Email        string    `json:"email"`
-	DisplayName  string    `json:"display_name"`
-	PasswordHash string    `json:"password_hash"`
-	RoleIDs      []string  `json:"role_ids"`
-	Active       bool      `json:"active"`
-	Version      uint64    `json:"version"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-}
-
-func RecordFromUser(user User) UserRecord {
-	return UserRecord(user)
-}
-
-func (record UserRecord) User() User {
-	return User(record)
+	ID           string
+	Email        string
+	DisplayName  string
+	PasswordHash string
+	RoleIDs      []string
+	Active       bool
+	Version      uint64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type Role struct {
-	ID           string             `json:"id"`
-	Label        string             `json:"label"`
-	Capabilities []authz.Capability `json:"capabilities"`
-	Version      uint64             `json:"version"`
+	ID           string
+	Label        string
+	Capabilities []authz.Capability
+	Version      uint64
 }
 
 func (user *User) Normalize() {

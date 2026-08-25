@@ -2,11 +2,11 @@ package bbolt
 
 import (
 	"context"
-	"encoding/json"
 	"slices"
 	"strings"
 
 	domainidentity "github.com/fastygo/backend/internal/domain/identity"
+	"github.com/fastygo/backend/internal/persist"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -15,19 +15,20 @@ type identityRepository struct {
 }
 
 func (repository identityRepository) GetUser(_ context.Context, id string) (domainidentity.User, error) {
-	var record domainidentity.UserRecord
-	err := getJSON(repository.transaction.Bucket(usersBucket), []byte(id), &record)
-	return record.User(), err
+	value := repository.transaction.Bucket(usersBucket).Get([]byte(id))
+	if value == nil {
+		return domainidentity.User{}, ErrNotFound
+	}
+	return persist.DecodeUser(value)
 }
 
 func (repository identityRepository) GetUserByEmail(_ context.Context, email string) (domainidentity.User, error) {
 	var resolved domainidentity.User
 	err := repository.transaction.Bucket(usersBucket).ForEach(func(_, value []byte) error {
-		var record domainidentity.UserRecord
-		if err := json.Unmarshal(value, &record); err != nil {
+		user, err := persist.DecodeUser(value)
+		if err != nil {
 			return err
 		}
-		user := record.User()
 		if strings.EqualFold(user.Email, strings.TrimSpace(email)) {
 			resolved = user
 		}
@@ -45,11 +46,11 @@ func (repository identityRepository) GetUserByEmail(_ context.Context, email str
 func (repository identityRepository) ListUsers(context.Context) ([]domainidentity.User, error) {
 	var users []domainidentity.User
 	err := repository.transaction.Bucket(usersBucket).ForEach(func(_, value []byte) error {
-		var record domainidentity.UserRecord
-		if err := json.Unmarshal(value, &record); err != nil {
+		user, err := persist.DecodeUser(value)
+		if err != nil {
 			return err
 		}
-		users = append(users, record.User())
+		users = append(users, user)
 		return nil
 	})
 	slices.SortFunc(users, func(left, right domainidentity.User) int {
@@ -66,11 +67,10 @@ func (repository identityRepository) SaveUser(
 	return saveVersionedJSON(
 		repository.transaction.Bucket(usersBucket),
 		[]byte(user.ID),
-		domainidentity.RecordFromUser(user),
+		persist.UserFromDomain(user),
 		expectedVersion,
 		func(encoded []byte) (uint64, error) {
-			var current domainidentity.UserRecord
-			err := json.Unmarshal(encoded, &current)
+			current, err := persist.DecodeUser(encoded)
 			return current.Version, err
 		},
 	)
@@ -88,16 +88,18 @@ func (repository identityRepository) DeleteUser(_ context.Context, id string, ex
 }
 
 func (repository identityRepository) GetRole(_ context.Context, id string) (domainidentity.Role, error) {
-	var role domainidentity.Role
-	err := getJSON(repository.transaction.Bucket(rolesBucket), []byte(id), &role)
-	return role, err
+	value := repository.transaction.Bucket(rolesBucket).Get([]byte(id))
+	if value == nil {
+		return domainidentity.Role{}, ErrNotFound
+	}
+	return persist.DecodeRole(value)
 }
 
 func (repository identityRepository) ListRoles(context.Context) ([]domainidentity.Role, error) {
 	var roles []domainidentity.Role
 	err := repository.transaction.Bucket(rolesBucket).ForEach(func(_, value []byte) error {
-		var role domainidentity.Role
-		if err := json.Unmarshal(value, &role); err != nil {
+		role, err := persist.DecodeRole(value)
+		if err != nil {
 			return err
 		}
 		roles = append(roles, role)
@@ -117,11 +119,10 @@ func (repository identityRepository) SaveRole(
 	return saveVersionedJSON(
 		repository.transaction.Bucket(rolesBucket),
 		[]byte(role.ID),
-		role,
+		persist.RoleFromDomain(role),
 		expectedVersion,
 		func(encoded []byte) (uint64, error) {
-			var current domainidentity.Role
-			err := json.Unmarshal(encoded, &current)
+			current, err := persist.DecodeRole(encoded)
 			return current.Version, err
 		},
 	)
@@ -136,14 +137,6 @@ func (repository identityRepository) DeleteRole(_ context.Context, id string, ex
 		return ErrConflict
 	}
 	return repository.transaction.Bucket(rolesBucket).Delete([]byte(id))
-}
-
-func getJSON(bucket *bolt.Bucket, key []byte, target any) error {
-	value := bucket.Get(key)
-	if value == nil {
-		return ErrNotFound
-	}
-	return json.Unmarshal(value, target)
 }
 
 func saveVersionedJSON(
