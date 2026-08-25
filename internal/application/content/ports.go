@@ -27,13 +27,15 @@ type Query struct {
 	Descending    bool
 	PublicOnly    bool
 	PublicAt      time.Time
+	RelationField string
+	RelatedID     content.ID
 }
 
 type Page struct {
-	Number     int `json:"page"`
-	PerPage    int `json:"per_page"`
-	Total      int `json:"total"`
-	TotalPages int `json:"total_pages"`
+	Number     int
+	PerPage    int
+	Total      int
+	TotalPages int
 }
 
 type ListResult struct {

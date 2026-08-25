@@ -103,6 +103,7 @@ func TestAdapterFiltersPublicContentAndTaxonomy(t *testing.T) {
 	err := adapter.WithinContentTransaction(context.Background(), func(transaction application.Transaction) error {
 		public := testEntry(now)
 		public.Terms = []content.TermRef{{Taxonomy: "topic", TermID: "go"}}
+		public.Metadata = map[string]content.MetadataValue{"author_ref": {Value: "user_1"}}
 		if err := transaction.Content().Create(context.Background(), public); err != nil {
 			return err
 		}
@@ -126,6 +127,15 @@ func TestAdapterFiltersPublicContentAndTaxonomy(t *testing.T) {
 		}
 		if result.Page.Total != 1 || len(result.Entries) != 1 || result.Entries[0].ID != "post_1" {
 			t.Fatalf("unexpected filtered result: %#v", result)
+		}
+		result, err = transaction.Content().List(context.Background(), application.Query{
+			Page: 1, PerPage: 10, RelationField: "author_ref", RelatedID: "user_1",
+		})
+		if err != nil {
+			return err
+		}
+		if result.Page.Total != 1 || result.Entries[0].ID != "post_1" {
+			t.Fatalf("unexpected relation filter: %#v", result)
 		}
 		return nil
 	})

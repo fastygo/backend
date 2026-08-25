@@ -235,6 +235,24 @@ func (repository *memoryRepository) GetBySlug(_ context.Context, kind domaincont
 func (repository *memoryRepository) List(_ context.Context, query Query) (ListResult, error) {
 	entries := make([]domaincontent.Entry, 0, len(repository.entries))
 	for _, entry := range repository.entries {
+		if len(query.Kinds) > 0 {
+			found := false
+			for _, kind := range query.Kinds {
+				if entry.Kind == kind {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+		if query.RelationField != "" && query.RelatedID != "" {
+			metadata, exists := entry.Metadata[query.RelationField]
+			if !exists || !metadataReferences(metadata.Value, string(query.RelatedID)) {
+				continue
+			}
+		}
 		entries = append(entries, entry)
 	}
 	return ListResult{Entries: entries, Page: Page{Number: query.Page, PerPage: query.PerPage, Total: len(entries), TotalPages: 1}}, nil

@@ -149,10 +149,13 @@ Docker requires the secrets declared in `.env.example`. The image runs as an unp
 ## Verification
 
 ```bash
-go test ./...
-go vet ./...
-go build ./cmd/server ./cmd/headless-token ./cmd/headless-backup
+make verify
 ```
+
+The production gate runs tests, conformance, vet, Staticcheck, `govulncheck`,
+Linux race detection, module verification, and all command builds. On Windows,
+the race detector runs in Docker. CI additionally exercises PostgreSQL, MySQL,
+and MariaDB through `make live-sql`.
 
 See `docs/deployment/bare-metal.md` for a systemd installation and
 `docs/architecture/target-headless.md` for architectural boundaries.

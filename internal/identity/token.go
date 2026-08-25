@@ -68,7 +68,7 @@ func (manager *TokenManager) Resolve(request *http.Request) (authz.Principal, er
 	}
 	scheme, token, found := strings.Cut(authorization, " ")
 	if !found || !strings.EqualFold(scheme, "Bearer") || strings.TrimSpace(token) == "" {
-		return authz.Principal{}, errors.New("Authorization must use Bearer authentication")
+		return authz.Principal{}, errors.New("authorization must use Bearer authentication")
 	}
 	var claims Claims
 	if err := frameworkauth.SignedDecode(strings.TrimSpace(token), manager.secret, &claims); err != nil {

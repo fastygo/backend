@@ -122,8 +122,9 @@ func TestSQLiteListFiltersSortsAndPaginatesInSQL(t *testing.T) {
 			Visibility: content.VisibilityPublic, AuthorID: "author-2",
 			Title:   content.LocalizedText{"en": "Alpha", "ru": "Альфа"},
 			Content: content.LocalizedText{"en": "Needle description", "ru": "Описание"},
-			Terms:   []content.TermRef{{Taxonomy: "catalog", TermID: "featured"}},
-			Version: 1, CreatedAt: now.Add(time.Minute), UpdatedAt: now.Add(time.Minute),
+			Terms:    []content.TermRef{{Taxonomy: "catalog", TermID: "featured"}},
+			Metadata: map[string]content.MetadataValue{"brand": {Value: "brand_1"}},
+			Version:  1, CreatedAt: now.Add(time.Minute), UpdatedAt: now.Add(time.Minute),
 			PublishedAt: timePointer(now),
 		},
 		{
@@ -178,6 +179,15 @@ func TestSQLiteListFiltersSortsAndPaginatesInSQL(t *testing.T) {
 		}
 		if result.Page.Total != 1 || result.Entries[0].ID != "product_2" {
 			t.Fatalf("unexpected SQL taxonomy page: %#v", result)
+		}
+		result, err = transaction.Content().List(context.Background(), application.Query{
+			RelationField: "brand", RelatedID: "brand_1", Page: 1, PerPage: 10,
+		})
+		if err != nil {
+			return err
+		}
+		if result.Page.Total != 1 || result.Entries[0].ID != "product_2" {
+			t.Fatalf("unexpected SQL relation page: %#v", result)
 		}
 		result, err = transaction.Content().List(context.Background(), application.Query{
 			AuthorID: "legacy", PublicOnly: true, PublicAt: now.Add(time.Hour),

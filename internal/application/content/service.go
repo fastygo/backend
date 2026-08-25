@@ -357,86 +357,78 @@ func (service *Service) applyDeletePolicies(
 	if service.manifest == nil {
 		return nil
 	}
-	entries, err := listAllContent(ctx, transaction.Content())
-	if err != nil {
-		return core.WrapDomainError(core.ErrorCodeInternal, "relation dependencies could not be loaded", err)
-	}
-	for _, dependent := range entries {
-		if dependent.ID == target.ID || dependent.Status == domaincontent.StatusTrashed {
-			continue
-		}
-		resource := service.manifestResource(dependent.Kind)
-		if resource == nil {
-			continue
-		}
-		original := dependent
-		policy := schema.DeletePolicy("")
+	for _, resource := range service.manifest.Resources {
 		for _, field := range resource.Fields {
 			if field.Type != schema.FieldRelation || field.Relation == nil ||
 				field.Relation.Resource != string(target.Kind) {
 				continue
 			}
-			metadata, exists := dependent.Metadata[field.ID]
-			if !exists || !relationContains(field, metadata.Value, string(target.ID)) {
-				continue
+			dependents, err := listRelatedContent(
+				ctx,
+				transaction.Content(),
+				domaincontent.Kind(resource.ID),
+				field.ID,
+				target.ID,
+			)
+			if err != nil {
+				return core.WrapDomainError(core.ErrorCodeInternal, "relation dependencies could not be loaded", err)
 			}
-			switch field.Relation.OnDelete {
-			case schema.DeleteRestrict:
-				return core.NewDomainError(
-					core.ErrorCodeConflict,
-					fmt.Sprintf("content is referenced by %s through field %q", dependent.ID, field.ID),
-				)
-			case schema.DeleteCascade:
-				policy = schema.DeleteCascade
-			case schema.DeleteNullify:
-				if policy == "" {
-					policy = schema.DeleteNullify
+			for _, dependent := range dependents {
+				if dependent.ID == target.ID || dependent.Status == domaincontent.StatusTrashed {
+					continue
 				}
-				nullifyRelation(&dependent, field, string(target.ID))
+				original := dependent
+				switch field.Relation.OnDelete {
+				case schema.DeleteRestrict:
+					return core.NewDomainError(
+						core.ErrorCodeConflict,
+						fmt.Sprintf("content is referenced by %s through field %q", dependent.ID, field.ID),
+					)
+				case schema.DeleteNullify:
+					nullifyRelation(&dependent, field, string(target.ID))
+				case schema.DeleteCascade:
+					if _, cycle := visiting[dependent.ID]; cycle {
+						return core.NewDomainError(core.ErrorCodeConflict, "cascade relation contains a cycle")
+					}
+					visiting[dependent.ID] = struct{}{}
+					if err := service.applyDeletePolicies(ctx, transaction, principal, dependent, visiting); err != nil {
+						return err
+					}
+					delete(visiting, dependent.ID)
+					dependent.Status = domaincontent.StatusTrashed
+					dependent.DeletedAt = timePointer(service.now().UTC())
+				default:
+					continue
+				}
+				before := original
+				dependent.Version++
+				dependent.UpdatedAt = service.now().UTC()
+				if err := service.validateManifest(ctx, transaction.Content(), &dependent); err != nil {
+					return err
+				}
+				revisionID, err := transaction.Revisions().NextID(ctx)
+				if err != nil {
+					return core.WrapDomainError(core.ErrorCodeInternal, "relation revision id allocation failed", err)
+				}
+				snapshot := revision.Revision{
+					ID: revisionID, EntryID: before.ID, Version: before.Version, Snapshot: before,
+					AuthorID: principal.ID, Reason: "relation on_delete " + string(field.Relation.OnDelete),
+					CreatedAt: service.now().UTC(),
+				}
+				if err := transaction.Revisions().Save(ctx, snapshot); err != nil {
+					return core.WrapDomainError(core.ErrorCodeInternal, "relation revision save failed", err)
+				}
+				if err := transaction.Content().Update(ctx, dependent, before.Version); err != nil {
+					return core.WrapDomainError(core.ErrorCodeConflict, "relation policy update failed", err)
+				}
+				if err := saveAudit(ctx, transaction.Audit(), audit.Event{
+					OccurredAt: dependent.UpdatedAt, ActorID: principal.ID,
+					Action: "content.relation_" + string(field.Relation.OnDelete), Resource: string(dependent.Kind),
+					ResourceID: string(dependent.ID), BeforeVersion: before.Version, AfterVersion: dependent.Version,
+				}); err != nil {
+					return err
+				}
 			}
-		}
-		if policy == "" {
-			continue
-		}
-		if _, cycle := visiting[dependent.ID]; cycle {
-			return core.NewDomainError(core.ErrorCodeConflict, "cascade relation contains a cycle")
-		}
-		visiting[dependent.ID] = struct{}{}
-		if policy == schema.DeleteCascade {
-			if err := service.applyDeletePolicies(ctx, transaction, principal, dependent, visiting); err != nil {
-				return err
-			}
-			dependent.Status = domaincontent.StatusTrashed
-			dependent.DeletedAt = timePointer(service.now().UTC())
-		}
-		delete(visiting, dependent.ID)
-		before := original
-		dependent.Version++
-		dependent.UpdatedAt = service.now().UTC()
-		if err := service.validateManifest(ctx, transaction.Content(), &dependent); err != nil {
-			return err
-		}
-		revisionID, err := transaction.Revisions().NextID(ctx)
-		if err != nil {
-			return core.WrapDomainError(core.ErrorCodeInternal, "relation revision id allocation failed", err)
-		}
-		snapshot := revision.Revision{
-			ID: revisionID, EntryID: before.ID, Version: before.Version, Snapshot: before,
-			AuthorID: principal.ID, Reason: "relation on_delete " + string(policy),
-			CreatedAt: service.now().UTC(),
-		}
-		if err := transaction.Revisions().Save(ctx, snapshot); err != nil {
-			return core.WrapDomainError(core.ErrorCodeInternal, "relation revision save failed", err)
-		}
-		if err := transaction.Content().Update(ctx, dependent, before.Version); err != nil {
-			return core.WrapDomainError(core.ErrorCodeConflict, "relation policy update failed", err)
-		}
-		if err := saveAudit(ctx, transaction.Audit(), audit.Event{
-			OccurredAt: dependent.UpdatedAt, ActorID: principal.ID,
-			Action: "content.relation_" + string(policy), Resource: string(dependent.Kind),
-			ResourceID: string(dependent.ID), BeforeVersion: before.Version, AfterVersion: dependent.Version,
-		}); err != nil {
-			return err
 		}
 	}
 	return nil
@@ -458,10 +450,19 @@ func (service *Service) manifestResource(kind domaincontent.Kind) *schema.Resour
 	return nil
 }
 
-func listAllContent(ctx context.Context, repository Repository) ([]domaincontent.Entry, error) {
+func listRelatedContent(
+	ctx context.Context,
+	repository Repository,
+	kind domaincontent.Kind,
+	fieldID string,
+	targetID domaincontent.ID,
+) ([]domaincontent.Entry, error) {
 	var entries []domaincontent.Entry
 	for page := 1; ; page++ {
-		result, err := repository.List(ctx, Query{Page: page, PerPage: 100})
+		result, err := repository.List(ctx, Query{
+			Kinds: []domaincontent.Kind{kind}, RelationField: fieldID, RelatedID: targetID,
+			Page: page, PerPage: 100,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -628,6 +629,15 @@ type stringValue struct {
 func asString(value any) stringValue {
 	resolved, ok := value.(string)
 	return stringValue{value: strings.TrimSpace(resolved), ok: ok && strings.TrimSpace(resolved) != ""}
+}
+
+func metadataReferences(value any, targetID string) bool {
+	field := schema.Field{Relation: &schema.Relation{Cardinality: schema.CardinalityOne}}
+	if relationContains(field, value, targetID) {
+		return true
+	}
+	field.Relation.Cardinality = schema.CardinalityMany
+	return relationContains(field, value, targetID)
 }
 
 func validateRelationValue(

@@ -36,19 +36,11 @@ type UserRecord struct {
 }
 
 func RecordFromUser(user User) UserRecord {
-	return UserRecord{
-		ID: user.ID, Email: user.Email, DisplayName: user.DisplayName,
-		PasswordHash: user.PasswordHash, RoleIDs: user.RoleIDs, Active: user.Active,
-		Version: user.Version, CreatedAt: user.CreatedAt, UpdatedAt: user.UpdatedAt,
-	}
+	return UserRecord(user)
 }
 
 func (record UserRecord) User() User {
-	return User{
-		ID: record.ID, Email: record.Email, DisplayName: record.DisplayName,
-		PasswordHash: record.PasswordHash, RoleIDs: record.RoleIDs, Active: record.Active,
-		Version: record.Version, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt,
-	}
+	return User(record)
 }
 
 type Role struct {

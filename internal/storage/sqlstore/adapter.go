@@ -129,7 +129,7 @@ func (adapter *Adapter) Migrate(ctx context.Context) error {
 				return fmt.Errorf("execute SQL migration %d: %w", migration.version, err)
 			}
 		}
-		if migration.version == 4 {
+		if migration.version == 4 || migration.version == 5 {
 			if err := ensureContentIndexes(ctx, transaction, adapter.dialect); err != nil {
 				return fmt.Errorf("create SQL content indexes: %w", err)
 			}
@@ -228,19 +228,19 @@ type contentTx struct {
 }
 
 func (transaction contentTx) Content() contentapplication.Repository {
-	return contentRepository{transaction: transaction.transaction, dialect: transaction.dialect}
+	return contentRepository(transaction)
 }
 
 func (transaction contentTx) Revisions() contentapplication.RevisionRepository {
-	return revisionRepository{transaction: transaction.transaction, dialect: transaction.dialect}
+	return revisionRepository(transaction)
 }
 
 func (transaction contentTx) Audit() contentapplication.AuditRepository {
-	return auditRepository{transaction: transaction.transaction, dialect: transaction.dialect}
+	return auditRepository(transaction)
 }
 
 func (transaction contentTx) Taxonomies() contentapplication.TaxonomyReader {
-	return taxonomyRepository{transaction: transaction.transaction, dialect: transaction.dialect}
+	return taxonomyRepository(transaction)
 }
 
 type taxonomyTx struct {
@@ -249,15 +249,15 @@ type taxonomyTx struct {
 }
 
 func (transaction taxonomyTx) Taxonomies() taxonomyapplication.Repository {
-	return taxonomyRepository{transaction: transaction.transaction, dialect: transaction.dialect}
+	return taxonomyRepository(transaction)
 }
 
 func (transaction taxonomyTx) Content() taxonomyapplication.ContentRepository {
-	return contentRepository{transaction: transaction.transaction, dialect: transaction.dialect}
+	return contentRepository(transaction)
 }
 
 func (transaction taxonomyTx) Audit() taxonomyapplication.AuditRepository {
-	return auditRepository{transaction: transaction.transaction, dialect: transaction.dialect}
+	return auditRepository(transaction)
 }
 
 type identityTx struct {
@@ -266,11 +266,11 @@ type identityTx struct {
 }
 
 func (transaction identityTx) Identity() identityapplication.Repository {
-	return identityRepository{transaction: transaction.transaction, dialect: transaction.dialect}
+	return identityRepository(transaction)
 }
 
 func (transaction identityTx) Audit() identityapplication.AuditRepository {
-	return auditRepository{transaction: transaction.transaction, dialect: transaction.dialect}
+	return auditRepository(transaction)
 }
 
 type backupTx struct {
@@ -279,23 +279,23 @@ type backupTx struct {
 }
 
 func (transaction backupTx) Content() backup.ContentRepository {
-	return contentRepository{transaction: transaction.transaction, dialect: transaction.dialect}
+	return contentRepository(transaction)
 }
 
 func (transaction backupTx) Revisions() backup.RevisionRepository {
-	return revisionRepository{transaction: transaction.transaction, dialect: transaction.dialect}
+	return revisionRepository(transaction)
 }
 
 func (transaction backupTx) Audit() backup.AuditRepository {
-	return auditRepository{transaction: transaction.transaction, dialect: transaction.dialect}
+	return auditRepository(transaction)
 }
 
 func (transaction backupTx) Taxonomies() backup.TaxonomyRepository {
-	return taxonomyRepository{transaction: transaction.transaction, dialect: transaction.dialect}
+	return taxonomyRepository(transaction)
 }
 
 func (transaction backupTx) Identity() backup.IdentityRepository {
-	return identityRepository{transaction: transaction.transaction, dialect: transaction.dialect}
+	return identityRepository(transaction)
 }
 
 type contentRepository struct {
@@ -523,7 +523,7 @@ func (repository contentRepository) replaceProjections(ctx context.Context, entr
 	if err := repository.replaceSlugs(ctx, entry); err != nil {
 		return err
 	}
-	for _, table := range []string{"content_search", "content_terms", "content_index"} {
+	for _, table := range []string{"content_search", "content_terms", "content_index", "content_relations"} {
 		if _, err := repository.transaction.ExecContext(
 			ctx, bind(repository.dialect, "DELETE FROM "+table+" WHERE entry_id = ?"), entry.ID,
 		); err != nil {
@@ -583,6 +583,46 @@ func (repository contentRepository) replaceProjections(ctx context.Context, entr
 		); err != nil {
 			return err
 		}
+	}
+	relationStatement := bind(repository.dialect,
+		"INSERT INTO content_relations (entry_id, field_id, related_id) VALUES (?, ?, ?)",
+	)
+	for fieldID, metadata := range entry.Metadata {
+		for _, relatedID := range relationTargets(metadata.Value) {
+			if _, err := repository.transaction.ExecContext(
+				ctx, relationStatement, entry.ID, fieldID, relatedID,
+			); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func relationTargets(value any) []string {
+	switch typed := value.(type) {
+	case string:
+		if id := strings.TrimSpace(typed); id != "" {
+			return []string{id}
+		}
+	case []string:
+		targets := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if id := strings.TrimSpace(item); id != "" {
+				targets = append(targets, id)
+			}
+		}
+		return targets
+	case []any:
+		targets := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if id, ok := item.(string); ok {
+				if id = strings.TrimSpace(id); id != "" {
+					targets = append(targets, id)
+				}
+			}
+		}
+		return targets
 	}
 	return nil
 }
@@ -758,6 +798,15 @@ func contentListWhere(query contentapplication.Query) (string, []any) {
 			"EXISTS (SELECT 1 FROM content_terms ct WHERE "+strings.Join(termConditions, " AND ")+")",
 		)
 	}
+	if query.RelationField != "" && query.RelatedID != "" {
+		conditions = append(conditions,
+			`EXISTS (
+				SELECT 1 FROM content_relations cr
+				WHERE cr.entry_id = e.id AND cr.field_id = ? AND cr.related_id = ?
+			)`,
+		)
+		arguments = append(arguments, query.RelationField, query.RelatedID)
+	}
 	if search := strings.ToLower(strings.TrimSpace(query.Search)); search != "" {
 		locale := strings.ToLower(strings.TrimSpace(query.Locale))
 		if locale == "" {
@@ -885,6 +934,20 @@ func migrations(dialect Dialect) []migration {
 				entry_id VARCHAR(64) NOT NULL,
 				PRIMARY KEY (taxonomy_id, term_id, entry_id)
 			)`,
+			`CREATE TABLE IF NOT EXISTS content_relations (
+				entry_id VARCHAR(64) NOT NULL,
+				field_id VARCHAR(63) NOT NULL,
+				related_id VARCHAR(64) NOT NULL,
+				PRIMARY KEY (entry_id, field_id, related_id)
+			)`,
+		}},
+		{version: 5, statements: []string{
+			`CREATE TABLE IF NOT EXISTS content_relations (
+				entry_id VARCHAR(64) NOT NULL,
+				field_id VARCHAR(63) NOT NULL,
+				related_id VARCHAR(64) NOT NULL,
+				PRIMARY KEY (entry_id, field_id, related_id)
+			)`,
 		}},
 	}
 }
@@ -900,6 +963,7 @@ func ensureContentIndexes(ctx context.Context, transaction *sql.Tx, dialect Dial
 		{name: "idx_content_index_updated", table: "content_index", columns: "updated_at, id_sort"},
 		{name: "idx_content_index_created", table: "content_index", columns: "created_at, id_sort"},
 		{name: "idx_content_index_published", table: "content_index", columns: "published_at, id_sort"},
+		{name: "idx_content_relations_lookup", table: "content_relations", columns: "field_id, related_id, entry_id"},
 	}
 	for _, index := range indexes {
 		if dialect == DialectMySQL {

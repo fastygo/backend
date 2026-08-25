@@ -1,7 +1,7 @@
-FROM golang:1.25-alpine AS build
+FROM golang:1.25.13-alpine AS build
 
 WORKDIR /src
-RUN apk add --no-cache ca-certificates git tzdata
+RUN apk add --no-cache build-base ca-certificates git tzdata
 
 COPY go.mod go.sum ./
 RUN go mod download

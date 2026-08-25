@@ -5,6 +5,9 @@ services:
     build:
       context: .
       target: build
-    command: go test -count=1 ./...
+    command: go test -race -count=1 -p 2 ./...
     environment:
-      CGO_ENABLED: "0"
+      CGO_ENABLED: "1"
+      GOMAXPROCS: "2"
+    cpus: 2
+    mem_limit: 4g

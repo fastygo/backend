@@ -92,6 +92,7 @@ func (store *Store) Restore(ctx context.Context, source io.Reader) error {
 		if err != nil {
 			return err
 		}
+		//lint:ignore SA1019 TypeRegA is accepted for compatibility with legacy tar archives.
 		if header.Typeflag != tar.TypeReg && header.Typeflag != tar.TypeRegA {
 			return errors.New("media backup contains unsupported entry type")
 		}

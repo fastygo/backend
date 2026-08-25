@@ -2,7 +2,7 @@ APP_NAME ?= headless-backend
 GO       ?= go
 DIST     ?= dist
 
-.PHONY: build run test conformance vet verify token backup restore docker-build docker-test clean
+.PHONY: build run test conformance vet lint vuln race live-sql verify token backup restore docker-build docker-test clean
 
 build:
 	mkdir -p $(DIST)
@@ -22,7 +22,24 @@ conformance:
 vet:
 	$(GO) vet ./...
 
-verify: test conformance vet
+lint:
+	$(GO) tool staticcheck ./...
+
+vuln:
+	$(GO) tool govulncheck ./...
+
+ifeq ($(OS),Windows_NT)
+race:
+	docker compose -f docker-compose.test.yml run --build --rm test
+else
+race:
+	$(GO) test -race -count=1 -p 2 ./...
+endif
+
+live-sql:
+	$(GO) test -count=1 -run TestLiveSQLDialects -v ./internal/storage/sqlstore
+
+verify: test conformance vet lint vuln race
 	$(GO) mod verify
 	$(GO) build ./cmd/server ./cmd/headless-token ./cmd/headless-backup
 

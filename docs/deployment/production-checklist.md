@@ -1,7 +1,8 @@
 # Production checklist
 
-- Build with the Go version declared in `go.mod`.
-- Run `go test ./...`, `go vet ./...`, and `go mod verify`.
+- Build with the exact Go toolchain declared in `go.mod`.
+- Run `make verify`, including race, Staticcheck, and vulnerability checks.
+- Run `make live-sql` against every enabled external SQL adapter.
 - Use a random `HEADLESS_TOKEN_SECRET` of at least 32 bytes.
 - Remove bootstrap administrator credentials after the first verified login.
 - Keep `HEADLESS_ALLOW_INSECURE_AUTH` disabled.

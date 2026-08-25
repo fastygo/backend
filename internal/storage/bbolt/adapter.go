@@ -180,65 +180,65 @@ type contentTx struct {
 }
 
 func (transaction contentTx) Content() contentapplication.Repository {
-	return contentRepository{transaction: transaction.transaction}
+	return contentRepository(transaction)
 }
 
 func (transaction contentTx) Revisions() contentapplication.RevisionRepository {
-	return revisionRepository{transaction: transaction.transaction}
+	return revisionRepository(transaction)
 }
 
 func (transaction contentTx) Audit() contentapplication.AuditRepository {
-	return auditRepository{transaction: transaction.transaction}
+	return auditRepository(transaction)
 }
 
 func (transaction contentTx) Taxonomies() contentapplication.TaxonomyReader {
-	return taxonomyRepository{transaction: transaction.transaction}
+	return taxonomyRepository(transaction)
 }
 
 type taxonomyTx struct{ transaction *bolt.Tx }
 
 func (transaction taxonomyTx) Taxonomies() taxonomyapplication.Repository {
-	return taxonomyRepository{transaction: transaction.transaction}
+	return taxonomyRepository(transaction)
 }
 
 func (transaction taxonomyTx) Content() taxonomyapplication.ContentRepository {
-	return contentRepository{transaction: transaction.transaction}
+	return contentRepository(transaction)
 }
 
 func (transaction taxonomyTx) Audit() taxonomyapplication.AuditRepository {
-	return auditRepository{transaction: transaction.transaction}
+	return auditRepository(transaction)
 }
 
 type identityTx struct{ transaction *bolt.Tx }
 
 func (transaction identityTx) Identity() identityapplication.Repository {
-	return identityRepository{transaction: transaction.transaction}
+	return identityRepository(transaction)
 }
 
 func (transaction identityTx) Audit() identityapplication.AuditRepository {
-	return auditRepository{transaction: transaction.transaction}
+	return auditRepository(transaction)
 }
 
 type backupTx struct{ transaction *bolt.Tx }
 
 func (transaction backupTx) Content() backup.ContentRepository {
-	return contentRepository{transaction: transaction.transaction}
+	return contentRepository(transaction)
 }
 
 func (transaction backupTx) Revisions() backup.RevisionRepository {
-	return revisionRepository{transaction: transaction.transaction}
+	return revisionRepository(transaction)
 }
 
 func (transaction backupTx) Audit() backup.AuditRepository {
-	return auditRepository{transaction: transaction.transaction}
+	return auditRepository(transaction)
 }
 
 func (transaction backupTx) Taxonomies() backup.TaxonomyRepository {
-	return taxonomyRepository{transaction: transaction.transaction}
+	return taxonomyRepository(transaction)
 }
 
 func (transaction backupTx) Identity() backup.IdentityRepository {
-	return identityRepository{transaction: transaction.transaction}
+	return identityRepository(transaction)
 }
 
 type contentRepository struct {
@@ -521,6 +521,22 @@ func matches(entry content.Entry, query contentapplication.Query) bool {
 		body := strings.ToLower(entry.Content.Value(query.Locale, "en"))
 		if !strings.Contains(title, search) && !strings.Contains(body, search) {
 			return false
+		}
+	}
+	if query.RelationField != "" && query.RelatedID != "" {
+		metadata, exists := entry.Metadata[query.RelationField]
+		if !exists {
+			return false
+		}
+		switch values := metadata.Value.(type) {
+		case []string:
+			if !slices.Contains(values, string(query.RelatedID)) {
+				return false
+			}
+		default:
+			if fmt.Sprint(metadata.Value) != string(query.RelatedID) {
+				return false
+			}
 		}
 	}
 	return true
