@@ -48,9 +48,23 @@ func New(service *application.Service, manifest domainschema.Manifest, principal
 func (handler *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /go-json/data/v1/graphql", handler.serve)
 	mux.HandleFunc("POST /go-json/data/v1/graphql", handler.serve)
+	mux.HandleFunc("GET /go-graphql", handler.serve)
+	mux.HandleFunc("POST /go-graphql", handler.serve)
+}
+
+type cookieCSRFValidator interface {
+	ValidateCookieCSRF(*http.Request) error
 }
 
 func (handler *Handler) serve(response http.ResponseWriter, request *http.Request) {
+	if guard, ok := handler.principal.(cookieCSRFValidator); ok {
+		if err := guard.ValidateCookieCSRF(request); err != nil {
+			writeJSON(response, http.StatusForbidden, map[string]any{
+				"errors": []map[string]any{{"message": "csrf token is invalid", "extensions": map[string]any{"code": "FORBIDDEN"}}},
+			})
+			return
+		}
+	}
 	principal := authz.Anonymous()
 	if handler.principal != nil {
 		resolved, err := handler.principal.Resolve(request)

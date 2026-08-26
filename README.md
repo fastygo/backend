@@ -29,6 +29,14 @@ cp .env.example .env
 go run ./cmd/server
 ```
 
+Local GitCourse development uses SQLite at `./var/lib/headless/backend.sqlite`
+and `./dev/gitcourse.manifest.json`. After the first start, seed published
+records from the storefront repo:
+
+```bash
+go run ./cmd/headless-seed -path ../@GitCourse/cms/gitcourse.data-seed.json
+```
+
 The default bbolt deployment stores data under `./var/lib/headless`.
 
 ```bash

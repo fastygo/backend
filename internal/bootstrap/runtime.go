@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -49,6 +50,7 @@ type Config struct {
 	AdminEmail        string
 	AdminPassword     string
 	AllowInsecureAuth bool
+	CookieSecure      bool
 	MediaRoot         string
 	MediaMaxBytes     int64
 	ScheduleInterval  time.Duration
@@ -61,6 +63,7 @@ type Runtime struct {
 }
 
 func LoadConfig() (Config, error) {
+	loadDotEnv(".env")
 	frameworkConfig, err := app.LoadConfig()
 	if err != nil {
 		return Config{}, err
@@ -97,6 +100,7 @@ func LoadConfig() (Config, error) {
 		AdminEmail:        strings.TrimSpace(os.Getenv("HEADLESS_ADMIN_EMAIL")),
 		AdminPassword:     os.Getenv("HEADLESS_ADMIN_PASSWORD"),
 		AllowInsecureAuth: strings.EqualFold(env("HEADLESS_ALLOW_INSECURE_AUTH", "false"), "true"),
+		CookieSecure:      strings.EqualFold(env("HEADLESS_COOKIE_SECURE", "false"), "true"),
 		MediaRoot:         env("HEADLESS_MEDIA_ROOT", "var/lib/headless/media"),
 		MediaMaxBytes:     mediaMaxBytes,
 		ScheduleInterval:  scheduleInterval,
@@ -167,6 +171,14 @@ func Build(ctx context.Context, config Config) (*Runtime, error) {
 		_ = storage.Close()
 		return nil, err
 	}
+	var sessionHandler platform.RouteRegistrar
+	if tokenManager != nil {
+		sessionHandler, err = rest.NewSessionHandler(identityService, tokenManager, config.CookieSecure)
+		if err != nil {
+			_ = storage.Close()
+			return nil, err
+		}
+	}
 	blobStore, err := localmedia.Open(config.MediaRoot)
 	if err != nil {
 		_ = storage.Close()
@@ -188,6 +200,9 @@ func Build(ctx context.Context, config Config) (*Runtime, error) {
 		return nil, err
 	}
 	routes := platform.RouteGroup{handler, codexHandler, taxonomyHandler, identityHandler, mediaHandler, graphQL}
+	if sessionHandler != nil {
+		routes = append(routes, sessionHandler)
+	}
 	feature, err := platform.NewRuntimeFeature("headless-content", routes, storage, storage)
 	if err != nil {
 		_ = storage.Close()
@@ -239,6 +254,9 @@ func OpenStorage(ctx context.Context, config Config) (Storage, error) {
 		if config.DataSource == "" {
 			return nil, errors.New("DATABASE_URL is required for SQLite")
 		}
+		if err := os.MkdirAll(filepath.Dir(config.DataSource), 0o755); err != nil {
+			return nil, fmt.Errorf("failed to create SQLite directory: %w", err)
+		}
 		return sqlstore.Open(ctx, "sqlite", config.DataSource, sqlstore.DialectSQLite)
 	case "mysql", "mariadb":
 		if config.DataSource == "" {
@@ -270,6 +288,32 @@ func DefaultManifest() schema.Manifest {
 				Fields: []schema.Field{{ID: "value", Type: schema.FieldJSON}},
 			},
 		},
+	}
+}
+
+func loadDotEnv(path string) {
+	encoded, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	for _, line := range strings.Split(string(encoded), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, found := strings.Cut(line, "=")
+		if !found {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		if key == "" || os.Getenv(key) != "" {
+			continue
+		}
+		value = strings.TrimSpace(value)
+		if unquoted, err := strconv.Unquote(value); err == nil {
+			value = unquoted
+		}
+		_ = os.Setenv(key, value)
 	}
 }
 

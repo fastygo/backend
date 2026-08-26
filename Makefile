@@ -2,13 +2,16 @@ APP_NAME ?= headless-backend
 GO       ?= go
 DIST     ?= dist
 
-.PHONY: build run test conformance vet lint vuln race live-sql live-sql-up live-sql-down verify-light verify token backup restore docker-build docker-test clean
+SEED ?= ../@GitCourse/cms/gitcourse.data-seed.json
+
+.PHONY: build run test conformance vet lint vuln race live-sql live-sql-up live-sql-down verify-light verify token backup restore seed docker-build docker-test clean
 
 build:
 	mkdir -p $(DIST)
 	$(GO) build -trimpath -o $(DIST)/$(APP_NAME) ./cmd/server
 	$(GO) build -trimpath -o $(DIST)/headless-token ./cmd/headless-token
 	$(GO) build -trimpath -o $(DIST)/headless-backup ./cmd/headless-backup
+	$(GO) build -trimpath -o $(DIST)/headless-seed ./cmd/headless-seed
 
 run:
 	$(GO) run ./cmd/server
@@ -51,7 +54,10 @@ live-sql: live-sql-up
 
 verify-light: test conformance vet lint vuln
 	$(GO) mod verify
-	$(GO) build ./cmd/server ./cmd/headless-token ./cmd/headless-backup
+	$(GO) build ./cmd/server ./cmd/headless-token ./cmd/headless-backup ./cmd/headless-seed
+
+seed:
+	$(GO) run ./cmd/headless-seed -path "$(SEED)"
 
 verify: verify-light race
 

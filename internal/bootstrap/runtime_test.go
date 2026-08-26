@@ -167,6 +167,69 @@ func TestLoadConfigReadsProductDefinedManifest(t *testing.T) {
 	}
 }
 
+func TestBuildExposesCMSCookieSession(t *testing.T) {
+	runtime, err := Build(context.Background(), Config{
+		App: app.Config{
+			AppBind: "127.0.0.1:0", DefaultLocale: "en", AvailableLocales: []string{"en"},
+			HealthLivePath: "/healthz", HealthReadyPath: "/readyz",
+		},
+		Storage: "bbolt", BboltPath: filepath.Join(t.TempDir(), "session.db"),
+		MediaRoot: filepath.Join(t.TempDir(), "media"), MediaMaxBytes: 1 << 20,
+		Manifest: DefaultManifest(), TokenSecret: "bootstrap-identity-secret-at-least-32-bytes",
+		TokenIssuer: "bootstrap-test", AdminEmail: "admin@example.test",
+		AdminPassword: "admin-local-dev",
+	})
+	if err != nil {
+		t.Fatalf("build runtime: %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Close() })
+	request := httptest.NewRequest(
+		http.MethodPost, "/go-json/auth/login",
+		bytes.NewBufferString(`{"email":"admin@example.test","password":"admin-local-dev"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("User-Agent", "headless-conformance/1.0")
+	response := httptest.NewRecorder()
+	runtime.App.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || response.Result().Cookies() == nil {
+		t.Fatalf("session login returned %d: %s", response.Code, response.Body.String())
+	}
+	var session struct {
+		Data struct {
+			Email     string `json:"email"`
+			CSRFToken string `json:"csrfToken"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &session); err != nil || session.Data.Email == "" || session.Data.CSRFToken == "" {
+		t.Fatalf("decode session: %v %#v", err, session)
+	}
+	me := httptest.NewRequest(http.MethodGet, "/go-json/auth/me", nil)
+	me.Header.Set("User-Agent", "headless-conformance/1.0")
+	for _, cookie := range response.Result().Cookies() {
+		me.AddCookie(cookie)
+	}
+	meResponse := httptest.NewRecorder()
+	runtime.App.ServeHTTP(meResponse, me)
+	if meResponse.Code != http.StatusOK {
+		t.Fatalf("session me returned %d: %s", meResponse.Code, meResponse.Body.String())
+	}
+	graphql := httptest.NewRequest(
+		http.MethodPost, "/go-graphql",
+		bytes.NewBufferString(`{"query":"{ schemaIdentity { name } }"}`),
+	)
+	graphql.Header.Set("Content-Type", "application/json")
+	graphql.Header.Set("User-Agent", "headless-conformance/1.0")
+	graphql.Header.Set("X-CSRF-Token", session.Data.CSRFToken)
+	for _, cookie := range response.Result().Cookies() {
+		graphql.AddCookie(cookie)
+	}
+	graphResponse := httptest.NewRecorder()
+	runtime.App.ServeHTTP(graphResponse, graphql)
+	if graphResponse.Code != http.StatusOK {
+		t.Fatalf("graphql alias returned %d: %s", graphResponse.Code, graphResponse.Body.String())
+	}
+}
+
 func TestFrameworkConfigBoundsHTTPShutdown(t *testing.T) {
 	t.Parallel()
 	config, err := app.LoadConfig()

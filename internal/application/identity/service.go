@@ -113,8 +113,26 @@ func (service *Service) Authenticate(
 	password string,
 	ttl time.Duration,
 ) (string, error) {
+	session, err := service.SignIn(ctx, email, password, ttl)
+	if err != nil {
+		return "", err
+	}
+	return session.Token, nil
+}
+
+type Session struct {
+	User  domainidentity.User
+	Token string
+}
+
+func (service *Service) SignIn(
+	ctx context.Context,
+	email string,
+	password string,
+	ttl time.Duration,
+) (Session, error) {
 	if service.tokens == nil {
-		return "", core.NewDomainError(core.ErrorCodeInternal, "token issuer is unavailable")
+		return Session{}, core.NewDomainError(core.ErrorCodeInternal, "token issuer is unavailable")
 	}
 	var user domainidentity.User
 	var capabilities []authz.Capability
@@ -134,17 +152,33 @@ func (service *Service) Authenticate(
 		return nil
 	})
 	if err != nil {
-		return "", err
+		return Session{}, err
 	}
 	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)) != nil {
-		return "", core.NewDomainError(core.ErrorCodeUnauthorized, "invalid credentials")
+		return Session{}, core.NewDomainError(core.ErrorCodeUnauthorized, "invalid credentials")
 	}
 	principal := authz.NewPrincipal(user.ID, capabilities...)
 	token, err := service.tokens.Issue(principal, ttl)
 	if err != nil {
-		return "", core.WrapDomainError(core.ErrorCodeInternal, "token issue failed", err)
+		return Session{}, core.WrapDomainError(core.ErrorCodeInternal, "token issue failed", err)
 	}
-	return token, nil
+	return Session{User: user, Token: token}, nil
+}
+
+func (service *Service) CurrentUser(ctx context.Context, principal authz.Principal) (domainidentity.User, error) {
+	if principal.Anonymous || strings.TrimSpace(principal.ID) == "" {
+		return domainidentity.User{}, core.NewDomainError(core.ErrorCodeUnauthorized, "authentication is required")
+	}
+	var user domainidentity.User
+	err := service.transactor.WithinIdentityTransaction(ctx, func(transaction Transaction) error {
+		resolved, err := transaction.Identity().GetUser(ctx, principal.ID)
+		if err != nil || !resolved.Active {
+			return core.NewDomainError(core.ErrorCodeUnauthorized, "authentication is required")
+		}
+		user = resolved
+		return nil
+	})
+	return user, err
 }
 
 func (service *Service) ListUsers(

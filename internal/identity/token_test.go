@@ -63,6 +63,31 @@ func TestSignedBearerTokenExpiryAndAnonymousAccess(t *testing.T) {
 	}
 }
 
+func TestSignedSessionCookieAndCSRF(t *testing.T) {
+	t.Parallel()
+	manager, err := NewTokenManager("0123456789abcdef0123456789abcdef", "headless")
+	if err != nil {
+		t.Fatalf("create token manager: %v", err)
+	}
+	token, err := manager.Issue(authz.EditorRole().Principal("editor"), time.Hour)
+	if err != nil {
+		t.Fatalf("issue token: %v", err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/go-graphql", nil)
+	request.AddCookie(&http.Cookie{Name: SessionCookieName, Value: token})
+	if err := manager.ValidateCookieCSRF(request); err == nil {
+		t.Fatalf("cookie mutation without CSRF must fail")
+	}
+	request.Header.Set("X-CSRF-Token", manager.CSRF(token))
+	if err := manager.ValidateCookieCSRF(request); err != nil {
+		t.Fatalf("valid CSRF was rejected: %v", err)
+	}
+	principal, err := manager.Resolve(request)
+	if err != nil || principal.ID != "editor" {
+		t.Fatalf("session cookie was not resolved: %#v %v", principal, err)
+	}
+}
+
 func TestTokenManagerRejectsWeakSecretsAndUnknownCapabilities(t *testing.T) {
 	t.Parallel()
 	if _, err := NewTokenManager("weak", "headless"); err == nil {

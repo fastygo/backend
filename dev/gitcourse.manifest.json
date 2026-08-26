@@ -1,0 +1,83 @@
+{
+  "name": "gitcourse",
+  "version": "1",
+  "resources": [
+    {
+      "id": "product",
+      "collection": "products",
+      "public": true,
+      "rest_visible": true,
+      "graphql_visible": true,
+      "fields": [
+        {"id": "payload_ru", "type": "json"},
+        {"id": "payload_en", "type": "json"}
+      ]
+    },
+    {
+      "id": "course_category",
+      "collection": "course-categories",
+      "public": true,
+      "rest_visible": true,
+      "graphql_visible": true,
+      "fields": [
+        {"id": "payload_ru", "type": "json"},
+        {"id": "payload_en", "type": "json"}
+      ]
+    },
+    {
+      "id": "site_settings",
+      "collection": "site-settings",
+      "public": true,
+      "rest_visible": true,
+      "graphql_visible": true,
+      "fields": [
+        {"id": "payload_ru", "type": "json"},
+        {"id": "payload_en", "type": "json"}
+      ]
+    },
+    {
+      "id": "landing_content",
+      "collection": "landing-contents",
+      "public": true,
+      "rest_visible": true,
+      "graphql_visible": true,
+      "fields": [
+        {"id": "payload_ru", "type": "json"},
+        {"id": "payload_en", "type": "json"}
+      ]
+    },
+    {
+      "id": "payment_method",
+      "collection": "payment-methods",
+      "public": true,
+      "rest_visible": true,
+      "graphql_visible": true,
+      "fields": [
+        {"id": "payload_ru", "type": "json"},
+        {"id": "payload_en", "type": "json"}
+      ]
+    },
+    {
+      "id": "legal_document",
+      "collection": "legal-documents",
+      "public": true,
+      "rest_visible": true,
+      "graphql_visible": true,
+      "fields": [
+        {"id": "payload_ru", "type": "json"},
+        {"id": "payload_en", "type": "json"}
+      ]
+    },
+    {
+      "id": "promotion",
+      "collection": "promotions",
+      "public": true,
+      "rest_visible": true,
+      "graphql_visible": true,
+      "fields": [
+        {"id": "payload_ru", "type": "json"},
+        {"id": "payload_en", "type": "json"}
+      ]
+    }
+  ]
+}
