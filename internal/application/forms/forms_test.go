@@ -54,6 +54,18 @@ func TestValidateEntryRejectsMissingRequiredFormField(t *testing.T) {
 	}
 }
 
+func TestValidateEntryRejectsNonObjectPayload(t *testing.T) {
+	t.Parallel()
+	err := ValidateEntry(schema.Resource{ID: "product", Collection: "products"}, domaincontent.Entry{
+		Metadata: map[string]domaincontent.MetadataValue{
+			"payload_ru": {Value: []any{"broken"}},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected payload object error")
+	}
+}
+
 func TestValidateEntrySkipsStorageFieldsUntilFormIsDeclared(t *testing.T) {
 	t.Parallel()
 	resource := schema.Resource{

@@ -64,6 +64,9 @@ func BindEntry(resource schema.Resource, entry domaincontent.Entry) (formset.For
 }
 
 func ValidateEntry(resource schema.Resource, entry domaincontent.Entry) error {
+	if err := validatePayloadDocuments(entry); err != nil {
+		return err
+	}
 	if len(resource.Form) == 0 {
 		return nil
 	}
@@ -165,6 +168,19 @@ func metadataDocument(entry domaincontent.Entry) map[string]any {
 		document[key] = value.Value
 	}
 	return document
+}
+
+func validatePayloadDocuments(entry domaincontent.Entry) error {
+	for _, key := range []string{"payload_ru", "payload_en"} {
+		value, exists := entry.Metadata[key]
+		if !exists || value.Value == nil {
+			continue
+		}
+		if asObject(value.Value) == nil {
+			return core.NewDomainError(core.ErrorCodeValidation, key+" must be a JSON object")
+		}
+	}
+	return nil
 }
 
 func asObject(value any) map[string]any {
