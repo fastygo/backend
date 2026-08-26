@@ -57,25 +57,6 @@ type cookieCSRFValidator interface {
 }
 
 func (handler *Handler) serve(response http.ResponseWriter, request *http.Request) {
-	if guard, ok := handler.principal.(cookieCSRFValidator); ok {
-		if err := guard.ValidateCookieCSRF(request); err != nil {
-			writeJSON(response, http.StatusForbidden, map[string]any{
-				"errors": []map[string]any{{"message": "csrf token is invalid", "extensions": map[string]any{"code": "FORBIDDEN"}}},
-			})
-			return
-		}
-	}
-	principal := authz.Anonymous()
-	if handler.principal != nil {
-		resolved, err := handler.principal.Resolve(request)
-		if err != nil {
-			writeJSON(response, http.StatusUnauthorized, map[string]any{
-				"errors": []map[string]any{{"message": "authentication failed"}},
-			})
-			return
-		}
-		principal = resolved
-	}
 	document := graphQLRequest{
 		Query:         request.URL.Query().Get("query"),
 		OperationName: request.URL.Query().Get("operationName"),
@@ -96,6 +77,27 @@ func (handler *Handler) serve(response http.ResponseWriter, request *http.Reques
 			"errors": []map[string]any{{"message": "query is required"}},
 		})
 		return
+	}
+	if graphQLIsMutation(document.Query) {
+		if guard, ok := handler.principal.(cookieCSRFValidator); ok {
+			if err := guard.ValidateCookieCSRF(request); err != nil {
+				writeJSON(response, http.StatusForbidden, map[string]any{
+					"errors": []map[string]any{{"message": "csrf token is invalid", "extensions": map[string]any{"code": "FORBIDDEN"}}},
+				})
+				return
+			}
+		}
+	}
+	principal := authz.Anonymous()
+	if handler.principal != nil {
+		resolved, err := handler.principal.Resolve(request)
+		if err != nil {
+			writeJSON(response, http.StatusUnauthorized, map[string]any{
+				"errors": []map[string]any{{"message": "authentication failed"}},
+			})
+			return
+		}
+		principal = resolved
 	}
 	ctx := context.WithValue(request.Context(), principalContextKey{}, principal)
 	result := graphql.Do(graphql.Params{
@@ -145,7 +147,9 @@ func (handler *Handler) buildSchema(manifest domainschema.Manifest) (graphql.Sch
 		object := resourceObject(resource, jsonScalar)
 		input := resourceInput(resource, jsonScalar)
 		page := resourcePage(resource, object)
-		queryFields[graphQLField(resource.Collection)] = &graphql.Field{
+		listName := graphQLField(resource.Collection)
+		itemName := graphQLField(resource.ID)
+		queryFields[listName] = &graphql.Field{
 			Type: page,
 			Args: graphql.FieldConfigArgument{
 				"page":       &graphql.ArgumentConfig{Type: graphql.Int, DefaultValue: 1},
@@ -157,7 +161,10 @@ func (handler *Handler) buildSchema(manifest domainschema.Manifest) (graphql.Sch
 			},
 			Resolve: handler.listResolver(resource),
 		}
-		queryFields[graphQLField(resource.ID)] = &graphql.Field{
+		if itemName == listName {
+			itemName += "ById"
+		}
+		queryFields[itemName] = &graphql.Field{
 			Type: object,
 			Args: graphql.FieldConfigArgument{
 				"id": &graphql.ArgumentConfig{Type: graphql.NewNonNull(graphql.ID)},
@@ -554,6 +561,18 @@ func integerArgument(arguments map[string]any, key string, fallback int) int {
 func stringArgument(arguments map[string]any, key string) string {
 	value, _ := arguments[key].(string)
 	return value
+}
+
+func graphQLIsMutation(query string) bool {
+	trimmed := strings.TrimSpace(query)
+	for strings.HasPrefix(trimmed, "#") {
+		_, rest, found := strings.Cut(trimmed, "\n")
+		if !found {
+			return false
+		}
+		trimmed = strings.TrimSpace(rest)
+	}
+	return strings.HasPrefix(strings.ToLower(trimmed), "mutation")
 }
 
 func graphQLName(identifier string) string {

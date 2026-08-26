@@ -92,6 +92,72 @@ type graphQLClock struct {
 	value time.Time
 }
 
+func TestGraphQLKeepsPagedListWhenResourceAndCollectionShareAName(t *testing.T) {
+	t.Parallel()
+	adapter, err := bboltstorage.Open(filepath.Join(t.TempDir(), "settings.db"), 0o600, nil)
+	if err != nil {
+		t.Fatalf("open storage: %v", err)
+	}
+	t.Cleanup(func() { _ = adapter.Close() })
+	service, _ := application.NewService(adapter, nil, graphQLClock{time.Now().UTC()})
+	principal := authz.NewPrincipal(
+		"editor",
+		authz.CapabilityContentCreate,
+		authz.CapabilityContentPublish,
+		authz.CapabilityContentReadPrivate,
+	)
+	manifest := schema.Manifest{
+		Name: "shop", Version: "1",
+		Resources: []schema.Resource{{
+			ID: "site_settings", Collection: "site-settings", Public: true, GraphQLVisible: true,
+			Fields: []schema.Field{{ID: "payload_ru", Type: schema.FieldJSON}, {ID: "payload_en", Type: schema.FieldJSON}},
+		}},
+	}
+	handler, err := New(service, manifest, fixedPrincipal{principal})
+	if err != nil {
+		t.Fatalf("create GraphQL handler: %v", err)
+	}
+	mux := http.NewServeMux()
+	handler.Routes(mux)
+	created := execute(t, mux, `
+		mutation CreateSiteSettings($input: SiteSettingsInput!) {
+			createSiteSettings(input: $input) { id slug }
+		}`,
+		map[string]any{"input": map[string]any{"title": "Brand", "slug": "brand", "status": "published", "visibility": "public"}},
+	)
+	id := created["data"].(map[string]any)["createSiteSettings"].(map[string]any)["id"]
+	listed := execute(t, mux, `
+		query SiteSettingsList($page: Int!, $perPage: Int!) {
+			siteSettings(page: $page, perPage: $perPage) { total items { id slug } }
+		}`,
+		map[string]any{"page": 1, "perPage": 10},
+	)
+	page := listed["data"].(map[string]any)["siteSettings"].(map[string]any)
+	if page["total"].(float64) != 1 {
+		t.Fatalf("paged siteSettings was overwritten: %#v", listed)
+	}
+	got := execute(t, mux, `query ($id: ID!) { siteSettingsById(id: $id) { id slug } }`, map[string]any{"id": id})
+	if got["data"].(map[string]any)["siteSettingsById"].(map[string]any)["slug"] != "brand" {
+		t.Fatalf("singular lookup failed: %#v", got)
+	}
+}
+
+func TestGraphQLIsMutation(t *testing.T) {
+	t.Parallel()
+	cases := map[string]bool{
+		"query ProductList { products { total } }":     false,
+		"{ schemaIdentity { name } }":                  false,
+		"# comment\nquery Q { schemaIdentity { name } }": false,
+		"mutation CreateProduct { createProduct }":     true,
+		"# note\nmutation UpdateProduct { x }":        true,
+	}
+	for query, want := range cases {
+		if got := graphQLIsMutation(query); got != want {
+			t.Fatalf("graphQLIsMutation(%q)=%v want %v", query, got, want)
+		}
+	}
+}
+
 func (clock graphQLClock) Now() time.Time {
 	return clock.value
 }
