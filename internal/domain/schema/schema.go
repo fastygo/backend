@@ -64,6 +64,7 @@ type Resource struct {
 	ID             string
 	Collection     string
 	Fields         []Field
+	Form           []Field
 	Taxonomies     []string
 	Public         bool
 	RESTVisible    bool
@@ -99,6 +100,9 @@ func (manifest Manifest) Validate() error {
 		if err := validateFields(resource.Fields); err != nil {
 			return err
 		}
+		if err := validateFields(resource.Form); err != nil {
+			return err
+		}
 		for _, taxonomy := range resource.Taxonomies {
 			if !identifier.MatchString(taxonomy) {
 				return errors.New("taxonomy identifier is invalid")
@@ -106,7 +110,7 @@ func (manifest Manifest) Validate() error {
 		}
 	}
 	for _, resource := range manifest.Resources {
-		for _, field := range resource.Fields {
+		for _, field := range append(append([]Field(nil), resource.Fields...), resource.Form...) {
 			if err := validateRelationTarget(field, resources); err != nil {
 				return err
 			}
@@ -124,6 +128,10 @@ func (manifest Manifest) Canonical() Manifest {
 	for index := range canonical.Resources {
 		canonical.Resources[index].Fields = append([]Field(nil), canonical.Resources[index].Fields...)
 		slices.SortFunc(canonical.Resources[index].Fields, func(left, right Field) int {
+			return strings.Compare(left.ID, right.ID)
+		})
+		canonical.Resources[index].Form = append([]Field(nil), canonical.Resources[index].Form...)
+		slices.SortFunc(canonical.Resources[index].Form, func(left, right Field) int {
 			return strings.Compare(left.ID, right.ID)
 		})
 		canonical.Resources[index].Taxonomies = append([]string(nil), canonical.Resources[index].Taxonomies...)

@@ -142,14 +142,80 @@ func TestGraphQLKeepsPagedListWhenResourceAndCollectionShareAName(t *testing.T) 
 	}
 }
 
+func TestGraphQLFormsetBindsLocaleDocuments(t *testing.T) {
+	t.Parallel()
+	adapter, err := bboltstorage.Open(filepath.Join(t.TempDir(), "formset.db"), 0o600, nil)
+	if err != nil {
+		t.Fatalf("open storage: %v", err)
+	}
+	t.Cleanup(func() { _ = adapter.Close() })
+	service, _ := application.NewService(adapter, nil, graphQLClock{time.Now().UTC()})
+	_ = service.SetManifest(schema.Manifest{
+		Name: "shop", Version: "1",
+		Resources: []schema.Resource{{
+			ID: "product", Collection: "products", Public: true, GraphQLVisible: true,
+			Fields: []schema.Field{{ID: "payload_ru", Type: schema.FieldJSON}, {ID: "payload_en", Type: schema.FieldJSON}},
+			Form:   []schema.Field{{ID: "title", Type: schema.FieldString}, {ID: "price", Type: schema.FieldMoney}},
+		}},
+	})
+	principal := authz.NewPrincipal(
+		"editor",
+		authz.CapabilityContentCreate,
+		authz.CapabilityContentPublish,
+		authz.CapabilityContentReadPrivate,
+	)
+	handler, err := New(service, schema.Manifest{
+		Name: "shop", Version: "1",
+		Resources: []schema.Resource{{
+			ID: "product", Collection: "products", Public: true, GraphQLVisible: true,
+			Fields: []schema.Field{{ID: "payload_ru", Type: schema.FieldJSON}, {ID: "payload_en", Type: schema.FieldJSON}},
+			Form:   []schema.Field{{ID: "title", Type: schema.FieldString}, {ID: "price", Type: schema.FieldMoney}},
+		}},
+	}, fixedPrincipal{principal})
+	if err != nil {
+		t.Fatalf("create GraphQL handler: %v", err)
+	}
+	mux := http.NewServeMux()
+	handler.Routes(mux)
+	created := execute(t, mux, `
+		mutation CreateProduct($input: ProductInput!) {
+			createProduct(input: $input) { id }
+		}`,
+		map[string]any{"input": map[string]any{
+			"title": "Course", "slug": "course", "status": "published", "visibility": "public",
+			"payloadRu": map[string]any{"title": "Курс", "price": 39900.0, "kicker": "Backend"},
+			"payloadEn": map[string]any{"title": "Course", "price": 39900.0},
+		}},
+	)
+	id := created["data"].(map[string]any)["createProduct"].(map[string]any)["id"]
+	got := execute(t, mux, `
+		query ($id: ID!) {
+			formset(resource: "product", id: $id) {
+				record
+				values
+				extra
+				schema
+			}
+		}`, map[string]any{"id": id})
+	form := got["data"].(map[string]any)["formset"].(map[string]any)
+	if form["record"] != "product" {
+		t.Fatalf("formset: %#v", form)
+	}
+	extra, _ := form["extra"].(map[string]any)
+	ru, _ := extra["ru"].(map[string]any)
+	if ru["kicker"] != "Backend" {
+		t.Fatalf("extra kicker lost: %#v", form)
+	}
+}
+
 func TestGraphQLIsMutation(t *testing.T) {
 	t.Parallel()
 	cases := map[string]bool{
-		"query ProductList { products { total } }":     false,
-		"{ schemaIdentity { name } }":                  false,
+		"query ProductList { products { total } }":       false,
+		"{ schemaIdentity { name } }":                    false,
 		"# comment\nquery Q { schemaIdentity { name } }": false,
-		"mutation CreateProduct { createProduct }":     true,
-		"# note\nmutation UpdateProduct { x }":        true,
+		"mutation CreateProduct { createProduct }":       true,
+		"# note\nmutation UpdateProduct { x }":           true,
 	}
 	for query, want := range cases {
 		if got := graphQLIsMutation(query); got != want {

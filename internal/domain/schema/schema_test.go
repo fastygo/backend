@@ -38,6 +38,19 @@ func TestManifestValidation(t *testing.T) {
 	}
 }
 
+func TestFormFieldsPrefersExplicitFormOverPayloadBlobs(t *testing.T) {
+	t.Parallel()
+	resource := Resource{
+		ID: "product", Collection: "products",
+		Fields: []Field{{ID: "payload_ru", Type: FieldJSON}, {ID: "payload_en", Type: FieldJSON}},
+		Form:   []Field{{ID: "title", Type: FieldString, Required: true}},
+	}
+	fields := resource.FormFields()
+	if len(fields) != 1 || fields[0].ID != "title" {
+		t.Fatalf("form fields=%#v", fields)
+	}
+}
+
 func TestManifestSupportsLocalizedCommerceSchema(t *testing.T) {
 	t.Parallel()
 	manifest := productManifest()

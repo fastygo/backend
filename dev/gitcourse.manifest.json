@@ -11,6 +11,15 @@
       "fields": [
         {"id": "payload_ru", "type": "json"},
         {"id": "payload_en", "type": "json"}
+      ],
+      "form": [
+        {"id": "title", "type": "string", "localized": true},
+        {"id": "summary", "type": "text", "localized": true},
+        {"id": "price", "type": "money"},
+        {"id": "old_price", "type": "money"},
+        {"id": "level", "type": "enum", "enum": ["beginner", "intermediate", "advanced"]},
+        {"id": "bestseller", "type": "boolean"},
+        {"id": "featured", "type": "boolean"}
       ]
     },
     {

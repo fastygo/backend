@@ -7,6 +7,11 @@ import (
 	"unicode"
 )
 
+const (
+	payloadRU = "payload_ru"
+	payloadEN = "payload_en"
+)
+
 func (manifest Manifest) Resource(id string) (Resource, bool) {
 	for _, resource := range manifest.Resources {
 		if resource.ID == id {
@@ -14,6 +19,21 @@ func (manifest Manifest) Resource(id string) (Resource, bool) {
 		}
 	}
 	return Resource{}, false
+}
+
+// FormFields is the slot schema: explicit Form, otherwise storage fields minus locale blobs.
+func (resource Resource) FormFields() []Field {
+	if len(resource.Form) > 0 {
+		return append([]Field(nil), resource.Form...)
+	}
+	fields := make([]Field, 0, len(resource.Fields))
+	for _, field := range resource.Fields {
+		if field.ID == payloadRU || field.ID == payloadEN {
+			continue
+		}
+		fields = append(fields, field)
+	}
+	return fields
 }
 
 func (manifest Manifest) JSONSchema(resourceID string) (map[string]any, error) {
@@ -55,8 +75,12 @@ func (manifest Manifest) GraphQLSDL() (string, error) {
 	sort.Slice(resources, func(left, right int) bool { return resources[left].ID < resources[right].ID })
 	var result strings.Builder
 	result.WriteString("scalar JSON\nscalar DateTime\n\n")
-	result.WriteString("type SchemaIdentity { name: String!, version: String!, digest: String! }\n\n")
+	result.WriteString("type SchemaIdentity { name: String!, version: String!, digest: String! }\n")
+	result.WriteString("type FormsetIssue { locale: String, field: String, code: String!, message: String! }\n")
+	result.WriteString("type FormsetForm { record: String!, locales: [String!]!, fields: JSON!, values: JSON!, extra: JSON, issues: [FormsetIssue!]!, schema: JSON!, payloads: JSON! }\n\n")
 	result.WriteString("type Query {\n  schemaIdentity: SchemaIdentity!\n")
+	result.WriteString("  formsetSchema(resource: ID!): FormsetForm!\n")
+	result.WriteString("  formset(resource: ID!, id: ID!): FormsetForm!\n")
 	for _, resource := range resources {
 		name := graphQLName(resource.ID)
 		result.WriteString("  " + graphQLField(resource.Collection) + "(page: Int = 1, perPage: Int = 20, search: String, status: String, locale: String): " + name + "Page!\n")

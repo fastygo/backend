@@ -11,10 +11,12 @@ import (
 	"time"
 
 	application "github.com/fastygo/backend/internal/application/content"
+	"github.com/fastygo/backend/internal/application/forms"
 	"github.com/fastygo/backend/internal/domain/authz"
 	domaincontent "github.com/fastygo/backend/internal/domain/content"
 	domainschema "github.com/fastygo/backend/internal/domain/schema"
 	"github.com/fastygo/backend/internal/persist"
+	"github.com/fastygo/formset"
 	"github.com/google/uuid"
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
@@ -142,6 +144,43 @@ func (handler *Handler) buildSchema(manifest domainschema.Manifest) (graphql.Sch
 			return map[string]any{"name": manifest.Name, "version": manifest.Version, "digest": digest}, nil
 		},
 	}
+	formsetIssue := graphql.NewObject(graphql.ObjectConfig{
+		Name: "FormsetIssue",
+		Fields: graphql.Fields{
+			"locale":  &graphql.Field{Type: graphql.String},
+			"field":   &graphql.Field{Type: graphql.String},
+			"code":    &graphql.Field{Type: graphql.NewNonNull(graphql.String)},
+			"message": &graphql.Field{Type: graphql.NewNonNull(graphql.String)},
+		},
+	})
+	formsetForm := graphql.NewObject(graphql.ObjectConfig{
+		Name: "FormsetForm",
+		Fields: graphql.Fields{
+			"record":   &graphql.Field{Type: graphql.NewNonNull(graphql.String)},
+			"locales":  &graphql.Field{Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(graphql.String)))},
+			"fields":   &graphql.Field{Type: graphql.NewNonNull(jsonScalar)},
+			"values":   &graphql.Field{Type: graphql.NewNonNull(jsonScalar)},
+			"extra":    &graphql.Field{Type: jsonScalar},
+			"issues":   &graphql.Field{Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(formsetIssue)))},
+			"schema":   &graphql.Field{Type: graphql.NewNonNull(jsonScalar)},
+			"payloads": &graphql.Field{Type: graphql.NewNonNull(jsonScalar)},
+		},
+	})
+	queryFields["formsetSchema"] = &graphql.Field{
+		Type: graphql.NewNonNull(formsetForm),
+		Args: graphql.FieldConfigArgument{
+			"resource": &graphql.ArgumentConfig{Type: graphql.NewNonNull(graphql.ID)},
+		},
+		Resolve: handler.formsetSchemaResolver(manifest),
+	}
+	queryFields["formset"] = &graphql.Field{
+		Type: graphql.NewNonNull(formsetForm),
+		Args: graphql.FieldConfigArgument{
+			"resource": &graphql.ArgumentConfig{Type: graphql.NewNonNull(graphql.ID)},
+			"id":       &graphql.ArgumentConfig{Type: graphql.NewNonNull(graphql.ID)},
+		},
+		Resolve: handler.formsetResolver(manifest),
+	}
 	for _, resource := range manifest.Resources {
 		resource := resource
 		object := resourceObject(resource, jsonScalar)
@@ -202,6 +241,62 @@ func (handler *Handler) buildSchema(manifest domainschema.Manifest) (graphql.Sch
 		Query:    graphql.NewObject(graphql.ObjectConfig{Name: "Query", Fields: queryFields}),
 		Mutation: graphql.NewObject(graphql.ObjectConfig{Name: "Mutation", Fields: mutationFields}),
 	})
+}
+
+func (handler *Handler) formsetSchemaResolver(manifest domainschema.Manifest) graphql.FieldResolveFn {
+	return func(params graphql.ResolveParams) (any, error) {
+		resource, ok := manifest.Resource(fmt.Sprint(params.Args["resource"]))
+		if !ok {
+			return nil, errors.New("resource does not exist")
+		}
+		form, err := forms.Bind(resource, forms.DocumentsFromEntry(domaincontent.Entry{}))
+		if err != nil {
+			return nil, err
+		}
+		return formsetView(resource, form)
+	}
+}
+
+func (handler *Handler) formsetResolver(manifest domainschema.Manifest) graphql.FieldResolveFn {
+	return func(params graphql.ResolveParams) (any, error) {
+		resource, ok := manifest.Resource(fmt.Sprint(params.Args["resource"]))
+		if !ok {
+			return nil, errors.New("resource does not exist")
+		}
+		entry, err := handler.service.Get(params.Context, principalFrom(params.Context), domaincontent.ID(fmt.Sprint(params.Args["id"])))
+		if err != nil {
+			return nil, err
+		}
+		if entry.Kind != domaincontent.Kind(resource.ID) {
+			return nil, errors.New("content was not found")
+		}
+		form, err := forms.BindEntry(resource, entry)
+		if err != nil {
+			return nil, err
+		}
+		return formsetView(resource, form)
+	}
+}
+
+func formsetView(resource domainschema.Resource, form formset.Form) (map[string]any, error) {
+	jsonSchema, err := forms.Schema(resource)
+	if err != nil {
+		return nil, err
+	}
+	issues := form.Issues
+	if issues == nil {
+		issues = []formset.Issue{}
+	}
+	return map[string]any{
+		"record":   string(form.Record),
+		"locales":  form.Locales,
+		"fields":   form.Fields,
+		"values":   form.Values,
+		"extra":    form.Extra,
+		"issues":   issues,
+		"schema":   jsonSchema,
+		"payloads": form.PayloadDocuments(),
+	}, nil
 }
 
 func (handler *Handler) listResolver(resource domainschema.Resource) graphql.FieldResolveFn {

@@ -55,8 +55,11 @@ func (handler *ContentHandler) Routes(mux *http.ServeMux) {
 	if handler.manifest.Name != "" {
 		mux.HandleFunc("GET /go-json/data/v1/schema", handler.schemaIdentity)
 		mux.HandleFunc("GET /go-json/data/v1/schema/{resource}", handler.resourceSchema)
+		mux.HandleFunc("GET /go-json/data/v1/schema/{resource}/form", handler.resourceForm)
+		mux.HandleFunc("POST /go-json/data/v1/schema/{resource}/form/bind", handler.bindForm)
 		mux.HandleFunc("GET /go-json/data/v1/openapi.json", handler.openAPI)
 		mux.HandleFunc("GET /go-json/data/v1/graphql/schema", handler.graphQLSchema)
+		mux.HandleFunc("GET /go-json/data/v1/resources/{kind}/{id}/form", handler.entryForm)
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 
 	application "github.com/fastygo/backend/internal/application/content"
 	"github.com/fastygo/backend/internal/domain/authz"
+	"github.com/fastygo/backend/internal/domain/schema"
 	bboltstorage "github.com/fastygo/backend/internal/storage/bbolt"
 )
 
@@ -154,6 +155,51 @@ func TestContentRESTAcceptsFastyDataValuesContract(t *testing.T) {
 	payload, ok := body.Data.Values["payload_en"].(map[string]any)
 	if !ok || payload["slug"] != "course" {
 		t.Fatalf("fastygo.data payload was not preserved: %#v", body.Data.Values)
+	}
+}
+
+func TestContentRESTFormBindRoundTripsExtraKeys(t *testing.T) {
+	t.Parallel()
+	adapter, err := bboltstorage.Open(filepath.Join(t.TempDir(), "form.db"), 0o600, nil)
+	if err != nil {
+		t.Fatalf("open storage: %v", err)
+	}
+	t.Cleanup(func() { _ = adapter.Close() })
+	service, _ := application.NewService(adapter, nil, restClock{time.Now().UTC()})
+	manifest := schema.Manifest{
+		Name: "shop", Version: "1",
+		Resources: []schema.Resource{{
+			ID: "product", Collection: "products", Public: true, RESTVisible: true,
+			Fields: []schema.Field{{ID: "payload_ru", Type: schema.FieldJSON}, {ID: "payload_en", Type: schema.FieldJSON}},
+			Form:   []schema.Field{{ID: "title", Type: schema.FieldString}},
+		}},
+	}
+	handler, err := NewContentHandler(service, nil, manifest)
+	if err != nil {
+		t.Fatalf("handler: %v", err)
+	}
+	mux := http.NewServeMux()
+	handler.Routes(mux)
+	schemaResponse := httptest.NewRecorder()
+	mux.ServeHTTP(schemaResponse, httptest.NewRequest(http.MethodGet, "/go-json/data/v1/schema/product/form", nil))
+	if schemaResponse.Code != http.StatusOK {
+		t.Fatalf("form schema %d: %s", schemaResponse.Code, schemaResponse.Body.String())
+	}
+	bind := performJSON(mux, http.MethodPost, "/go-json/data/v1/schema/product/form/bind", `{
+		"payload_ru":{"title":"Курс","kicker":"Backend"},
+		"payload_en":{"title":"Course"}
+	}`, "")
+	if bind.Code != http.StatusOK {
+		t.Fatalf("bind %d: %s", bind.Code, bind.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(bind.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	payloads, _ := body["payloads"].(map[string]any)
+	ru, _ := payloads["payload_ru"].(map[string]any)
+	if ru["kicker"] != "Backend" || ru["title"] != "Курс" {
+		t.Fatalf("payloads: %#v", payloads)
 	}
 }
 

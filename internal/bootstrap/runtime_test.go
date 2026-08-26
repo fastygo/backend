@@ -35,6 +35,7 @@ func TestBuildComposesFrameworkPanelRESTAndBbolt(t *testing.T) {
 		"/go-json/data/v1/taxonomies",
 		"/go-json/data/v1/schema",
 		"/go-json/data/v1/schema/post",
+		"/go-json/data/v1/schema/post/form",
 		"/go-json/data/v1/openapi.json",
 		"/go-json/data/v1/graphql/schema",
 		"/go-json/data/v1/graphql?query=%7BschemaIdentity%7Bname%20version%20digest%7D%7D",

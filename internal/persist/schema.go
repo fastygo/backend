@@ -32,6 +32,7 @@ type Resource struct {
 	ID             string   `json:"id"`
 	Collection     string   `json:"collection"`
 	Fields         []Field  `json:"fields"`
+	Form           []Field  `json:"form,omitempty"`
 	Taxonomies     []string `json:"taxonomies,omitempty"`
 	Public         bool     `json:"public,omitempty"`
 	RESTVisible    bool     `json:"rest_visible,omitempty"`
@@ -57,8 +58,12 @@ func ResourceFromDomain(resource schema.Resource) Resource {
 	for _, field := range resource.Fields {
 		fields = append(fields, FieldFromDomain(field))
 	}
+	form := make([]Field, 0, len(resource.Form))
+	for _, field := range resource.Form {
+		form = append(form, FieldFromDomain(field))
+	}
 	return Resource{
-		ID: resource.ID, Collection: resource.Collection, Fields: fields,
+		ID: resource.ID, Collection: resource.Collection, Fields: fields, Form: form,
 		Taxonomies: resource.Taxonomies, Public: resource.Public,
 		RESTVisible: resource.RESTVisible, GraphQLVisible: resource.GraphQLVisible,
 	}
@@ -96,8 +101,12 @@ func (resource Resource) Domain() schema.Resource {
 	for _, field := range resource.Fields {
 		fields = append(fields, field.Domain())
 	}
+	form := make([]schema.Field, 0, len(resource.Form))
+	for _, field := range resource.Form {
+		form = append(form, field.Domain())
+	}
 	return schema.Resource{
-		ID: resource.ID, Collection: resource.Collection, Fields: fields,
+		ID: resource.ID, Collection: resource.Collection, Fields: fields, Form: form,
 		Taxonomies: resource.Taxonomies, Public: resource.Public,
 		RESTVisible: resource.RESTVisible, GraphQLVisible: resource.GraphQLVisible,
 	}

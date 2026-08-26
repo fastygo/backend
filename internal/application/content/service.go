@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fastygo/backend/internal/application/forms"
 	"github.com/fastygo/backend/internal/domain/audit"
 	"github.com/fastygo/backend/internal/domain/authz"
 	domaincontent "github.com/fastygo/backend/internal/domain/content"
@@ -606,7 +607,7 @@ func (service *Service) validateManifest(
 			)
 		}
 	}
-	return nil
+	return forms.ValidateEntry(*resource, *entry)
 }
 
 type stringValue struct {
