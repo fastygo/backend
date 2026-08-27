@@ -115,6 +115,8 @@ func projectField(field schema.Field) formset.Field {
 
 func projectType(field schema.Field) formset.FieldType {
 	switch field.Type {
+	case schema.FieldString:
+		return formset.FieldString
 	case schema.FieldText:
 		return formset.FieldTextarea
 	case schema.FieldBoolean:
@@ -134,7 +136,7 @@ func projectType(field schema.Field) formset.FieldType {
 	case schema.FieldJSON:
 		return formset.FieldJSON
 	default:
-		return formset.FieldText
+		return formset.FieldString
 	}
 }
 

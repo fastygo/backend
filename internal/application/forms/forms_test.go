@@ -54,7 +54,7 @@ func TestRecordProjectsNestedObjectFields(t *testing.T) {
 	if len(record.Fields) != 1 || record.Fields[0].Type != "object" || len(record.Fields[0].Fields) != 2 {
 		t.Fatalf("projected fields: %#v", record.Fields)
 	}
-	if record.Fields[0].Fields[1].Items == nil || record.Fields[0].Fields[1].Items.Type != "text" {
+	if record.Fields[0].Fields[1].Items == nil || record.Fields[0].Fields[1].Items.Type != "string" {
 		t.Fatalf("nested collection: %#v", record.Fields[0].Fields)
 	}
 }
