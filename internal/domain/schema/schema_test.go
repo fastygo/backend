@@ -93,6 +93,20 @@ func TestRegistersCodexCollectionFollowsShowInRest(t *testing.T) {
 	}
 }
 
+func TestManifestAcceptsCamelCaseFormFieldIDs(t *testing.T) {
+	t.Parallel()
+	manifest := Manifest{
+		Name: "gitcourse", Version: "1",
+		Resources: []Resource{{
+			ID: "product", Collection: "products", RESTVisible: true,
+			Form: []Field{{ID: "shortTitle", Type: FieldString, Localized: true}},
+		}},
+	}
+	if err := manifest.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestFormFieldsPrefersExplicitFormOverPayloadBlobs(t *testing.T) {
 	t.Parallel()
 	resource := Resource{

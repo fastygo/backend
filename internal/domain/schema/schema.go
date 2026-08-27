@@ -108,7 +108,7 @@ func WithCoreResources(manifest Manifest) Manifest {
 	return manifest
 }
 
-var identifier = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,62}$`)
+var identifier = regexp.MustCompile(`^[a-z][a-zA-Z0-9_-]{0,62}$`)
 
 // ReservedCodexCollections cannot be used as a CPT rest_base under /go-json/go/v2/.
 func ReservedCodexCollections() []string {
@@ -210,7 +210,7 @@ func validateCodexCollection(resource Resource) error {
 func validateFields(fields []Field) error {
 	seen := make(map[string]struct{}, len(fields))
 	for _, field := range fields {
-		if !identifier.MatchString(field.ID) || field.ID == "id" || field.ID == "version" {
+		if !identifier.MatchString(field.ID) || field.ID == "id" {
 			return errors.New("field identifier is invalid or reserved")
 		}
 		if _, exists := seen[field.ID]; exists {

@@ -141,6 +141,14 @@ func TestLoadManifestKeepsCodexKindsOnGitCourseProfile(t *testing.T) {
 			t.Fatalf("gitcourse profile missing core or site kind %s", id)
 		}
 	}
+	for _, resource := range manifest.Resources {
+		if !resource.RegistersCodexCollection() {
+			continue
+		}
+		if len(resource.Form) == 0 {
+			t.Errorf("REST collection %s (%s) has no form", resource.ID, resource.Collection)
+		}
+	}
 }
 
 func TestOpenStorageRejectsIncompleteExternalDatabaseConfig(t *testing.T) {

@@ -38,12 +38,44 @@
       ],
       "form": [
         {"id": "title", "type": "string", "localized": true},
+        {"id": "slug", "type": "string"},
+        {"id": "shortTitle", "type": "string", "localized": true},
+        {"id": "kicker", "type": "string", "localized": true},
         {"id": "summary", "type": "text", "localized": true},
+        {"id": "description", "type": "text", "localized": true},
+        {"id": "outcome", "type": "text", "localized": true},
+        {"id": "category", "type": "string"},
+        {"id": "level", "type": "enum", "enum": ["start", "middle", "advanced"]},
+        {"id": "levelLabel", "type": "string", "localized": true},
+        {"id": "format", "type": "enum", "enum": ["self", "mentor"]},
+        {"id": "formatLabel", "type": "string", "localized": true},
         {"id": "price", "type": "money"},
-        {"id": "old_price", "type": "money"},
-        {"id": "level", "type": "enum", "enum": ["beginner", "intermediate", "advanced"]},
+        {"id": "oldPrice", "type": "money"},
+        {"id": "durationHours", "type": "integer"},
+        {"id": "weeks", "type": "integer"},
+        {"id": "lessons", "type": "integer"},
+        {"id": "projects", "type": "integer"},
+        {"id": "rating", "type": "number"},
+        {"id": "reviews", "type": "integer"},
+        {"id": "students", "type": "integer"},
+        {"id": "language", "type": "string", "localized": true},
+        {"id": "access", "type": "string", "localized": true},
+        {"id": "support", "type": "string", "localized": true},
+        {"id": "updated", "type": "string"},
+        {"id": "accent", "type": "string"},
+        {"id": "certificate", "type": "boolean"},
+        {"id": "featured", "type": "boolean"},
         {"id": "bestseller", "type": "boolean"},
-        {"id": "featured", "type": "boolean"}
+        {"id": "new", "type": "boolean"},
+        {"id": "tools", "type": "collection", "localized": true, "items": {"id": "item", "type": "string"}},
+        {"id": "skills", "type": "collection", "localized": true, "items": {"id": "item", "type": "string"}},
+        {"id": "audience", "type": "collection", "localized": true, "items": {"id": "item", "type": "string"}},
+        {"id": "requirements", "type": "collection", "localized": true, "items": {"id": "item", "type": "string"}},
+        {"id": "includes", "type": "collection", "localized": true, "items": {"id": "item", "type": "string"}},
+        {"id": "modules", "type": "json", "localized": true},
+        {"id": "author", "type": "json", "localized": true},
+        {"id": "courseReviews", "type": "json", "localized": true},
+        {"id": "faq", "type": "json", "localized": true}
       ]
     },
     {
@@ -55,6 +87,12 @@
       "fields": [
         {"id": "payload_ru", "type": "json"},
         {"id": "payload_en", "type": "json"}
+      ],
+      "form": [
+        {"id": "title", "type": "string", "localized": true},
+        {"id": "short", "type": "string", "localized": true},
+        {"id": "description", "type": "text", "localized": true},
+        {"id": "glyph", "type": "string"}
       ]
     },
     {
@@ -66,6 +104,14 @@
       "fields": [
         {"id": "payload_ru", "type": "json"},
         {"id": "payload_en", "type": "json"}
+      ],
+      "form": [
+        {"id": "name", "type": "string", "localized": true},
+        {"id": "tagline", "type": "string", "localized": true},
+        {"id": "offer", "type": "string", "localized": true},
+        {"id": "description", "type": "text", "localized": true},
+        {"id": "email", "type": "string"},
+        {"id": "phone", "type": "string"}
       ]
     },
     {
@@ -77,6 +123,16 @@
       "fields": [
         {"id": "payload_ru", "type": "json"},
         {"id": "payload_en", "type": "json"}
+      ],
+      "form": [
+        {"id": "heroEyebrow", "type": "string", "localized": true},
+        {"id": "heroTitle", "type": "string", "localized": true},
+        {"id": "heroAccent", "type": "string", "localized": true},
+        {"id": "heroLead", "type": "text", "localized": true},
+        {"id": "metrics", "type": "json", "localized": true},
+        {"id": "steps", "type": "json", "localized": true},
+        {"id": "testimonials", "type": "json", "localized": true},
+        {"id": "faq", "type": "json", "localized": true}
       ]
     },
     {
@@ -88,6 +144,11 @@
       "fields": [
         {"id": "payload_ru", "type": "json"},
         {"id": "payload_en", "type": "json"}
+      ],
+      "form": [
+        {"id": "title", "type": "string", "localized": true},
+        {"id": "description", "type": "text", "localized": true},
+        {"id": "badge", "type": "string", "localized": true}
       ]
     },
     {
@@ -99,6 +160,14 @@
       "fields": [
         {"id": "payload_ru", "type": "json"},
         {"id": "payload_en", "type": "json"}
+      ],
+      "form": [
+        {"id": "title", "type": "string", "localized": true},
+        {"id": "shortTitle", "type": "string", "localized": true},
+        {"id": "version", "type": "string"},
+        {"id": "effectiveFrom", "type": "string", "localized": true},
+        {"id": "lead", "type": "text", "localized": true},
+        {"id": "sections", "type": "json", "localized": true}
       ]
     },
     {
@@ -110,6 +179,11 @@
       "fields": [
         {"id": "payload_ru", "type": "json"},
         {"id": "payload_en", "type": "json"}
+      ],
+      "form": [
+        {"id": "code", "type": "string"},
+        {"id": "percent", "type": "integer"},
+        {"id": "active", "type": "boolean"}
       ]
     }
   ]
