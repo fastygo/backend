@@ -54,6 +54,12 @@ func TestCollectionRouterPrefersLiteralBySlugAndKeepsCanonicalExtras(t *testing.
 		t.Fatalf("by-slug returned %q, want %q", slugResult.Data.ID, body.Data.ID)
 	}
 
+	blank := httptest.NewRecorder()
+	mux.ServeHTTP(blank, httptest.NewRequest(http.MethodGet, "/go-json/go/v2/products/form", nil))
+	if blank.Code != http.StatusOK {
+		t.Fatalf("collection form status %d: %s", blank.Code, blank.Body.String())
+	}
+
 	for name, path := range map[string]string{
 		"revisions": "/go-json/go/v2/products/" + body.Data.ID + "/revisions",
 		"form":      "/go-json/go/v2/products/" + body.Data.ID + "/form",

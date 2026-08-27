@@ -196,6 +196,12 @@ func (manifest Manifest) OpenAPI() (map[string]any, error) {
 		paths[recordPath+"/revisions/{revision}/restore"] = map[string]any{
 			"post": operation("restore"+name+"Revision", "Restore "+resource.ID+" revision", "200"),
 		}
+		paths[collectionPath+"/form"] = map[string]any{
+			"get": operation("get"+name+"CollectionForm", "Get "+resource.ID+" collection form", "200"),
+		}
+		paths[collectionPath+"/by-slug/{slug}"] = map[string]any{
+			"get": operation("get"+name+"BySlug", "Get "+resource.ID+" by slug", "200"),
+		}
 		paths[recordPath+"/form"] = map[string]any{
 			"get": operation("get"+name+"Form", "Get "+resource.ID+" form", "200"),
 		}

@@ -24,6 +24,7 @@ const (
 	collectionRevisions
 	collectionRestoreRevision
 	collectionEntryForm
+	collectionForm
 )
 
 type collectionEndpoint struct {
@@ -78,7 +79,7 @@ func NewCollectionRouter(
 			kind:       domaincontent.Kind(resource.ID),
 			capabilities: collectionList | collectionCreate | collectionGet | collectionUpdate |
 				collectionDelete | collectionBySlug | collectionTransition | collectionRevisions |
-				collectionRestoreRevision | collectionEntryForm,
+				collectionRestoreRevision | collectionEntryForm | collectionForm,
 		})
 	}
 	return router, nil
@@ -184,6 +185,7 @@ var collectionRoutes = []collectionRoute{
 	{method: http.MethodGet, capability: collectionList, serve: serveList},
 	{method: http.MethodPost, capability: collectionCreate, serve: serveCreate},
 	{method: http.MethodGet, segments: []string{"by-slug", ":slug"}, capability: collectionBySlug, serve: serveBySlug},
+	{method: http.MethodGet, segments: []string{"form"}, capability: collectionForm, serve: serveCollectionForm},
 	{method: http.MethodGet, segments: []string{":id"}, capability: collectionGet, serve: serveGet},
 	{method: http.MethodPatch, segments: []string{":id"}, capability: collectionUpdate, serve: serveUpdate},
 	{method: http.MethodDelete, segments: []string{":id"}, capability: collectionDelete, serve: serveDelete},
@@ -231,6 +233,10 @@ func serveRestoreRevision(router *CollectionRouter, endpoint collectionEndpoint,
 
 func serveEntryForm(router *CollectionRouter, endpoint collectionEndpoint, response http.ResponseWriter, request *http.Request) {
 	router.content.entryForm(response, request)
+}
+
+func serveCollectionForm(router *CollectionRouter, endpoint collectionEndpoint, response http.ResponseWriter, request *http.Request) {
+	router.content.collectionForm(response, request)
 }
 
 func writeMethodNotAllowed(response http.ResponseWriter, allowed map[string]struct{}) {

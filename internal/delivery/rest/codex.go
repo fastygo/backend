@@ -344,6 +344,7 @@ func (handler *CodexHandler) codexEntry(entry domaincontent.Entry) map[string]an
 	for _, reference := range entry.Terms {
 		termIDs = append(termIDs, reference.TermID)
 	}
+	record := "/go-json/go/v2/" + handler.collectionFor(entry.Kind) + "/" + string(entry.ID)
 	return map[string]any{
 		"id": entry.ID, "kind": entry.Kind, "version": entry.Version,
 		"status": entry.Status, "visibility": entry.Visibility,
@@ -353,7 +354,7 @@ func (handler *CodexHandler) codexEntry(entry domaincontent.Entry) map[string]an
 		"metadata": metadata, "created_at": entry.CreatedAt, "updated_at": entry.UpdatedAt,
 		"published_at": entry.PublishedAt,
 		"links": map[string]string{
-			"self": "/go-json/go/v2/" + handler.collectionFor(entry.Kind) + "/" + string(entry.ID),
+			"self": record, "form": record + "/form", "revisions": record + "/revisions",
 		},
 	}
 }

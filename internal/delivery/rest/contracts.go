@@ -35,7 +35,20 @@ func (handler *ContentHandler) resourceSchema(response http.ResponseWriter, requ
 }
 
 func (handler *ContentHandler) resourceForm(response http.ResponseWriter, request *http.Request) {
-	resource, ok := handler.manifest.Resource(request.PathValue("resource"))
+	handler.writeForm(response, request, request.PathValue("resource"))
+}
+
+func (handler *ContentHandler) collectionForm(response http.ResponseWriter, request *http.Request) {
+	kind, err := handler.kindFromCollection(request.PathValue("collection"))
+	if err != nil {
+		writeError(response, request, err)
+		return
+	}
+	handler.writeForm(response, request, string(kind))
+}
+
+func (handler *ContentHandler) writeForm(response http.ResponseWriter, request *http.Request, resourceID string) {
+	resource, ok := handler.manifest.Resource(resourceID)
 	if !ok {
 		writeError(response, request, core.NewDomainError(core.ErrorCodeNotFound, "resource schema was not found"))
 		return

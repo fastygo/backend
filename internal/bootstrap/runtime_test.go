@@ -39,6 +39,7 @@ func TestBuildComposesFrameworkPanelRESTAndBbolt(t *testing.T) {
 		"/go-json/go/v2/schema",
 		"/go-json/go/v2/types/post/json-schema",
 		"/go-json/go/v2/types/post/form",
+		"/go-json/go/v2/posts/form",
 		"/go-json/go/v2/openapi.json",
 		"/go-json/go/v2/menus",
 		"/go-json/go/v2/settings",

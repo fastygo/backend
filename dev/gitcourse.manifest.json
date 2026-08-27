@@ -104,7 +104,7 @@
     {
       "id": "promotion",
       "collection": "promotions",
-      "public": true,
+      "public": false,
       "rest_visible": true,
       "graphql_visible": true,
       "fields": [

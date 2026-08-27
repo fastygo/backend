@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -102,6 +103,9 @@ func TestCodexRegistersManifestPostTypes(t *testing.T) {
 	}
 	if want := "/go-json/go/v2/leads/"; len(body.Data.Links["self"]) < len(want) || body.Data.Links["self"][:len(want)] != want {
 		t.Fatalf("self link: %s", body.Data.Links["self"])
+	}
+	if !strings.HasSuffix(body.Data.Links["form"], "/form") || !strings.HasSuffix(body.Data.Links["revisions"], "/revisions") {
+		t.Fatalf("canonical links: %#v", body.Data.Links)
 	}
 
 	list := httptest.NewRecorder()

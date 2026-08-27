@@ -43,6 +43,8 @@ func TestManifestGeneratesJSONSchemaGraphQLAndOpenAPI(t *testing.T) {
 		t.Fatalf("record methods do not match the REST contract: %#v", recordPath)
 	}
 	for _, path := range []string{
+		"/go-json/go/v2/products/form",
+		"/go-json/go/v2/products/by-slug/{slug}",
 		"/go-json/go/v2/products/{id}/revisions",
 		"/go-json/go/v2/products/{id}/revisions/{revision}/restore",
 		"/go-json/go/v2/products/{id}/form",
