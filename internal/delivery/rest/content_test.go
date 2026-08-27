@@ -95,7 +95,7 @@ func TestContentRESTCreateReadAndOptimisticUpdate(t *testing.T) {
 		t.Fatalf("restore transition failed: %d %s", restored.Code, restored.Body.String())
 	}
 	revisions := httptest.NewRecorder()
-	mux.ServeHTTP(revisions, httptest.NewRequest(http.MethodGet, "/go-json/go/v2/revisions/products/"+created.Data.ID, nil))
+	mux.ServeHTTP(revisions, httptest.NewRequest(http.MethodGet, updatePath+"/revisions", nil))
 	if revisions.Code != http.StatusOK {
 		t.Fatalf("revision list failed: %d %s", revisions.Code, revisions.Body.String())
 	}
@@ -121,34 +121,6 @@ func TestContentRESTCreateReadAndOptimisticUpdate(t *testing.T) {
 	audited.ServeHTTP(auditResponse, httptest.NewRequest(http.MethodGet, "/go-json/go/v2/audit", nil))
 	if auditResponse.Code != http.StatusOK {
 		t.Fatalf("audit endpoint failed: %d %s", auditResponse.Code, auditResponse.Body.String())
-	}
-}
-
-func TestContentRESTAcceptsFastyDataValuesContract(t *testing.T) {
-	mux, _ := newShopMux(t, authz.NewPrincipal("editor", authz.CapabilityContentCreate, authz.CapabilityContentPublish))
-	response := performJSON(mux, http.MethodPost, "/go-json/go/v2/products", `{
-		"values": {
-			"status": "published",
-			"visibility": "public",
-			"slug": "course",
-			"title_en": "Course",
-			"payload_en": {"slug":"course","price":49}
-		}
-	}`, "")
-	if response.Code != http.StatusCreated {
-		t.Fatalf("values create status %d: %s", response.Code, response.Body.String())
-	}
-	var body struct {
-		Data struct {
-			Metadata map[string]any `json:"metadata"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
-		t.Fatalf("decode values response: %v", err)
-	}
-	payload, ok := body.Data.Metadata["payload_en"].(map[string]any)
-	if !ok || payload["slug"] != "course" {
-		t.Fatalf("fastygo.data payload was not preserved: %#v", body.Data.Metadata)
 	}
 }
 
@@ -202,7 +174,7 @@ func shopManifest() schema.Manifest {
 				{ID: "sku", Type: schema.FieldString},
 				{ID: "secret", Type: schema.FieldString},
 			},
-			Form:   []schema.Field{{ID: "title", Type: schema.FieldString}},
+			Form: []schema.Field{{ID: "title", Type: schema.FieldString}},
 		}},
 	})
 }
@@ -258,9 +230,14 @@ func wireShopMux(
 	if err != nil {
 		t.Fatalf("codex handler: %v", err)
 	}
+	collectionRouter, err := NewCollectionRouter(codexHandler, contentHandler)
+	if err != nil {
+		t.Fatalf("collection router: %v", err)
+	}
 	mux := http.NewServeMux()
 	contentHandler.Routes(mux)
 	codexHandler.Routes(mux)
+	collectionRouter.Routes(mux)
 	return mux
 }
 

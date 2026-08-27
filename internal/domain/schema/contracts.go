@@ -121,6 +121,11 @@ func (manifest Manifest) OpenAPI() (map[string]any, error) {
 			"get":  operation("listMedia", "List media", "200"),
 			"post": operation("uploadMedia", "Upload media", "201"),
 		},
+		"/go-json/go/v2/media/{id}": map[string]any{
+			"get":    operation("getMedia", "Get media", "200"),
+			"patch":  operation("updateMedia", "Update media", "200"),
+			"delete": operation("trashMedia", "Move media to trash", "204"),
+		},
 		"/go-json/go/v2/media/{id}/content": map[string]any{
 			"get": operation("downloadMedia", "Download media", "200"),
 		},
@@ -179,18 +184,20 @@ func (manifest Manifest) OpenAPI() (map[string]any, error) {
 		}
 		paths[recordPath] = map[string]any{
 			"get":    operation("get"+name, "Get "+resource.ID, "200"),
-			"put":    operation("replace"+name, "Replace "+resource.ID, "200"),
 			"patch":  operation("update"+name, "Update "+resource.ID, "200"),
 			"delete": operation("trash"+name, "Move "+resource.ID+" to trash", "204"),
 		}
 		paths[recordPath+"/transitions"] = map[string]any{
 			"post": operation("transition"+name, "Transition "+resource.ID+" lifecycle", "200"),
 		}
-		paths["/go-json/go/v2/revisions/"+resource.Collection+"/{id}"] = map[string]any{
+		paths[recordPath+"/revisions"] = map[string]any{
 			"get": operation("list"+name+"Revisions", "List "+resource.ID+" revisions", "200"),
 		}
 		paths[recordPath+"/revisions/{revision}/restore"] = map[string]any{
 			"post": operation("restore"+name+"Revision", "Restore "+resource.ID+" revision", "200"),
+		}
+		paths[recordPath+"/form"] = map[string]any{
+			"get": operation("get"+name+"Form", "Get "+resource.ID+" form", "200"),
 		}
 	}
 	return map[string]any{

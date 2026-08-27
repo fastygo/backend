@@ -42,13 +42,6 @@ func NewCodexHandler(
 func (handler *CodexHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /go-json", handler.root)
 	mux.HandleFunc("GET /go-json/go/v2/{$}", handler.discovery)
-	handler.registerCollection(mux, "media", "media")
-	for _, resource := range handler.manifest.Resources {
-		if !resource.RegistersCodexCollection() {
-			continue
-		}
-		handler.registerCollection(mux, resource.Collection, domaincontent.Kind(resource.ID))
-	}
 	mux.HandleFunc("GET /go-json/go/v2/content-types", handler.contentTypes)
 	mux.HandleFunc("GET /go-json/go/v2/types", handler.contentTypes)
 	mux.HandleFunc("GET /go-json/go/v2/taxonomies", handler.listTaxonomies)
@@ -57,17 +50,6 @@ func (handler *CodexHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /go-json/go/v2/menus", handler.list("menu"))
 	mux.HandleFunc("GET /go-json/go/v2/menus/{slug}", handler.bySlug("menu"))
 	mux.HandleFunc("GET /go-json/go/v2/settings", handler.list("setting"))
-}
-
-func (handler *CodexHandler) registerCollection(mux *http.ServeMux, collection string, kind domaincontent.Kind) {
-	mux.HandleFunc("GET /go-json/go/v2/"+collection, handler.list(kind))
-	if collection != "media" {
-		mux.HandleFunc("POST /go-json/go/v2/"+collection, handler.create(kind))
-		mux.HandleFunc("GET /go-json/go/v2/"+collection+"/by-slug/{slug}", handler.bySlug(kind))
-	}
-	mux.HandleFunc("GET /go-json/go/v2/"+collection+"/{id}", handler.get(kind))
-	mux.HandleFunc("PATCH /go-json/go/v2/"+collection+"/{id}", handler.update(kind))
-	mux.HandleFunc("DELETE /go-json/go/v2/"+collection+"/{id}", handler.trash(kind))
 }
 
 func (handler *CodexHandler) root(response http.ResponseWriter, _ *http.Request) {

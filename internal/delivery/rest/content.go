@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/fastygo/backend/internal/domain/authz"
 	domaincontent "github.com/fastygo/backend/internal/domain/content"
 	"github.com/fastygo/backend/internal/domain/schema"
+	"github.com/fastygo/backend/internal/persist"
 	"github.com/fastygo/framework/pkg/core"
 )
 
@@ -43,7 +45,6 @@ func NewContentHandler(service *application.Service, principal PrincipalResolver
 
 func (handler *ContentHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /go-json/go/v2/audit", handler.listAudit)
-	mux.HandleFunc("GET /go-json/go/v2/revisions/{collection}/{id}", handler.revisions)
 	if handler.manifest.Name != "" {
 		mux.HandleFunc("GET /go-json/go/v2/schema", handler.schemaIdentity)
 		mux.HandleFunc("GET /go-json/go/v2/types/{resource}/json-schema", handler.resourceSchema)
@@ -51,28 +52,6 @@ func (handler *ContentHandler) Routes(mux *http.ServeMux) {
 		mux.HandleFunc("POST /go-json/go/v2/types/{resource}/form/bind", handler.bindForm)
 		mux.HandleFunc("GET /go-json/go/v2/openapi.json", handler.openAPI)
 		mux.HandleFunc("GET /go-json/go/v2/graphql.sdl", handler.graphQLSchema)
-	}
-	handler.registerEntryExtras(mux, "media")
-	for _, resource := range handler.manifest.Resources {
-		if resource.RegistersCodexCollection() {
-			handler.registerEntryExtras(mux, resource.Collection)
-		}
-	}
-}
-
-func (handler *ContentHandler) registerEntryExtras(mux *http.ServeMux, collection string) {
-	prefix := "/go-json/go/v2/" + collection
-	mux.HandleFunc("POST "+prefix+"/{id}/transitions", handler.bindCollection(collection, handler.transition))
-	mux.HandleFunc("POST "+prefix+"/{id}/revisions/{revision}/restore", handler.bindCollection(collection, handler.restoreRevision))
-	if handler.manifest.Name != "" {
-		mux.HandleFunc("GET /go-json/go/v2/forms/"+collection+"/{id}", handler.bindCollection(collection, handler.entryForm))
-	}
-}
-
-func (handler *ContentHandler) bindCollection(collection string, next http.HandlerFunc) http.HandlerFunc {
-	return func(response http.ResponseWriter, request *http.Request) {
-		request.SetPathValue("collection", collection)
-		next(response, request)
 	}
 }
 
@@ -129,24 +108,17 @@ func decodeEntryJSON(response http.ResponseWriter, request *http.Request, target
 		return core.NewDomainError(core.ErrorCodeValidation, "Content-Type must be application/json")
 	}
 	request.Body = http.MaxBytesReader(response, request.Body, maxRequestBody)
-	encoded, err := io.ReadAll(request.Body)
-	if err != nil {
+	var document persist.Entry
+	decoder := json.NewDecoder(request.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&document); err != nil {
 		return core.WrapDomainError(core.ErrorCodeValidation, "invalid JSON body", err)
 	}
-	entry, err := decodeEntryRequest(encoded)
-	if err != nil {
-		return err
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return core.NewDomainError(core.ErrorCodeValidation, "request body must contain one JSON object")
 	}
-	*target = entry
+	*target = document.Domain()
 	return nil
-}
-
-func projectRecords(entries []domaincontent.Entry) []resourceRecord {
-	records := make([]resourceRecord, 0, len(entries))
-	for _, entry := range entries {
-		records = append(records, projectRecord(entry))
-	}
-	return records
 }
 
 func expectedVersion(request *http.Request, bodyVersion uint64) (uint64, error) {

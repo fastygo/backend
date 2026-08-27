@@ -51,8 +51,18 @@ func TestCodexRegistersManifestPostTypes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create handler: %v", err)
 	}
+	contentHandler, err := NewContentHandler(service, fixedPrincipal{principal: editor}, manifest)
+	if err != nil {
+		t.Fatalf("create content handler: %v", err)
+	}
+	collectionRouter, err := NewCollectionRouter(handler, contentHandler)
+	if err != nil {
+		t.Fatalf("create collection router: %v", err)
+	}
 	mux := http.NewServeMux()
 	handler.Routes(mux)
+	contentHandler.Routes(mux)
+	collectionRouter.Routes(mux)
 
 	discovery := httptest.NewRecorder()
 	mux.ServeHTTP(discovery, httptest.NewRequest(http.MethodGet, "/go-json/go/v2/", nil))

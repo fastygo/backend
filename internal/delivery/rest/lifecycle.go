@@ -52,31 +52,6 @@ func (handler *ContentHandler) transition(response http.ResponseWriter, request 
 	writeJSON(response, http.StatusOK, map[string]any{"data": persist.EntryFromDomain(entry)})
 }
 
-func (handler *ContentHandler) trash(response http.ResponseWriter, request *http.Request) {
-	principal, ok := handler.resolvePrincipal(response, request)
-	if !ok {
-		return
-	}
-	version, err := expectedVersion(request, 0)
-	if err != nil {
-		writeError(response, request, core.WrapDomainError(core.ErrorCodeValidation, "invalid expected version", err))
-		return
-	}
-	kind, err := handler.kindFromCollection(request.PathValue("collection"))
-	if err != nil {
-		writeError(response, request, err)
-		return
-	}
-	_, err = handler.service.Transition(request.Context(), principal, domaincontent.ID(request.PathValue("id")), application.Transition{
-		Kind: kind, Status: domaincontent.StatusTrashed, ExpectedVersion: version, Reason: "REST delete",
-	})
-	if err != nil {
-		writeError(response, request, err)
-		return
-	}
-	response.WriteHeader(http.StatusNoContent)
-}
-
 func (handler *ContentHandler) revisions(response http.ResponseWriter, request *http.Request) {
 	principal, ok := handler.resolvePrincipal(response, request)
 	if !ok {

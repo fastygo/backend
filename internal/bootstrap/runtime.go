@@ -157,6 +157,11 @@ func Build(ctx context.Context, config Config) (*Runtime, error) {
 		_ = storage.Close()
 		return nil, err
 	}
+	collectionRouter, err := rest.NewCollectionRouter(codexHandler, handler)
+	if err != nil {
+		_ = storage.Close()
+		return nil, err
+	}
 	identityService, err := applicationidentity.NewService(storage, tokenManager, nil)
 	if err != nil {
 		_ = storage.Close()
@@ -199,7 +204,7 @@ func Build(ctx context.Context, config Config) (*Runtime, error) {
 		_ = storage.Close()
 		return nil, err
 	}
-	routes := platform.RouteGroup{handler, codexHandler, taxonomyHandler, identityHandler, mediaHandler, graphQL}
+	routes := platform.RouteGroup{handler, codexHandler, collectionRouter, taxonomyHandler, identityHandler, mediaHandler, graphQL}
 	if sessionHandler != nil {
 		routes = append(routes, sessionHandler)
 	}

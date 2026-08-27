@@ -38,4 +38,17 @@ func TestManifestGeneratesJSONSchemaGraphQLAndOpenAPI(t *testing.T) {
 	if paths["/go-json/go/v2/products"] == nil {
 		t.Fatalf("resource path is missing from OpenAPI")
 	}
+	recordPath, ok := paths["/go-json/go/v2/products/{id}"].(map[string]any)
+	if !ok || recordPath["put"] != nil || recordPath["patch"] == nil {
+		t.Fatalf("record methods do not match the REST contract: %#v", recordPath)
+	}
+	for _, path := range []string{
+		"/go-json/go/v2/products/{id}/revisions",
+		"/go-json/go/v2/products/{id}/revisions/{revision}/restore",
+		"/go-json/go/v2/products/{id}/form",
+	} {
+		if paths[path] == nil {
+			t.Fatalf("canonical collection endpoint missing from OpenAPI: %s", path)
+		}
+	}
 }
