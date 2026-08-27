@@ -3,6 +3,30 @@
   "version": "1",
   "resources": [
     {
+      "id": "post",
+      "collection": "posts",
+      "public": true,
+      "rest_visible": true,
+      "graphql_visible": true,
+      "form": [
+        {"id": "title", "type": "string", "localized": true},
+        {"id": "excerpt", "type": "text", "localized": true},
+        {"id": "content", "type": "text", "localized": true}
+      ]
+    },
+    {
+      "id": "page",
+      "collection": "pages",
+      "public": true,
+      "rest_visible": true,
+      "graphql_visible": true,
+      "form": [
+        {"id": "title", "type": "string", "localized": true},
+        {"id": "excerpt", "type": "text", "localized": true},
+        {"id": "content", "type": "text", "localized": true}
+      ]
+    },
+    {
       "id": "product",
       "collection": "products",
       "public": true,

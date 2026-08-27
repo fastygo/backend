@@ -88,15 +88,47 @@ func entryFromRecord(record Record) domaincontent.Entry {
 		Visibility: domaincontent.Visibility(stringValue(record.Values["visibility"])),
 		Title:      domaincontent.LocalizedText{"en": title, "ru": title},
 		Slug:       domaincontent.LocalizedText{"en": slug, "ru": slug},
+		Content:    domaincontent.LocalizedText{},
+		Excerpt:    domaincontent.LocalizedText{},
 		Metadata:   map[string]domaincontent.MetadataValue{},
 	}
 	if raw, ok := record.Values["payload_ru"]; ok {
 		entry.Metadata["payload_ru"] = domaincontent.MetadataValue{Value: raw}
+		applyPayloadLocale(&entry, "ru", raw)
 	}
 	if raw, ok := record.Values["payload_en"]; ok {
 		entry.Metadata["payload_en"] = domaincontent.MetadataValue{Value: raw}
+		applyPayloadLocale(&entry, "en", raw)
+	}
+	if text := stringValue(record.Values["content"]); text != "" {
+		entry.Content["en"] = text
+		if entry.Content["ru"] == "" {
+			entry.Content["ru"] = text
+		}
+	}
+	if text := stringValue(record.Values["excerpt"]); text != "" {
+		entry.Excerpt["en"] = text
+		if entry.Excerpt["ru"] == "" {
+			entry.Excerpt["ru"] = text
+		}
 	}
 	return entry
+}
+
+func applyPayloadLocale(entry *domaincontent.Entry, locale string, raw any) {
+	document, ok := raw.(map[string]any)
+	if !ok {
+		return
+	}
+	if text := stringValue(document["title"]); text != "" {
+		entry.Title[locale] = text
+	}
+	if text := stringValue(document["content"]); text != "" {
+		entry.Content[locale] = text
+	}
+	if text := stringValue(document["excerpt"]); text != "" {
+		entry.Excerpt[locale] = text
+	}
 }
 
 func stringValue(value any) string {

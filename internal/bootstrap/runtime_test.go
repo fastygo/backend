@@ -131,6 +131,19 @@ func TestBuildBootstrapsDurableAdminLogin(t *testing.T) {
 	}
 }
 
+func TestLoadManifestKeepsCodexKindsOnGitCourseProfile(t *testing.T) {
+	t.Parallel()
+	manifest, err := loadManifest(filepath.Join("..", "..", "dev", "gitcourse.manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"post", "page", "product", "menu", "setting"} {
+		if _, ok := manifest.Resource(id); !ok {
+			t.Fatalf("gitcourse profile missing core or site kind %s", id)
+		}
+	}
+}
+
 func TestOpenStorageRejectsIncompleteExternalDatabaseConfig(t *testing.T) {
 	_, err := OpenStorage(context.Background(), Config{Storage: "postgres"})
 	if err == nil {
@@ -163,8 +176,11 @@ func TestLoadConfigReadsProductDefinedManifest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
-	if len(config.Manifest.Resources) != 1 || config.Manifest.Resources[0].ID != "product" {
-		t.Fatalf("external manifest was not loaded")
+	if _, ok := config.Manifest.Resource("product"); !ok {
+		t.Fatalf("external product resource was not loaded")
+	}
+	if _, ok := config.Manifest.Resource("post"); !ok {
+		t.Fatalf("codex post kind must be merged into a site manifest")
 	}
 }
 

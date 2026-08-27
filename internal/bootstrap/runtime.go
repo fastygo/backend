@@ -274,21 +274,7 @@ func OpenStorage(ctx context.Context, config Config) (Storage, error) {
 }
 
 func DefaultManifest() schema.Manifest {
-	return schema.Manifest{
-		Name: "headless", Version: "1",
-		Resources: []schema.Resource{
-			{ID: "post", Collection: "posts", Public: true, RESTVisible: true, GraphQLVisible: true},
-			{ID: "page", Collection: "pages", Public: true, RESTVisible: true, GraphQLVisible: true},
-			{
-				ID: "menu", Collection: "menus", Public: true, RESTVisible: true, GraphQLVisible: true,
-				Fields: []schema.Field{{ID: "items", Type: schema.FieldJSON}},
-			},
-			{
-				ID: "setting", Collection: "settings", Public: true, RESTVisible: true, GraphQLVisible: true,
-				Fields: []schema.Field{{ID: "value", Type: schema.FieldJSON}},
-			},
-		},
-	}
+	return schema.WithCoreResources(schema.Manifest{Name: "headless", Version: "1"})
 }
 
 func loadDotEnv(path string) {
@@ -336,7 +322,7 @@ func loadManifest(path string) (schema.Manifest, error) {
 	if err := decoder.Decode(&document); err != nil {
 		return schema.Manifest{}, fmt.Errorf("failed to decode headless manifest: %w", err)
 	}
-	manifest := document.Domain()
+	manifest := schema.WithCoreResources(document.Domain())
 	if err := manifest.Validate(); err != nil {
 		return schema.Manifest{}, fmt.Errorf("failed to validate headless manifest: %w", err)
 	}

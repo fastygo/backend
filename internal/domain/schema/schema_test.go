@@ -38,6 +38,30 @@ func TestManifestValidation(t *testing.T) {
 	}
 }
 
+func TestWithCoreResourcesKeepsSiteKinds(t *testing.T) {
+	t.Parallel()
+	manifest := WithCoreResources(Manifest{
+		Name: "gitcourse", Version: "1",
+		Resources: []Resource{
+			{ID: "product", Collection: "products", Public: true},
+			{ID: "post", Collection: "posts", Public: true, Form: []Field{{ID: "content", Type: FieldText}}},
+		},
+	})
+	if _, ok := manifest.Resource("product"); !ok {
+		t.Fatal("site kind was dropped")
+	}
+	post, ok := manifest.Resource("post")
+	if !ok || len(post.Form) != 1 || post.Form[0].ID != "content" {
+		t.Fatalf("declared post form was replaced: %#v", post)
+	}
+	if _, ok := manifest.Resource("page"); !ok {
+		t.Fatal("core page kind is required")
+	}
+	if err := manifest.Validate(); err != nil {
+		t.Fatalf("merged manifest: %v", err)
+	}
+}
+
 func TestFormFieldsPrefersExplicitFormOverPayloadBlobs(t *testing.T) {
 	t.Parallel()
 	resource := Resource{

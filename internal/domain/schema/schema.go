@@ -77,6 +77,37 @@ type Manifest struct {
 	Resources []Resource
 }
 
+// CoreResources are the go-codex kinds every profile must keep.
+func CoreResources() []Resource {
+	return []Resource{
+		{ID: "post", Collection: "posts", Public: true, RESTVisible: true, GraphQLVisible: true},
+		{ID: "page", Collection: "pages", Public: true, RESTVisible: true, GraphQLVisible: true},
+		{
+			ID: "menu", Collection: "menus", Public: true, RESTVisible: true, GraphQLVisible: true,
+			Fields: []Field{{ID: "items", Type: FieldJSON}},
+		},
+		{
+			ID: "setting", Collection: "settings", Public: true, RESTVisible: true, GraphQLVisible: true,
+			Fields: []Field{{ID: "value", Type: FieldJSON}},
+		},
+	}
+}
+
+// WithCoreResources adds reserved post/page/menu/setting kinds without replacing site resources.
+func WithCoreResources(manifest Manifest) Manifest {
+	seen := make(map[string]struct{}, len(manifest.Resources))
+	for _, resource := range manifest.Resources {
+		seen[resource.ID] = struct{}{}
+	}
+	for _, resource := range CoreResources() {
+		if _, exists := seen[resource.ID]; exists {
+			continue
+		}
+		manifest.Resources = append(manifest.Resources, resource)
+	}
+	return manifest
+}
+
 var identifier = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,62}$`)
 
 func (manifest Manifest) Validate() error {
