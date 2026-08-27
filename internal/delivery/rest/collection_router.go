@@ -90,7 +90,10 @@ func (router *CollectionRouter) add(endpoint collectionEndpoint) {
 }
 
 func (router *CollectionRouter) Routes(mux *http.ServeMux) {
-	mux.Handle(collectionPrefix, router)
+	for collection := range router.collections {
+		mux.Handle(collectionPrefix+collection, router)
+		mux.Handle(collectionPrefix+collection+"/", router)
+	}
 }
 
 func (router *CollectionRouter) ServeHTTP(response http.ResponseWriter, request *http.Request) {

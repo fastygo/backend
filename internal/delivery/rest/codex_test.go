@@ -118,6 +118,9 @@ func TestCodexRegistersManifestPostTypes(t *testing.T) {
 	if types.Code != http.StatusOK {
 		t.Fatalf("types %d: %s", types.Code, types.Body.String())
 	}
+	if strings.Contains(types.Body.String(), `"routes"`) {
+		t.Fatal("GET /types must not return discovery")
+	}
 	var typeDocument struct {
 		Data []struct {
 			ID          string `json:"id"`
