@@ -250,6 +250,14 @@ func fieldJSONSchema(field Field) map[string]any {
 	if field.Type == FieldCollection && field.Items != nil {
 		projected["items"] = fieldJSONSchema(*field.Items)
 	}
+	if field.Type == FieldObject && len(field.Fields) > 0 {
+		properties := map[string]any{}
+		for _, nested := range field.Fields {
+			properties[nested.ID] = fieldJSONSchema(nested)
+		}
+		projected["type"] = "object"
+		projected["properties"] = properties
+	}
 	return projected
 }
 
@@ -261,7 +269,7 @@ func jsonType(fieldType FieldType) string {
 		return "integer"
 	case FieldNumber, FieldDecimal, FieldMoney:
 		return "number"
-	case FieldJSON:
+	case FieldJSON, FieldObject:
 		return "object"
 	case FieldCollection:
 		return "array"

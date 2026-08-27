@@ -21,6 +21,42 @@ func TestManifestValidation(t *testing.T) {
 			},
 			wantError: true,
 		},
+		"object without nested fields": {
+			mutate: func(manifest *Manifest) {
+				manifest.Resources[1].Fields = append(manifest.Resources[1].Fields, Field{
+					ID: "author", Type: FieldObject,
+				})
+			},
+			wantError: true,
+		},
+		"nested object collection": {
+			mutate: func(manifest *Manifest) {
+				manifest.Resources[1].Form = []Field{{
+					ID: "faq", Type: FieldCollection, Localized: true,
+					Items: &Field{
+						ID: "item", Type: FieldObject,
+						Fields: []Field{
+							{ID: "question", Type: FieldString},
+							{ID: "answer", Type: FieldText},
+						},
+					},
+				}}
+			},
+		},
+		"nested section id is allowed": {
+			mutate: func(manifest *Manifest) {
+				manifest.Resources[1].Form = []Field{{
+					ID: "sections", Type: FieldCollection,
+					Items: &Field{
+						ID: "item", Type: FieldObject,
+						Fields: []Field{
+							{ID: "id", Type: FieldString},
+							{ID: "title", Type: FieldString},
+						},
+					},
+				}}
+			},
+		},
 		"reserved rest_base": {
 			mutate: func(manifest *Manifest) {
 				manifest.Resources = append(manifest.Resources, Resource{

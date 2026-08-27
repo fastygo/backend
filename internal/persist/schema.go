@@ -26,6 +26,7 @@ type Field struct {
 	Enum      []string         `json:"enum,omitempty"`
 	Relation  *Relation        `json:"relation,omitempty"`
 	Items     *Field           `json:"items,omitempty"`
+	Fields    []Field          `json:"fields,omitempty"`
 }
 
 type Resource struct {
@@ -121,6 +122,12 @@ func FieldFromDomain(field schema.Field) Field {
 		item := FieldFromDomain(*field.Items)
 		document.Items = &item
 	}
+	if len(field.Fields) > 0 {
+		document.Fields = make([]Field, 0, len(field.Fields))
+		for _, nested := range field.Fields {
+			document.Fields = append(document.Fields, FieldFromDomain(nested))
+		}
+	}
 	return document
 }
 
@@ -163,6 +170,12 @@ func (field Field) Domain() schema.Field {
 	if field.Items != nil {
 		item := field.Items.Domain()
 		resolved.Items = &item
+	}
+	if len(field.Fields) > 0 {
+		resolved.Fields = make([]schema.Field, 0, len(field.Fields))
+		for _, nested := range field.Fields {
+			resolved.Fields = append(resolved.Fields, nested.Domain())
+		}
 	}
 	return resolved
 }

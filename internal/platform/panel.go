@@ -93,6 +93,13 @@ func projectField(field domainschema.Field) panel.Field {
 	if field.Items != nil {
 		projected.Fields = []panel.Field{projectField(*field.Items)}
 	}
+	if len(field.Fields) > 0 {
+		nested := make([]panel.Field, 0, len(field.Fields))
+		for _, child := range field.Fields {
+			nested = append(nested, projectField(child))
+		}
+		projected.Fields = nested
+	}
 	return projected
 }
 
@@ -114,7 +121,7 @@ func projectFieldType(fieldType domainschema.FieldType) panel.FieldType {
 		return panel.FieldRepeater
 	case domainschema.FieldMedia:
 		return panel.FieldFile
-	case domainschema.FieldJSON:
+	case domainschema.FieldJSON, domainschema.FieldObject:
 		return panel.FieldJSON
 	default:
 		return panel.FieldText

@@ -15,7 +15,11 @@
       "form": [
         {"id": "title", "type": "string", "localized": true},
         {"id": "summary", "type": "text", "localized": true},
-        {"id": "price", "type": "money"}
+        {"id": "price", "type": "money"},
+        {"id": "author", "type": "object", "fields": [
+          {"id": "name", "type": "string"},
+          {"id": "role", "type": "string"}
+        ]}
       ]
     }
   ]

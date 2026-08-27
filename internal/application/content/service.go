@@ -772,6 +772,23 @@ func validateFieldValue(field schema.Field, value any) error {
 		default:
 			return invalidField(field.ID, "must be an array")
 		}
+	case schema.FieldObject:
+		document, ok := value.(map[string]any)
+		if !ok {
+			return invalidField(field.ID, "must be an object")
+		}
+		for _, nested := range field.Fields {
+			item, exists := document[nested.ID]
+			if !exists || item == nil {
+				if nested.Required {
+					return invalidField(nested.ID, "is required")
+				}
+				continue
+			}
+			if err := validateFieldValue(nested, item); err != nil {
+				return err
+			}
+		}
 	case schema.FieldJSON:
 		// JSON values are already decoded into Go scalar, array, or object values.
 	default:

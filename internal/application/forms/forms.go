@@ -104,6 +104,12 @@ func projectField(field schema.Field) formset.Field {
 		item := projectField(*field.Items)
 		projected.Items = &item
 	}
+	if len(field.Fields) > 0 {
+		projected.Fields = make([]formset.Field, 0, len(field.Fields))
+		for _, nested := range field.Fields {
+			projected.Fields = append(projected.Fields, projectField(nested))
+		}
+	}
 	return projected
 }
 
@@ -123,6 +129,8 @@ func projectType(field schema.Field) formset.FieldType {
 		return formset.FieldRelation
 	case schema.FieldCollection:
 		return formset.FieldCollection
+	case schema.FieldObject:
+		return formset.FieldObject
 	case schema.FieldJSON:
 		return formset.FieldJSON
 	default:

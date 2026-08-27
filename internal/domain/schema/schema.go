@@ -27,6 +27,7 @@ const (
 	FieldEnum       FieldType = "enum"
 	FieldRelation   FieldType = "relation"
 	FieldCollection FieldType = "collection"
+	FieldObject     FieldType = "object"
 	FieldMedia      FieldType = "media"
 )
 
@@ -58,6 +59,7 @@ type Field struct {
 	Enum      []string
 	Relation  *Relation
 	Items     *Field
+	Fields    []Field
 }
 
 type Resource struct {
@@ -156,10 +158,10 @@ func (manifest Manifest) Validate() error {
 		}
 		resources[resource.ID] = struct{}{}
 		collections[resource.Collection] = struct{}{}
-		if err := validateFields(resource.Fields); err != nil {
+		if err := validateFields(resource.Fields, false); err != nil {
 			return err
 		}
-		if err := validateFields(resource.Form); err != nil {
+		if err := validateFields(resource.Form, false); err != nil {
 			return err
 		}
 		for _, taxonomy := range resource.Taxonomies {
@@ -185,11 +187,11 @@ func (manifest Manifest) Canonical() Manifest {
 		return strings.Compare(left.ID, right.ID)
 	})
 	for index := range canonical.Resources {
-		canonical.Resources[index].Fields = append([]Field(nil), canonical.Resources[index].Fields...)
+		canonical.Resources[index].Fields = cloneFields(canonical.Resources[index].Fields)
 		slices.SortFunc(canonical.Resources[index].Fields, func(left, right Field) int {
 			return strings.Compare(left.ID, right.ID)
 		})
-		canonical.Resources[index].Form = append([]Field(nil), canonical.Resources[index].Form...)
+		canonical.Resources[index].Form = cloneFields(canonical.Resources[index].Form)
 		slices.SortFunc(canonical.Resources[index].Form, func(left, right Field) int {
 			return strings.Compare(left.ID, right.ID)
 		})
@@ -214,10 +216,36 @@ func validateCodexCollection(resource Resource) error {
 	return nil
 }
 
-func validateFields(fields []Field) error {
+func cloneFields(fields []Field) []Field {
+	out := make([]Field, 0, len(fields))
+	for _, field := range fields {
+		out = append(out, cloneField(field))
+	}
+	return out
+}
+
+func cloneField(field Field) Field {
+	cloned := field
+	if field.Relation != nil {
+		relation := *field.Relation
+		cloned.Relation = &relation
+	}
+	if field.Items != nil {
+		item := cloneField(*field.Items)
+		cloned.Items = &item
+	}
+	cloned.Fields = cloneFields(field.Fields)
+	slices.SortFunc(cloned.Fields, func(left, right Field) int {
+		return strings.Compare(left.ID, right.ID)
+	})
+	cloned.Enum = append([]string(nil), field.Enum...)
+	return cloned
+}
+
+func validateFields(fields []Field, nested bool) error {
 	seen := make(map[string]struct{}, len(fields))
 	for _, field := range fields {
-		if !identifier.MatchString(field.ID) || field.ID == "id" {
+		if !identifier.MatchString(field.ID) || (!nested && field.ID == "id") {
 			return errors.New("field identifier is invalid or reserved")
 		}
 		if _, exists := seen[field.ID]; exists {
@@ -246,10 +274,22 @@ func validateFields(fields []Field) error {
 		if field.Type == FieldCollection && field.Items == nil {
 			return errors.New("collection field requires item schema")
 		}
+		if field.Type == FieldObject && len(field.Fields) == 0 {
+			return errors.New("object field requires nested fields")
+		}
+		if field.Type != FieldCollection && field.Items != nil {
+			return errors.New("item schema requires collection field type")
+		}
+		if field.Type != FieldObject && len(field.Fields) > 0 {
+			return errors.New("nested fields require object field type")
+		}
 		if field.Items != nil {
-			if err := validateFields([]Field{*field.Items}); err != nil {
+			if err := validateFields([]Field{*field.Items}, true); err != nil {
 				return err
 			}
+		}
+		if err := validateFields(field.Fields, true); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -265,7 +305,14 @@ func validateRelationTarget(field Field, resources map[string]struct{}) error {
 		}
 	}
 	if field.Items != nil {
-		return validateRelationTarget(*field.Items, resources)
+		if err := validateRelationTarget(*field.Items, resources); err != nil {
+			return err
+		}
+	}
+	for _, nested := range field.Fields {
+		if err := validateRelationTarget(nested, resources); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -274,7 +321,7 @@ func (fieldType FieldType) Valid() bool {
 	switch fieldType {
 	case FieldString, FieldText, FieldBoolean, FieldInteger, FieldNumber, FieldDecimal,
 		FieldMoney, FieldDate, FieldDateTime, FieldURI, FieldUUID, FieldJSON, FieldEnum,
-		FieldRelation, FieldCollection, FieldMedia:
+		FieldRelation, FieldCollection, FieldObject, FieldMedia:
 		return true
 	default:
 		return false

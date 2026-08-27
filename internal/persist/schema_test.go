@@ -19,7 +19,10 @@ func TestManifestDocumentRoundTrip(t *testing.T) {
 						Resource: "product", Cardinality: schema.CardinalityOne, OnDelete: schema.DeleteRestrict,
 					}},
 				},
-				Form: []schema.Field{{ID: "price", Type: schema.FieldMoney}},
+				Form: []schema.Field{{ID: "price", Type: schema.FieldMoney}, {
+					ID: "author", Type: schema.FieldObject,
+					Fields: []schema.Field{{ID: "name", Type: schema.FieldString}, {ID: "role", Type: schema.FieldString}},
+				}},
 			}},
 		},
 	}

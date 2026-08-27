@@ -38,6 +38,27 @@ func TestBindKeepsUnknownPayloadKeys(t *testing.T) {
 	}
 }
 
+func TestRecordProjectsNestedObjectFields(t *testing.T) {
+	t.Parallel()
+	resource := schema.Resource{
+		ID: "product", Collection: "products",
+		Form: []schema.Field{{
+			ID: "author", Type: schema.FieldObject,
+			Fields: []schema.Field{
+				{ID: "name", Type: schema.FieldString},
+				{ID: "links", Type: schema.FieldCollection, Items: &schema.Field{ID: "item", Type: schema.FieldString}},
+			},
+		}},
+	}
+	record := Record(resource)
+	if len(record.Fields) != 1 || record.Fields[0].Type != "object" || len(record.Fields[0].Fields) != 2 {
+		t.Fatalf("projected fields: %#v", record.Fields)
+	}
+	if record.Fields[0].Fields[1].Items == nil || record.Fields[0].Fields[1].Items.Type != "text" {
+		t.Fatalf("nested collection: %#v", record.Fields[0].Fields)
+	}
+}
+
 func TestValidateEntryRejectsMissingRequiredFormField(t *testing.T) {
 	t.Parallel()
 	resource := schema.Resource{

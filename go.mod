@@ -17,6 +17,8 @@ require (
 	modernc.org/sqlite v1.57.0
 )
 
+replace github.com/fastygo/formset => ../@FormSet
+
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
