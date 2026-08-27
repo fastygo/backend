@@ -80,7 +80,12 @@ func (handler *ContentHandler) entryForm(response http.ResponseWriter, request *
 	if !ok {
 		return
 	}
-	resource, exists := handler.manifest.Resource(request.PathValue("kind"))
+	kind, err := handler.kindFromCollection(request.PathValue("collection"))
+	if err != nil {
+		writeError(response, request, err)
+		return
+	}
+	resource, exists := handler.manifest.Resource(string(kind))
 	if !exists {
 		writeError(response, request, core.NewDomainError(core.ErrorCodeNotFound, "resource schema was not found"))
 		return

@@ -7,6 +7,6 @@
 
 Runtime API contracts are generated from the active manifest:
 
-- `/go-json/data/v1/openapi.json`
-- `/go-json/data/v1/graphql/schema`
-- `/go-json/data/v1/schema`
+- `/go-json/go/v2/openapi.json`
+- `/go-json/go/v2/graphql.sdl`
+- `/go-json/go/v2/schema`

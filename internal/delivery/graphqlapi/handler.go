@@ -48,8 +48,6 @@ func New(service *application.Service, manifest domainschema.Manifest, principal
 }
 
 func (handler *Handler) Routes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /go-json/data/v1/graphql", handler.serve)
-	mux.HandleFunc("POST /go-json/data/v1/graphql", handler.serve)
 	mux.HandleFunc("GET /go-graphql", handler.serve)
 	mux.HandleFunc("POST /go-graphql", handler.serve)
 }

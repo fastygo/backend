@@ -10,6 +10,7 @@ import (
 	"time"
 
 	application "github.com/fastygo/backend/internal/application/content"
+	applicationtaxonomy "github.com/fastygo/backend/internal/application/taxonomy"
 	"github.com/fastygo/backend/internal/domain/authz"
 	"github.com/fastygo/backend/internal/domain/schema"
 	bboltstorage "github.com/fastygo/backend/internal/storage/bbolt"
@@ -17,16 +18,7 @@ import (
 
 func TestContentRESTCreateReadAndOptimisticUpdate(t *testing.T) {
 	t.Parallel()
-	adapter, err := bboltstorage.Open(filepath.Join(t.TempDir(), "rest.db"), 0o600, nil)
-	if err != nil {
-		t.Fatalf("open storage: %v", err)
-	}
-	t.Cleanup(func() { _ = adapter.Close() })
-	service, err := application.NewService(adapter, nil, restClock{time.Now().UTC()})
-	if err != nil {
-		t.Fatalf("create service: %v", err)
-	}
-	editor := authz.NewPrincipal(
+	mux, service := newShopMux(t, authz.NewPrincipal(
 		"editor",
 		authz.CapabilityContentCreate,
 		authz.CapabilityContentEditOwn,
@@ -35,15 +27,9 @@ func TestContentRESTCreateReadAndOptimisticUpdate(t *testing.T) {
 		authz.CapabilityContentDelete,
 		authz.CapabilityContentRestore,
 		authz.CapabilityContentManageRevisions,
-	)
-	handler, err := NewContentHandler(service, fixedPrincipal{principal: editor})
-	if err != nil {
-		t.Fatalf("create handler: %v", err)
-	}
-	mux := http.NewServeMux()
-	handler.Routes(mux)
+	))
 
-	create := performJSON(mux, http.MethodPost, "/go-json/data/v1/resources/product", `{
+	create := performJSON(mux, http.MethodPost, "/go-json/go/v2/products", `{
 		"status":"published",
 		"visibility":"public",
 		"slug":{"en":"Digital Course"},
@@ -54,35 +40,40 @@ func TestContentRESTCreateReadAndOptimisticUpdate(t *testing.T) {
 		t.Fatalf("create status %d: %s", create.Code, create.Body.String())
 	}
 	var created struct {
-		Data resourceRecord `json:"data"`
+		Data struct {
+			ID       string            `json:"id"`
+			Kind     string            `json:"kind"`
+			Slug     map[string]string `json:"slug"`
+			Metadata map[string]any    `json:"metadata"`
+		} `json:"data"`
 	}
 	if err := json.Unmarshal(create.Body.Bytes(), &created); err != nil {
 		t.Fatalf("decode create response: %v", err)
 	}
-	if created.Data.ID == "" || created.Data.Resource != "product" || created.Data.Values["slug_en"] != "digital-course" {
+	if created.Data.ID == "" || created.Data.Kind != "product" || created.Data.Slug["en"] != "digital-course" {
 		t.Fatalf("unexpected created resource: %#v", created.Data)
 	}
 
-	publicHandler, _ := NewContentHandler(service, nil)
-	publicMux := http.NewServeMux()
-	publicHandler.Routes(publicMux)
+	publicMux := newShopMuxWithService(t, service, authz.Anonymous())
 	read := httptest.NewRecorder()
 	publicMux.ServeHTTP(read, httptest.NewRequest(http.MethodGet, create.Header().Get("Location"), nil))
 	if read.Code != http.StatusOK {
 		t.Fatalf("read status %d: %s", read.Code, read.Body.String())
 	}
 	var public struct {
-		Data resourceRecord `json:"data"`
+		Data struct {
+			Metadata map[string]any `json:"metadata"`
+		} `json:"data"`
 	}
 	if err := json.Unmarshal(read.Body.Bytes(), &public); err != nil {
 		t.Fatalf("decode read response: %v", err)
 	}
-	if _, leaked := public.Data.Values["secret"]; leaked {
+	if _, leaked := public.Data.Metadata["secret"]; leaked {
 		t.Fatalf("private metadata leaked through REST")
 	}
 
-	updatePath := "/go-json/data/v1/resources/product/" + string(created.Data.ID)
-	update := performJSON(mux, http.MethodPut, updatePath, `{
+	updatePath := "/go-json/go/v2/products/" + created.Data.ID
+	update := performJSON(mux, http.MethodPatch, updatePath, `{
 		"status":"published",
 		"visibility":"public",
 		"slug":{"en":"Digital Course"},
@@ -104,37 +95,38 @@ func TestContentRESTCreateReadAndOptimisticUpdate(t *testing.T) {
 		t.Fatalf("restore transition failed: %d %s", restored.Code, restored.Body.String())
 	}
 	revisions := httptest.NewRecorder()
-	mux.ServeHTTP(revisions, httptest.NewRequest(http.MethodGet, updatePath+"/revisions", nil))
+	mux.ServeHTTP(revisions, httptest.NewRequest(http.MethodGet, "/go-json/go/v2/revisions/products/"+created.Data.ID, nil))
 	if revisions.Code != http.StatusOK {
 		t.Fatalf("revision list failed: %d %s", revisions.Code, revisions.Body.String())
 	}
 
 	auditDenied := httptest.NewRecorder()
-	mux.ServeHTTP(auditDenied, httptest.NewRequest(http.MethodGet, "/go-json/data/v1/audit", nil))
+	mux.ServeHTTP(auditDenied, httptest.NewRequest(http.MethodGet, "/go-json/go/v2/audit", nil))
 	if auditDenied.Code != http.StatusForbidden {
 		t.Fatalf("audit endpoint ignored capability: %d", auditDenied.Code)
 	}
-	editor.Capabilities[authz.CapabilityAuditView] = struct{}{}
+	editor := authz.NewPrincipal(
+		"editor",
+		authz.CapabilityContentCreate,
+		authz.CapabilityContentEditOwn,
+		authz.CapabilityContentPublish,
+		authz.CapabilityContentReadPrivate,
+		authz.CapabilityContentDelete,
+		authz.CapabilityContentRestore,
+		authz.CapabilityContentManageRevisions,
+		authz.CapabilityAuditView,
+	)
+	audited := newShopMuxWithService(t, service, editor)
 	auditResponse := httptest.NewRecorder()
-	mux.ServeHTTP(auditResponse, httptest.NewRequest(http.MethodGet, "/go-json/data/v1/audit", nil))
+	audited.ServeHTTP(auditResponse, httptest.NewRequest(http.MethodGet, "/go-json/go/v2/audit", nil))
 	if auditResponse.Code != http.StatusOK {
 		t.Fatalf("audit endpoint failed: %d %s", auditResponse.Code, auditResponse.Body.String())
 	}
 }
 
 func TestContentRESTAcceptsFastyDataValuesContract(t *testing.T) {
-	adapter, err := bboltstorage.Open(filepath.Join(t.TempDir(), "values.db"), 0o600, nil)
-	if err != nil {
-		t.Fatalf("open storage: %v", err)
-	}
-	t.Cleanup(func() { _ = adapter.Close() })
-	service, _ := application.NewService(adapter, nil, restClock{time.Now().UTC()})
-	principal := authz.NewPrincipal("editor", authz.CapabilityContentCreate, authz.CapabilityContentPublish)
-	handler, _ := NewContentHandler(service, fixedPrincipal{principal: principal})
-	mux := http.NewServeMux()
-	handler.Routes(mux)
-
-	response := performJSON(mux, http.MethodPost, "/go-json/data/v1/resources/product", `{
+	mux, _ := newShopMux(t, authz.NewPrincipal("editor", authz.CapabilityContentCreate, authz.CapabilityContentPublish))
+	response := performJSON(mux, http.MethodPost, "/go-json/go/v2/products", `{
 		"values": {
 			"status": "published",
 			"visibility": "public",
@@ -147,45 +139,28 @@ func TestContentRESTAcceptsFastyDataValuesContract(t *testing.T) {
 		t.Fatalf("values create status %d: %s", response.Code, response.Body.String())
 	}
 	var body struct {
-		Data resourceRecord `json:"data"`
+		Data struct {
+			Metadata map[string]any `json:"metadata"`
+		} `json:"data"`
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode values response: %v", err)
 	}
-	payload, ok := body.Data.Values["payload_en"].(map[string]any)
+	payload, ok := body.Data.Metadata["payload_en"].(map[string]any)
 	if !ok || payload["slug"] != "course" {
-		t.Fatalf("fastygo.data payload was not preserved: %#v", body.Data.Values)
+		t.Fatalf("fastygo.data payload was not preserved: %#v", body.Data.Metadata)
 	}
 }
 
 func TestContentRESTFormBindRoundTripsExtraKeys(t *testing.T) {
 	t.Parallel()
-	adapter, err := bboltstorage.Open(filepath.Join(t.TempDir(), "form.db"), 0o600, nil)
-	if err != nil {
-		t.Fatalf("open storage: %v", err)
-	}
-	t.Cleanup(func() { _ = adapter.Close() })
-	service, _ := application.NewService(adapter, nil, restClock{time.Now().UTC()})
-	manifest := schema.Manifest{
-		Name: "shop", Version: "1",
-		Resources: []schema.Resource{{
-			ID: "product", Collection: "products", Public: true, RESTVisible: true,
-			Fields: []schema.Field{{ID: "payload_ru", Type: schema.FieldJSON}, {ID: "payload_en", Type: schema.FieldJSON}},
-			Form:   []schema.Field{{ID: "title", Type: schema.FieldString}},
-		}},
-	}
-	handler, err := NewContentHandler(service, nil, manifest)
-	if err != nil {
-		t.Fatalf("handler: %v", err)
-	}
-	mux := http.NewServeMux()
-	handler.Routes(mux)
+	mux, _ := newShopMux(t, authz.Anonymous())
 	schemaResponse := httptest.NewRecorder()
-	mux.ServeHTTP(schemaResponse, httptest.NewRequest(http.MethodGet, "/go-json/data/v1/schema/product/form", nil))
+	mux.ServeHTTP(schemaResponse, httptest.NewRequest(http.MethodGet, "/go-json/go/v2/types/product/form", nil))
 	if schemaResponse.Code != http.StatusOK {
 		t.Fatalf("form schema %d: %s", schemaResponse.Code, schemaResponse.Body.String())
 	}
-	bind := performJSON(mux, http.MethodPost, "/go-json/data/v1/schema/product/form/bind", `{
+	bind := performJSON(mux, http.MethodPost, "/go-json/go/v2/types/product/form/bind", `{
 		"payload_ru":{"title":"Курс","kicker":"Backend"},
 		"payload_en":{"title":"Course"}
 	}`, "")
@@ -204,26 +179,89 @@ func TestContentRESTFormBindRoundTripsExtraKeys(t *testing.T) {
 }
 
 func TestContentRESTRejectsUnknownFieldsAndInvalidPagination(t *testing.T) {
-	adapter, err := bboltstorage.Open(filepath.Join(t.TempDir(), "invalid.db"), 0o600, nil)
+	mux, _ := newShopMux(t, authz.NewPrincipal("editor", authz.CapabilityContentCreate))
+	response := performJSON(mux, http.MethodPost, "/go-json/go/v2/posts", `{"unknown":true}`, "")
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("unknown JSON field accepted: %d", response.Code)
+	}
+	list := httptest.NewRecorder()
+	mux.ServeHTTP(list, httptest.NewRequest(http.MethodGet, "/go-json/go/v2/posts?per_page=101", nil))
+	if list.Code != http.StatusBadRequest {
+		t.Fatalf("invalid pagination accepted: %d", list.Code)
+	}
+}
+
+func shopManifest() schema.Manifest {
+	return schema.WithCoreResources(schema.Manifest{
+		Name: "shop", Version: "1",
+		Resources: []schema.Resource{{
+			ID: "product", Collection: "products", Public: true, RESTVisible: true,
+			Fields: []schema.Field{
+				{ID: "payload_ru", Type: schema.FieldJSON},
+				{ID: "payload_en", Type: schema.FieldJSON},
+				{ID: "sku", Type: schema.FieldString},
+				{ID: "secret", Type: schema.FieldString},
+			},
+			Form:   []schema.Field{{ID: "title", Type: schema.FieldString}},
+		}},
+	})
+}
+
+func newShopMux(t *testing.T, principal authz.Principal) (http.Handler, *application.Service) {
+	t.Helper()
+	adapter, err := bboltstorage.Open(filepath.Join(t.TempDir(), "rest.db"), 0o600, nil)
 	if err != nil {
 		t.Fatalf("open storage: %v", err)
 	}
 	t.Cleanup(func() { _ = adapter.Close() })
-	service, _ := application.NewService(adapter, nil, restClock{time.Now().UTC()})
-	handler, _ := NewContentHandler(service, fixedPrincipal{principal: authz.NewPrincipal("editor", authz.CapabilityContentCreate)})
+	service, err := application.NewService(adapter, nil, restClock{time.Now().UTC()})
+	if err != nil {
+		t.Fatalf("create service: %v", err)
+	}
+	return wireShopMux(t, adapter, service, principal), service
+}
+
+func newShopMuxWithService(t *testing.T, service *application.Service, principal authz.Principal) http.Handler {
+	t.Helper()
+	adapter, err := bboltstorage.Open(filepath.Join(t.TempDir(), "tax.db"), 0o600, nil)
+	if err != nil {
+		t.Fatalf("open storage: %v", err)
+	}
+	t.Cleanup(func() { _ = adapter.Close() })
+	return wireShopMux(t, adapter, service, principal)
+}
+
+func wireShopMux(
+	t *testing.T,
+	adapter *bboltstorage.Adapter,
+	service *application.Service,
+	principal authz.Principal,
+) http.Handler {
+	t.Helper()
+	manifest := shopManifest()
+	if err := service.SetManifest(manifest); err != nil {
+		t.Fatalf("set manifest: %v", err)
+	}
+	taxonomies, err := applicationtaxonomy.NewService(adapter, nil)
+	if err != nil {
+		t.Fatalf("taxonomy service: %v", err)
+	}
+	var resolver PrincipalResolver
+	if !principal.Anonymous {
+		resolver = fixedPrincipal{principal: principal}
+	}
+	contentHandler, err := NewContentHandler(service, resolver, manifest)
+	if err != nil {
+		t.Fatalf("content handler: %v", err)
+	}
+	codexHandler, err := NewCodexHandler(service, taxonomies, resolver, manifest)
+	if err != nil {
+		t.Fatalf("codex handler: %v", err)
+	}
 	mux := http.NewServeMux()
-	handler.Routes(mux)
-
-	response := performJSON(mux, http.MethodPost, "/go-json/data/v1/resources/post", `{"unknown":true}`, "")
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("unknown JSON field accepted: %d", response.Code)
-	}
-
-	list := httptest.NewRecorder()
-	mux.ServeHTTP(list, httptest.NewRequest(http.MethodGet, "/go-json/data/v1/resources/post?per_page=101", nil))
-	if list.Code != http.StatusBadRequest {
-		t.Fatalf("invalid pagination accepted: %d", list.Code)
-	}
+	contentHandler.Routes(mux)
+	codexHandler.Routes(mux)
+	return mux
 }
 
 type fixedPrincipal struct {

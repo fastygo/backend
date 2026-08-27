@@ -239,7 +239,7 @@ func (resolver fixedPrincipal) Resolve(*http.Request) (authz.Principal, error) {
 func execute(t *testing.T, handler http.Handler, query string, variables map[string]any) map[string]any {
 	t.Helper()
 	encoded, _ := json.Marshal(map[string]any{"query": query, "variables": variables})
-	request := httptest.NewRequest(http.MethodPost, "/go-json/data/v1/graphql", bytes.NewReader(encoded))
+	request := httptest.NewRequest(http.MethodPost, "/go-graphql", bytes.NewReader(encoded))
 	request.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)

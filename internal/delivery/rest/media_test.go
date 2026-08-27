@@ -37,7 +37,7 @@ func TestMediaRESTUploadAndAnonymousDownload(t *testing.T) {
 	file, _ := writer.CreateFormFile("file", "manual.txt")
 	_, _ = io.WriteString(file, "documentation")
 	_ = writer.Close()
-	request := httptest.NewRequest(http.MethodPost, "/go-json/data/v1/media", &body)
+		request := httptest.NewRequest(http.MethodPost, "/go-json/go/v2/media", &body)
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 	response := httptest.NewRecorder()
 	mux.ServeHTTP(response, request)

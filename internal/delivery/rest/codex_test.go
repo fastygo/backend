@@ -104,6 +104,30 @@ func TestCodexRegistersManifestPostTypes(t *testing.T) {
 	if types.Code != http.StatusOK {
 		t.Fatalf("types %d: %s", types.Code, types.Body.String())
 	}
+	var typeDocument struct {
+		Data []struct {
+			ID          string `json:"id"`
+			Collection  string `json:"collection"`
+			RESTVisible bool   `json:"rest_visible"`
+			Form        []any  `json:"form"`
+			Taxonomies  []any  `json:"taxonomies"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(types.Body.Bytes(), &typeDocument); err != nil {
+		t.Fatalf("decode types: %v", err)
+	}
+	var leadType bool
+	for _, item := range typeDocument.Data {
+		if item.Form == nil || item.Taxonomies == nil {
+			t.Fatalf("types DTO must include form and taxonomies arrays: %#v", item)
+		}
+		if item.ID == "lead" {
+			leadType = item.Collection == "leads" && item.RESTVisible
+		}
+	}
+	if !leadType {
+		t.Fatalf("lead type missing: %#v", typeDocument.Data)
+	}
 	hidden := httptest.NewRecorder()
 	mux.ServeHTTP(hidden, httptest.NewRequest(http.MethodGet, "/go-json/go/v2/notes", nil))
 	if hidden.Code != http.StatusNotFound {

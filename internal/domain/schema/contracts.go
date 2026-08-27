@@ -108,47 +108,54 @@ func (manifest Manifest) OpenAPI() (map[string]any, error) {
 	paths := map[string]any{
 		"/healthz": map[string]any{"get": operation("liveness", "Liveness probe", "200")},
 		"/readyz":  map[string]any{"get": operation("readiness", "Readiness probe", "200")},
-		"/go-json/data/v1/audit": map[string]any{
+		"/go-json/go/v2/": map[string]any{
+			"get": operation("discoverCodex", "Discover Codex v2 routes", "200"),
+		},
+		"/go-json/go/v2/types": map[string]any{
+			"get": operation("listContentTypes", "List kinds, collections, and forms", "200"),
+		},
+		"/go-json/go/v2/audit": map[string]any{
 			"get": operation("listAuditEvents", "List audit events", "200"),
 		},
-		"/go-json/data/v1/media": map[string]any{
+		"/go-json/go/v2/media": map[string]any{
+			"get":  operation("listMedia", "List media", "200"),
 			"post": operation("uploadMedia", "Upload media", "201"),
 		},
-		"/go-json/data/v1/media/{id}/content": map[string]any{
+		"/go-json/go/v2/media/{id}/content": map[string]any{
 			"get": operation("downloadMedia", "Download media", "200"),
 		},
-		"/go-json/data/v1/taxonomies": map[string]any{
+		"/go-json/go/v2/taxonomies": map[string]any{
 			"get":  operation("listTaxonomies", "List taxonomies", "200"),
 			"post": operation("createTaxonomy", "Create taxonomy", "201"),
 		},
-		"/go-json/data/v1/taxonomies/{taxonomy}": map[string]any{
+		"/go-json/go/v2/taxonomies/{taxonomy}": map[string]any{
+			"get":    operation("listTaxonomyTerms", "List taxonomy terms", "200"),
 			"put":    operation("updateTaxonomy", "Update taxonomy", "200"),
 			"delete": operation("deleteTaxonomy", "Delete taxonomy", "204"),
 		},
-		"/go-json/data/v1/taxonomies/{taxonomy}/terms": map[string]any{
-			"get":  operation("listTaxonomyTerms", "List taxonomy terms", "200"),
+		"/go-json/go/v2/taxonomies/{taxonomy}/terms": map[string]any{
 			"post": operation("createTaxonomyTerm", "Create taxonomy term", "201"),
 		},
-		"/go-json/data/v1/taxonomies/{taxonomy}/terms/{term}": map[string]any{
+		"/go-json/go/v2/taxonomies/{taxonomy}/terms/{term}": map[string]any{
 			"put":    operation("updateTaxonomyTerm", "Update taxonomy term", "200"),
 			"delete": operation("deleteTaxonomyTerm", "Delete taxonomy term", "204"),
 		},
-		"/go-json/data/v1/auth/login": map[string]any{
+		"/go-json/go/v2/auth/login": map[string]any{
 			"post": operation("login", "Authenticate user", "200"),
 		},
-		"/go-json/data/v1/users": map[string]any{
+		"/go-json/go/v2/users": map[string]any{
 			"get":  operation("listUsers", "List users", "200"),
 			"post": operation("createUser", "Create user", "201"),
 		},
-		"/go-json/data/v1/users/{id}": map[string]any{
+		"/go-json/go/v2/users/{id}": map[string]any{
 			"put":    operation("updateUser", "Update user", "200"),
 			"delete": operation("deleteUser", "Delete user", "204"),
 		},
-		"/go-json/data/v1/roles": map[string]any{
+		"/go-json/go/v2/roles": map[string]any{
 			"get":  operation("listRoles", "List roles", "200"),
 			"post": operation("createRole", "Create role", "201"),
 		},
-		"/go-json/data/v1/roles/{id}": map[string]any{
+		"/go-json/go/v2/roles/{id}": map[string]any{
 			"put":    operation("updateRole", "Update role", "200"),
 			"delete": operation("deleteRole", "Delete role", "204"),
 		},
@@ -161,7 +168,10 @@ func (manifest Manifest) OpenAPI() (map[string]any, error) {
 		}
 		name := graphQLName(resource.ID)
 		schemas[name+"Values"] = resourceSchema
-		collectionPath := "/go-json/data/v1/resources/" + resource.ID
+		if !resource.RegistersCodexCollection() {
+			continue
+		}
+		collectionPath := "/go-json/go/v2/" + resource.Collection
 		recordPath := collectionPath + "/{id}"
 		paths[collectionPath] = map[string]any{
 			"get":  operation("list"+graphQLName(resource.Collection), "List "+resource.Collection, "200"),
@@ -176,7 +186,7 @@ func (manifest Manifest) OpenAPI() (map[string]any, error) {
 		paths[recordPath+"/transitions"] = map[string]any{
 			"post": operation("transition"+name, "Transition "+resource.ID+" lifecycle", "200"),
 		}
-		paths[recordPath+"/revisions"] = map[string]any{
+		paths["/go-json/go/v2/revisions/"+resource.Collection+"/{id}"] = map[string]any{
 			"get": operation("list"+name+"Revisions", "List "+resource.ID+" revisions", "200"),
 		}
 		paths[recordPath+"/revisions/{revision}/restore"] = map[string]any{

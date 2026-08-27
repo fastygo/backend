@@ -10,6 +10,7 @@ import (
 	application "github.com/fastygo/backend/internal/application/content"
 	domaincontent "github.com/fastygo/backend/internal/domain/content"
 	"github.com/fastygo/backend/internal/domain/revision"
+	"github.com/fastygo/backend/internal/persist"
 	"github.com/fastygo/framework/pkg/core"
 )
 
@@ -34,8 +35,13 @@ func (handler *ContentHandler) transition(response http.ResponseWriter, request 
 		writeError(response, request, err)
 		return
 	}
+	kind, err := handler.kindFromCollection(request.PathValue("collection"))
+	if err != nil {
+		writeError(response, request, err)
+		return
+	}
 	entry, err := handler.service.Transition(request.Context(), principal, domaincontent.ID(request.PathValue("id")), application.Transition{
-		Kind: domaincontent.Kind(request.PathValue("kind")), Status: document.Status, PublishAt: document.PublishAt,
+		Kind: kind, Status: document.Status, PublishAt: document.PublishAt,
 		ExpectedVersion: document.ExpectedVersion, Reason: document.Reason,
 	})
 	if err != nil {
@@ -43,7 +49,7 @@ func (handler *ContentHandler) transition(response http.ResponseWriter, request 
 		return
 	}
 	response.Header().Set("ETag", versionETag(entry.Version))
-	writeJSON(response, http.StatusOK, map[string]any{"data": projectRecord(entry)})
+	writeJSON(response, http.StatusOK, map[string]any{"data": persist.EntryFromDomain(entry)})
 }
 
 func (handler *ContentHandler) trash(response http.ResponseWriter, request *http.Request) {
@@ -56,9 +62,13 @@ func (handler *ContentHandler) trash(response http.ResponseWriter, request *http
 		writeError(response, request, core.WrapDomainError(core.ErrorCodeValidation, "invalid expected version", err))
 		return
 	}
+	kind, err := handler.kindFromCollection(request.PathValue("collection"))
+	if err != nil {
+		writeError(response, request, err)
+		return
+	}
 	_, err = handler.service.Transition(request.Context(), principal, domaincontent.ID(request.PathValue("id")), application.Transition{
-		Kind:   domaincontent.Kind(request.PathValue("kind")),
-		Status: domaincontent.StatusTrashed, ExpectedVersion: version, Reason: "REST delete",
+		Kind: kind, Status: domaincontent.StatusTrashed, ExpectedVersion: version, Reason: "REST delete",
 	})
 	if err != nil {
 		writeError(response, request, err)
@@ -82,9 +92,14 @@ func (handler *ContentHandler) revisions(response http.ResponseWriter, request *
 		writeError(response, request, core.NewDomainError(core.ErrorCodeValidation, "invalid revision per_page"))
 		return
 	}
+	kind, err := handler.kindFromCollection(request.PathValue("collection"))
+	if err != nil {
+		writeError(response, request, err)
+		return
+	}
 	items, pagination, err := handler.service.Revisions(
 		request.Context(), principal, domaincontent.ID(request.PathValue("id")),
-		domaincontent.Kind(request.PathValue("kind")), page, perPage,
+		kind, page, perPage,
 	)
 	if err != nil {
 		writeError(response, request, err)
@@ -103,17 +118,21 @@ func (handler *ContentHandler) restoreRevision(response http.ResponseWriter, req
 		writeError(response, request, err)
 		return
 	}
+	kind, err := handler.kindFromCollection(request.PathValue("collection"))
+	if err != nil {
+		writeError(response, request, err)
+		return
+	}
 	entry, err := handler.service.RestoreRevision(
 		request.Context(), principal, domaincontent.ID(request.PathValue("id")),
-		domaincontent.Kind(request.PathValue("kind")),
-		revision.ID(request.PathValue("revision")), document.ExpectedVersion,
+		kind, revision.ID(request.PathValue("revision")), document.ExpectedVersion,
 	)
 	if err != nil {
 		writeError(response, request, err)
 		return
 	}
 	response.Header().Set("ETag", versionETag(entry.Version))
-	writeJSON(response, http.StatusOK, map[string]any{"data": projectRecord(entry)})
+	writeJSON(response, http.StatusOK, map[string]any{"data": persist.EntryFromDomain(entry)})
 }
 
 func decodeDocument(response http.ResponseWriter, request *http.Request, target any) error {

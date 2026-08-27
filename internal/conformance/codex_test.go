@@ -38,7 +38,7 @@ func TestGoCodexLevel1ContentAndMetadata(t *testing.T) {
 	login := request(
 		runtime.App,
 		http.MethodPost,
-		"/go-json/data/v1/auth/login",
+		"/go-json/go/v2/auth/login",
 		`{"email":"admin@example.com","password":"correct horse battery staple"}`,
 		"",
 	)

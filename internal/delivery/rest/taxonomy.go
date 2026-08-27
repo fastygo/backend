@@ -29,14 +29,12 @@ func NewTaxonomyHandler(
 }
 
 func (handler *TaxonomyHandler) Routes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /go-json/data/v1/taxonomies", handler.listDefinitions)
-	mux.HandleFunc("POST /go-json/data/v1/taxonomies", handler.createDefinition)
-	mux.HandleFunc("PUT /go-json/data/v1/taxonomies/{taxonomy}", handler.updateDefinition)
-	mux.HandleFunc("DELETE /go-json/data/v1/taxonomies/{taxonomy}", handler.deleteDefinition)
-	mux.HandleFunc("GET /go-json/data/v1/taxonomies/{taxonomy}/terms", handler.listTerms)
-	mux.HandleFunc("POST /go-json/data/v1/taxonomies/{taxonomy}/terms", handler.createTerm)
-	mux.HandleFunc("PUT /go-json/data/v1/taxonomies/{taxonomy}/terms/{term}", handler.updateTerm)
-	mux.HandleFunc("DELETE /go-json/data/v1/taxonomies/{taxonomy}/terms/{term}", handler.deleteTerm)
+	mux.HandleFunc("POST /go-json/go/v2/taxonomies", handler.createDefinition)
+	mux.HandleFunc("PUT /go-json/go/v2/taxonomies/{taxonomy}", handler.updateDefinition)
+	mux.HandleFunc("DELETE /go-json/go/v2/taxonomies/{taxonomy}", handler.deleteDefinition)
+	mux.HandleFunc("POST /go-json/go/v2/taxonomies/{taxonomy}/terms", handler.createTerm)
+	mux.HandleFunc("PUT /go-json/go/v2/taxonomies/{taxonomy}/terms/{term}", handler.updateTerm)
+	mux.HandleFunc("DELETE /go-json/go/v2/taxonomies/{taxonomy}/terms/{term}", handler.deleteTerm)
 }
 
 func (handler *TaxonomyHandler) listDefinitions(response http.ResponseWriter, request *http.Request) {

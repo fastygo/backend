@@ -31,21 +31,19 @@ func TestBuildComposesFrameworkPanelRESTAndBbolt(t *testing.T) {
 	for _, path := range []string{
 		"/healthz",
 		"/readyz",
-		"/go-json/data/v1/resources/post",
-		"/go-json/data/v1/taxonomies",
-		"/go-json/data/v1/schema",
-		"/go-json/data/v1/schema/post",
-		"/go-json/data/v1/schema/post/form",
-		"/go-json/data/v1/openapi.json",
-		"/go-json/data/v1/graphql/schema",
-		"/go-json/data/v1/graphql?query=%7BschemaIdentity%7Bname%20version%20digest%7D%7D",
 		"/go-json",
 		"/go-json/go/v2/",
 		"/go-json/go/v2/posts",
-		"/go-json/go/v2/content-types",
+		"/go-json/go/v2/types",
+		"/go-json/go/v2/taxonomies",
+		"/go-json/go/v2/schema",
+		"/go-json/go/v2/types/post/json-schema",
+		"/go-json/go/v2/types/post/form",
+		"/go-json/go/v2/openapi.json",
 		"/go-json/go/v2/menus",
 		"/go-json/go/v2/settings",
 		"/go-json/go/v2/search?q=example",
+		"/go-graphql?query=%7BschemaIdentity%7Bname%20version%20digest%7D%7D",
 	} {
 		request := httptest.NewRequest(http.MethodGet, path, nil)
 		request.Header.Set("User-Agent", "headless-conformance/1.0")
@@ -79,7 +77,7 @@ func TestBuildBootstrapsDurableAdminLogin(t *testing.T) {
 	t.Cleanup(func() { _ = runtime.Close() })
 	request := httptest.NewRequest(
 		http.MethodPost,
-		"/go-json/data/v1/auth/login",
+		"/go-json/go/v2/auth/login",
 		bytes.NewBufferString(`{"email":"admin@example.com","password":"correct horse battery staple"}`),
 	)
 	request.Header.Set("Content-Type", "application/json")
@@ -95,7 +93,7 @@ func TestBuildBootstrapsDurableAdminLogin(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &login); err != nil || login.AccessToken == "" {
 		t.Fatalf("decode login response: %v", err)
 	}
-	request = httptest.NewRequest(http.MethodGet, "/go-json/data/v1/roles", nil)
+	request = httptest.NewRequest(http.MethodGet, "/go-json/go/v2/roles", nil)
 	request.Header.Set("Authorization", "Bearer "+login.AccessToken)
 	request.Header.Set("User-Agent", "headless-conformance/1.0")
 	response = httptest.NewRecorder()

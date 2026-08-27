@@ -42,7 +42,7 @@ The default bbolt deployment stores data under `./var/lib/headless`.
 ```bash
 curl -H "User-Agent: headless-client/1.0" http://127.0.0.1:8080/healthz
 curl -H "User-Agent: headless-client/1.0" http://127.0.0.1:8080/readyz
-curl -H "User-Agent: headless-client/1.0" http://127.0.0.1:8080/go-json/data/v1/openapi.json
+curl -H "User-Agent: headless-client/1.0" http://127.0.0.1:8080/go-json/go/v2/openapi.json
 ```
 
 ## Resource manifest
@@ -80,7 +80,7 @@ On an empty identity store, `HEADLESS_ADMIN_EMAIL` and `HEADLESS_ADMIN_PASSWORD`
 administrator. Remove those bootstrap values after startup, then authenticate with:
 
 ```http
-POST /go-json/data/v1/auth/login
+POST /go-json/go/v2/auth/login
 Content-Type: application/json
 
 {"email":"admin@example.com","password":"..."}
@@ -99,22 +99,23 @@ Use the output as `Authorization: Bearer <token>`.
 
 ## API surfaces
 
-- REST resources: `/go-json/data/v1/resources/{resource}`
-- go-codex Level 0/1 compatibility: `/go-json`, `/go-json/go/v2/`
-- GraphQL: `/go-json/data/v1/graphql`
-- GraphQL SDL: `/go-json/data/v1/graphql/schema`
-- Schema identity: `/go-json/data/v1/schema`
-- Resource JSON Schema: `/go-json/data/v1/schema/{resource}`
-- OpenAPI: `/go-json/data/v1/openapi.json`
-- Media: `/go-json/data/v1/media`
-- Taxonomy definitions and terms: `/go-json/data/v1/taxonomies`
-- Login, users, and roles: `/go-json/data/v1/auth/login`, `/go-json/data/v1/users`, `/go-json/data/v1/roles`
-- Audit: `/go-json/data/v1/audit`
+- REST collections: `/go-json/go/v2/{collection}`
+- Discovery and types: `/go-json`, `/go-json/go/v2/`, `/go-json/go/v2/types`
+- Optional GraphQL adapter: `/go-graphql`
+- GraphQL SDL: `/go-json/go/v2/graphql.sdl`
+- Schema identity: `/go-json/go/v2/schema`
+- Resource JSON Schema: `/go-json/go/v2/types/{resource}/json-schema`
+- OpenAPI: `/go-json/go/v2/openapi.json`
+- Media: `/go-json/go/v2/media`
+- Taxonomy definitions and terms: `/go-json/go/v2/taxonomies`
+- Login, users, and roles: `/go-json/go/v2/auth/login`, `/go-json/go/v2/users`, `/go-json/go/v2/roles`
+- Cookie session: `/go-json/auth/login`, `/go-json/auth/me`, `/go-json/auth/logout`
+- Audit: `/go-json/go/v2/audit`
 - Liveness/readiness: `/healthz`, `/readyz`
 - Metrics: `/metrics` when enabled
 
-The REST `values` and pagination representation is compatible with `fastygo.data` consumers.
-The generated GraphQL resource operations support the SvelteCMS repository contract.
+The REST Codex envelope and pagination representation is the admin and storefront contract.
+GraphQL remains an optional adapter over the same services.
 Default go-codex resources cover posts, pages, menus, settings, media, taxonomies, content types,
 localized slug lookup, and search.
 

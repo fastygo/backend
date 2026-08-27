@@ -26,15 +26,15 @@ func NewIdentityHandler(
 }
 
 func (handler *IdentityHandler) Routes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /go-json/data/v1/auth/login", handler.login)
-	mux.HandleFunc("GET /go-json/data/v1/users", handler.listUsers)
-	mux.HandleFunc("POST /go-json/data/v1/users", handler.createUser)
-	mux.HandleFunc("PUT /go-json/data/v1/users/{id}", handler.updateUser)
-	mux.HandleFunc("DELETE /go-json/data/v1/users/{id}", handler.deleteUser)
-	mux.HandleFunc("GET /go-json/data/v1/roles", handler.listRoles)
-	mux.HandleFunc("POST /go-json/data/v1/roles", handler.createRole)
-	mux.HandleFunc("PUT /go-json/data/v1/roles/{id}", handler.updateRole)
-	mux.HandleFunc("DELETE /go-json/data/v1/roles/{id}", handler.deleteRole)
+	mux.HandleFunc("POST /go-json/go/v2/auth/login", handler.login)
+	mux.HandleFunc("GET /go-json/go/v2/users", handler.listUsers)
+	mux.HandleFunc("POST /go-json/go/v2/users", handler.createUser)
+	mux.HandleFunc("PUT /go-json/go/v2/users/{id}", handler.updateUser)
+	mux.HandleFunc("DELETE /go-json/go/v2/users/{id}", handler.deleteUser)
+	mux.HandleFunc("GET /go-json/go/v2/roles", handler.listRoles)
+	mux.HandleFunc("POST /go-json/go/v2/roles", handler.createRole)
+	mux.HandleFunc("PUT /go-json/go/v2/roles/{id}", handler.updateRole)
+	mux.HandleFunc("DELETE /go-json/go/v2/roles/{id}", handler.deleteRole)
 }
 
 func (handler *IdentityHandler) login(response http.ResponseWriter, request *http.Request) {

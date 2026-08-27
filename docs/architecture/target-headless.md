@@ -83,10 +83,10 @@ GET /go-json/go/v2/search
 The product-neutral extension surface is:
 
 ```text
-/go-json/data/v1/schemas
-/go-json/data/v1/resources/{resource}
-/go-json/data/v1/openapi.json
-/go-json/data/v1/schema.graphql
+/go-json/go/v2/types
+/go-json/go/v2/{collection}
+/go-json/go/v2/openapi.json
+/go-graphql
 /go-graphql
 ```
 

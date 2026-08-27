@@ -42,116 +42,47 @@ func NewContentHandler(service *application.Service, principal PrincipalResolver
 }
 
 func (handler *ContentHandler) Routes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /go-json/data/v1/resources/{kind}", handler.list)
-	mux.HandleFunc("POST /go-json/data/v1/resources/{kind}", handler.create)
-	mux.HandleFunc("GET /go-json/data/v1/resources/{kind}/{id}", handler.get)
-	mux.HandleFunc("PUT /go-json/data/v1/resources/{kind}/{id}", handler.update)
-	mux.HandleFunc("PATCH /go-json/data/v1/resources/{kind}/{id}", handler.update)
-	mux.HandleFunc("DELETE /go-json/data/v1/resources/{kind}/{id}", handler.trash)
-	mux.HandleFunc("POST /go-json/data/v1/resources/{kind}/{id}/transitions", handler.transition)
-	mux.HandleFunc("GET /go-json/data/v1/resources/{kind}/{id}/revisions", handler.revisions)
-	mux.HandleFunc("POST /go-json/data/v1/resources/{kind}/{id}/revisions/{revision}/restore", handler.restoreRevision)
-	mux.HandleFunc("GET /go-json/data/v1/audit", handler.listAudit)
+	mux.HandleFunc("GET /go-json/go/v2/audit", handler.listAudit)
+	mux.HandleFunc("GET /go-json/go/v2/revisions/{collection}/{id}", handler.revisions)
 	if handler.manifest.Name != "" {
-		mux.HandleFunc("GET /go-json/data/v1/schema", handler.schemaIdentity)
-		mux.HandleFunc("GET /go-json/data/v1/schema/{resource}", handler.resourceSchema)
-		mux.HandleFunc("GET /go-json/data/v1/schema/{resource}/form", handler.resourceForm)
-		mux.HandleFunc("POST /go-json/data/v1/schema/{resource}/form/bind", handler.bindForm)
-		mux.HandleFunc("GET /go-json/data/v1/openapi.json", handler.openAPI)
-		mux.HandleFunc("GET /go-json/data/v1/graphql/schema", handler.graphQLSchema)
-		mux.HandleFunc("GET /go-json/data/v1/resources/{kind}/{id}/form", handler.entryForm)
+		mux.HandleFunc("GET /go-json/go/v2/schema", handler.schemaIdentity)
+		mux.HandleFunc("GET /go-json/go/v2/types/{resource}/json-schema", handler.resourceSchema)
+		mux.HandleFunc("GET /go-json/go/v2/types/{resource}/form", handler.resourceForm)
+		mux.HandleFunc("POST /go-json/go/v2/types/{resource}/form/bind", handler.bindForm)
+		mux.HandleFunc("GET /go-json/go/v2/openapi.json", handler.openAPI)
+		mux.HandleFunc("GET /go-json/go/v2/graphql.sdl", handler.graphQLSchema)
+	}
+	handler.registerEntryExtras(mux, "media")
+	for _, resource := range handler.manifest.Resources {
+		if resource.RegistersCodexCollection() {
+			handler.registerEntryExtras(mux, resource.Collection)
+		}
 	}
 }
 
-func (handler *ContentHandler) list(response http.ResponseWriter, request *http.Request) {
-	principal, ok := handler.resolvePrincipal(response, request)
-	if !ok {
-		return
+func (handler *ContentHandler) registerEntryExtras(mux *http.ServeMux, collection string) {
+	prefix := "/go-json/go/v2/" + collection
+	mux.HandleFunc("POST "+prefix+"/{id}/transitions", handler.bindCollection(collection, handler.transition))
+	mux.HandleFunc("POST "+prefix+"/{id}/revisions/{revision}/restore", handler.bindCollection(collection, handler.restoreRevision))
+	if handler.manifest.Name != "" {
+		mux.HandleFunc("GET /go-json/go/v2/forms/"+collection+"/{id}", handler.bindCollection(collection, handler.entryForm))
 	}
-	query, err := parseQuery(request)
-	if err != nil {
-		writeError(response, request, core.WrapDomainError(core.ErrorCodeValidation, "invalid query", err))
-		return
-	}
-	query.Kinds = []domaincontent.Kind{domaincontent.Kind(request.PathValue("kind"))}
-	result, err := handler.service.List(request.Context(), principal, query)
-	if err != nil {
-		writeError(response, request, err)
-		return
-	}
-	writeJSON(response, http.StatusOK, map[string]any{
-		"data":       projectRecords(result.Entries),
-		"pagination": projectPage(result.Page),
-	})
 }
 
-func (handler *ContentHandler) get(response http.ResponseWriter, request *http.Request) {
-	principal, ok := handler.resolvePrincipal(response, request)
-	if !ok {
-		return
+func (handler *ContentHandler) bindCollection(collection string, next http.HandlerFunc) http.HandlerFunc {
+	return func(response http.ResponseWriter, request *http.Request) {
+		request.SetPathValue("collection", collection)
+		next(response, request)
 	}
-	entry, err := handler.service.Get(request.Context(), principal, domaincontent.ID(request.PathValue("id")))
-	if err != nil {
-		writeError(response, request, err)
-		return
-	}
-	if entry.Kind != domaincontent.Kind(request.PathValue("kind")) {
-		writeError(response, request, core.NewDomainError(core.ErrorCodeNotFound, "content was not found"))
-		return
-	}
-	writeJSON(response, http.StatusOK, map[string]any{"data": projectRecord(entry)})
 }
 
-func (handler *ContentHandler) create(response http.ResponseWriter, request *http.Request) {
-	principal, ok := handler.resolvePrincipal(response, request)
-	if !ok {
-		return
+func (handler *ContentHandler) kindFromCollection(collection string) (domaincontent.Kind, error) {
+	for _, resource := range handler.manifest.Resources {
+		if resource.Collection == collection {
+			return domaincontent.Kind(resource.ID), nil
+		}
 	}
-	var entry domaincontent.Entry
-	if err := decodeEntryJSON(response, request, &entry); err != nil {
-		writeError(response, request, err)
-		return
-	}
-	entry.Kind = domaincontent.Kind(request.PathValue("kind"))
-	created, err := handler.service.Create(request.Context(), principal, entry)
-	if err != nil {
-		writeError(response, request, err)
-		return
-	}
-	response.Header().Set("Location", request.URL.Path+"/"+string(created.ID))
-	writeJSON(response, http.StatusCreated, map[string]any{"data": projectRecord(created)})
-}
-
-func (handler *ContentHandler) update(response http.ResponseWriter, request *http.Request) {
-	principal, ok := handler.resolvePrincipal(response, request)
-	if !ok {
-		return
-	}
-	var entry domaincontent.Entry
-	if err := decodeEntryJSON(response, request, &entry); err != nil {
-		writeError(response, request, err)
-		return
-	}
-	entry.ID = domaincontent.ID(request.PathValue("id"))
-	entry.Kind = domaincontent.Kind(request.PathValue("kind"))
-	expectedVersion, err := expectedVersion(request, entry.Version)
-	if err != nil {
-		writeError(response, request, core.WrapDomainError(core.ErrorCodeValidation, "invalid expected version", err))
-		return
-	}
-	updated, err := handler.service.Update(
-		request.Context(),
-		principal,
-		entry,
-		expectedVersion,
-		request.Header.Get("X-Revision-Reason"),
-	)
-	if err != nil {
-		writeError(response, request, err)
-		return
-	}
-	response.Header().Set("ETag", versionETag(updated.Version))
-	writeJSON(response, http.StatusOK, map[string]any{"data": projectRecord(updated)})
+	return "", core.NewDomainError(core.ErrorCodeNotFound, "resource collection was not found")
 }
 
 func (handler *ContentHandler) resolvePrincipal(response http.ResponseWriter, request *http.Request) (authz.Principal, bool) {

@@ -10,6 +10,7 @@ import (
 	"github.com/fastygo/backend/internal/domain/authz"
 	domaincontent "github.com/fastygo/backend/internal/domain/content"
 	"github.com/fastygo/backend/internal/domain/schema"
+	"github.com/fastygo/backend/internal/persist"
 	"github.com/fastygo/framework/pkg/core"
 )
 
@@ -60,8 +61,10 @@ func (handler *CodexHandler) Routes(mux *http.ServeMux) {
 
 func (handler *CodexHandler) registerCollection(mux *http.ServeMux, collection string, kind domaincontent.Kind) {
 	mux.HandleFunc("GET /go-json/go/v2/"+collection, handler.list(kind))
-	mux.HandleFunc("POST /go-json/go/v2/"+collection, handler.create(kind))
-	mux.HandleFunc("GET /go-json/go/v2/"+collection+"/by-slug/{slug}", handler.bySlug(kind))
+	if collection != "media" {
+		mux.HandleFunc("POST /go-json/go/v2/"+collection, handler.create(kind))
+		mux.HandleFunc("GET /go-json/go/v2/"+collection+"/by-slug/{slug}", handler.bySlug(kind))
+	}
 	mux.HandleFunc("GET /go-json/go/v2/"+collection+"/{id}", handler.get(kind))
 	mux.HandleFunc("PATCH /go-json/go/v2/"+collection+"/{id}", handler.update(kind))
 	mux.HandleFunc("DELETE /go-json/go/v2/"+collection+"/{id}", handler.trash(kind))
@@ -113,6 +116,15 @@ func (handler *CodexHandler) list(kind domaincontent.Kind) http.HandlerFunc {
 			writeError(response, request, err)
 			return
 		}
+		if visibility := strings.TrimSpace(request.URL.Query().Get("visibility")); visibility != "" {
+			matched := result.Entries[:0]
+			for _, entry := range result.Entries {
+				if string(entry.Visibility) == visibility {
+					matched = append(matched, entry)
+				}
+			}
+			result.Entries = matched
+		}
 		writeJSON(response, http.StatusOK, map[string]any{
 			"data": handler.codexEntries(result.Entries), "pagination": projectPage(result.Page),
 		})
@@ -160,6 +172,9 @@ func (handler *CodexHandler) bySlug(kind domaincontent.Kind) http.HandlerFunc {
 
 func (handler *CodexHandler) create(kind domaincontent.Kind) http.HandlerFunc {
 	return func(response http.ResponseWriter, request *http.Request) {
+		if !handler.guardMutation(response, request) {
+			return
+		}
 		principal, ok := handler.resolve(response, request)
 		if !ok {
 			return
@@ -189,6 +204,9 @@ func (handler *CodexHandler) create(kind domaincontent.Kind) http.HandlerFunc {
 
 func (handler *CodexHandler) update(kind domaincontent.Kind) http.HandlerFunc {
 	return func(response http.ResponseWriter, request *http.Request) {
+		if !handler.guardMutation(response, request) {
+			return
+		}
 		principal, ok := handler.resolve(response, request)
 		if !ok {
 			return
@@ -223,6 +241,9 @@ func (handler *CodexHandler) update(kind domaincontent.Kind) http.HandlerFunc {
 
 func (handler *CodexHandler) trash(kind domaincontent.Kind) http.HandlerFunc {
 	return func(response http.ResponseWriter, request *http.Request) {
+		if !handler.guardMutation(response, request) {
+			return
+		}
 		principal, ok := handler.resolve(response, request)
 		if !ok {
 			return
@@ -244,7 +265,7 @@ func (handler *CodexHandler) trash(kind domaincontent.Kind) http.HandlerFunc {
 }
 
 func (handler *CodexHandler) contentTypes(response http.ResponseWriter, _ *http.Request) {
-	writeJSON(response, http.StatusOK, map[string]any{"data": handler.manifest.Resources})
+	writeJSON(response, http.StatusOK, map[string]any{"data": persist.TypesFromManifest(handler.manifest)})
 }
 
 func (handler *CodexHandler) listTaxonomies(response http.ResponseWriter, request *http.Request) {
@@ -342,7 +363,8 @@ func (handler *CodexHandler) codexEntry(entry domaincontent.Entry) map[string]an
 		termIDs = append(termIDs, reference.TermID)
 	}
 	return map[string]any{
-		"id": entry.ID, "kind": entry.Kind, "status": entry.Status,
+		"id": entry.ID, "kind": entry.Kind, "version": entry.Version,
+		"status": entry.Status, "visibility": entry.Visibility,
 		"slug": entry.Slug, "title": entry.Title, "content": entry.Content,
 		"excerpt": entry.Excerpt, "author_id": entry.AuthorID,
 		"featured_media_id": entry.FeaturedMediaID, "taxonomy_ids": termIDs,
@@ -352,6 +374,18 @@ func (handler *CodexHandler) codexEntry(entry domaincontent.Entry) map[string]an
 			"self": "/go-json/go/v2/" + handler.collectionFor(entry.Kind) + "/" + string(entry.ID),
 		},
 	}
+}
+
+func (handler *CodexHandler) guardMutation(response http.ResponseWriter, request *http.Request) bool {
+	guard, ok := handler.principal.(interface{ ValidateCookieCSRF(*http.Request) error })
+	if !ok {
+		return true
+	}
+	if err := guard.ValidateCookieCSRF(request); err != nil {
+		writeError(response, request, core.NewDomainError(core.ErrorCodeForbidden, "csrf token is invalid"))
+		return false
+	}
+	return true
 }
 
 func mergeEntry(target *domaincontent.Entry, patch domaincontent.Entry) {

@@ -35,7 +35,7 @@ func TestManifestGeneratesJSONSchemaGraphQLAndOpenAPI(t *testing.T) {
 		t.Fatalf("unexpected OpenAPI version")
 	}
 	paths := openAPI["paths"].(map[string]any)
-	if paths["/go-json/data/v1/resources/product"] == nil {
+	if paths["/go-json/go/v2/products"] == nil {
 		t.Fatalf("resource path is missing from OpenAPI")
 	}
 }

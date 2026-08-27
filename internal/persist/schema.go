@@ -39,6 +39,17 @@ type Resource struct {
 	GraphQLVisible bool     `json:"graphql_visible,omitempty"`
 }
 
+// Type is the stable GET /go-json/go/v2/types document for one kind.
+type Type struct {
+	ID             string   `json:"id"`
+	Collection     string   `json:"collection"`
+	Public         bool     `json:"public"`
+	RESTVisible    bool     `json:"rest_visible"`
+	GraphQLVisible bool     `json:"graphql_visible"`
+	Form           []Field  `json:"form"`
+	Taxonomies     []string `json:"taxonomies"`
+}
+
 type Manifest struct {
 	Name      string     `json:"name"`
 	Version   string     `json:"version"`
@@ -51,6 +62,31 @@ func ManifestFromDomain(manifest schema.Manifest) Manifest {
 		resources = append(resources, ResourceFromDomain(resource))
 	}
 	return Manifest{Name: manifest.Name, Version: manifest.Version, Resources: resources}
+}
+
+func TypeFromDomain(resource schema.Resource) Type {
+	form := resource.FormFields()
+	fields := make([]Field, 0, len(form))
+	for _, field := range form {
+		fields = append(fields, FieldFromDomain(field))
+	}
+	taxonomies := resource.Taxonomies
+	if taxonomies == nil {
+		taxonomies = []string{}
+	}
+	return Type{
+		ID: resource.ID, Collection: resource.Collection, Public: resource.Public,
+		RESTVisible: resource.RESTVisible, GraphQLVisible: resource.GraphQLVisible,
+		Form: fields, Taxonomies: taxonomies,
+	}
+}
+
+func TypesFromManifest(manifest schema.Manifest) []Type {
+	types := make([]Type, 0, len(manifest.Resources))
+	for _, resource := range manifest.Resources {
+		types = append(types, TypeFromDomain(resource))
+	}
+	return types
 }
 
 func ResourceFromDomain(resource schema.Resource) Resource {

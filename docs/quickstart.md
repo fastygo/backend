@@ -13,11 +13,11 @@ Check the runtime:
 
 ```bash
 curl -fsS -H "User-Agent: quickstart/1.0" http://127.0.0.1:8080/readyz
-curl -fsS -H "User-Agent: quickstart/1.0" http://127.0.0.1:8080/go-json/data/v1/schema
+curl -fsS -H "User-Agent: quickstart/1.0" http://127.0.0.1:8080/go-json/go/v2/schema
 ```
 
 Authenticate the durable bootstrap administrator through
-`POST /go-json/data/v1/auth/login`. Remove the two `HEADLESS_ADMIN_*` variables after the first
+`POST /go-json/go/v2/auth/login`. Remove the two `HEADLESS_ADMIN_*` variables after the first
 successful startup. For recovery or service automation, create a standalone administrator token:
 
 ```bash

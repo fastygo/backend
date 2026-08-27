@@ -35,8 +35,8 @@ func NewMediaHandler(
 }
 
 func (handler *MediaHandler) Routes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /go-json/data/v1/media", handler.upload)
-	mux.HandleFunc("GET /go-json/data/v1/media/{id}/content", handler.download)
+	mux.HandleFunc("POST /go-json/go/v2/media", handler.upload)
+	mux.HandleFunc("GET /go-json/go/v2/media/{id}/content", handler.download)
 }
 
 func (handler *MediaHandler) upload(response http.ResponseWriter, request *http.Request) {
@@ -73,7 +73,7 @@ func (handler *MediaHandler) upload(response http.ResponseWriter, request *http.
 		writeError(response, request, err)
 		return
 	}
-	response.Header().Set("Location", "/go-json/data/v1/media/"+string(asset.ID)+"/content")
+	response.Header().Set("Location", "/go-json/go/v2/media/"+string(asset.ID)+"/content")
 	writeJSON(response, http.StatusCreated, map[string]any{"data": publicMedia(asset)})
 }
 
