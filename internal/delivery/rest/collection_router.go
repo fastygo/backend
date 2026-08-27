@@ -91,8 +91,14 @@ func (router *CollectionRouter) add(endpoint collectionEndpoint) {
 
 func (router *CollectionRouter) Routes(mux *http.ServeMux) {
 	for collection := range router.collections {
-		mux.Handle(collectionPrefix+collection, router)
-		mux.Handle(collectionPrefix+collection+"/", router)
+		prefix := collectionPrefix + collection
+		mux.Handle(prefix+"/", router)
+		if collection == "media" {
+			// POST /media is multipart upload on MediaHandler, not JSON create.
+			mux.Handle("GET "+prefix, router)
+			continue
+		}
+		mux.Handle(prefix, router)
 	}
 }
 

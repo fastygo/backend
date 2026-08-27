@@ -48,9 +48,6 @@ func (handler *CodexHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /go-json/go/v2/taxonomies", handler.listTaxonomies)
 	mux.HandleFunc("GET /go-json/go/v2/taxonomies/{taxonomy}", handler.listTerms)
 	mux.HandleFunc("GET /go-json/go/v2/search", handler.search)
-	mux.HandleFunc("GET /go-json/go/v2/menus", handler.list("menu"))
-	mux.HandleFunc("GET /go-json/go/v2/menus/{slug}", handler.bySlug("menu"))
-	mux.HandleFunc("GET /go-json/go/v2/settings", handler.list("setting"))
 }
 
 func (handler *CodexHandler) origin(response http.ResponseWriter, _ *http.Request) {
@@ -282,7 +279,7 @@ func (handler *CodexHandler) listTaxonomies(response http.ResponseWriter, reques
 		writeError(response, request, err)
 		return
 	}
-	writeJSON(response, http.StatusOK, map[string]any{"data": items})
+	writeJSON(response, http.StatusOK, map[string]any{"data": projectDefinitions(items)})
 }
 
 func (handler *CodexHandler) listTerms(response http.ResponseWriter, request *http.Request) {
@@ -295,7 +292,7 @@ func (handler *CodexHandler) listTerms(response http.ResponseWriter, request *ht
 		writeError(response, request, err)
 		return
 	}
-	writeJSON(response, http.StatusOK, map[string]any{"data": items})
+	writeJSON(response, http.StatusOK, map[string]any{"data": projectTerms(items)})
 }
 
 func (handler *CodexHandler) search(response http.ResponseWriter, request *http.Request) {

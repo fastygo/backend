@@ -62,9 +62,13 @@ func (handler *MediaHandler) upload(response http.ResponseWriter, request *http.
 	if locale == "" {
 		locale = "en"
 	}
+	alt := content.LocalizedText{}
+	if value := strings.TrimSpace(request.FormValue("alt")); value != "" {
+		alt[locale] = value
+	}
 	asset, err := handler.service.Upload(request.Context(), principal, applicationmedia.Upload{
 		Filename: header.Filename, MIMEType: header.Header.Get("Content-Type"),
-		Alt:        content.LocalizedText{locale: request.FormValue("alt")},
+		Alt:        alt,
 		Status:     content.Status(request.FormValue("status")),
 		Visibility: content.Visibility(request.FormValue("visibility")),
 		Reader:     file, MaxBytes: handler.maxBytes,

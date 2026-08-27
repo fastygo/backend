@@ -60,3 +60,34 @@ func TestMediaRESTUploadAndAnonymousDownload(t *testing.T) {
 		t.Fatalf("download security headers are missing")
 	}
 }
+
+func TestMediaMultipartUploadWinsOverCollectionJSONCreate(t *testing.T) {
+	database, _ := bboltstorage.Open(filepath.Join(t.TempDir(), "wired.db"), 0o600, nil)
+	t.Cleanup(func() { _ = database.Close() })
+	contentService, _ := contentapplication.NewService(database, nil, nil)
+	uploader := authz.NewPrincipal(
+		"publisher", authz.CapabilityMediaUpload, authz.CapabilityContentPublish,
+	)
+	wired := wireShopMux(t, database, contentService, uploader)
+	mux, ok := wired.(*http.ServeMux)
+	if !ok {
+		t.Fatal("wired mux is not *http.ServeMux")
+	}
+	blobs, _ := localmedia.Open(filepath.Join(t.TempDir(), "wired-blobs"))
+	mediaService, _ := applicationmedia.NewService(contentService, blobs)
+	mediaHandler, _ := NewMediaHandler(mediaService, fixedPrincipal{principal: uploader}, 1<<20)
+	mediaHandler.Routes(mux)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	file, _ := writer.CreateFormFile("file", "cover.png")
+	_, _ = io.WriteString(file, "png-bytes")
+	_ = writer.Close()
+	request := httptest.NewRequest(http.MethodPost, "/go-json/go/v2/media", &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("multipart upload status %d: %s", response.Code, response.Body.String())
+	}
+}

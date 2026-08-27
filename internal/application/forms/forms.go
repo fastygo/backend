@@ -100,6 +100,12 @@ func projectField(field schema.Field) formset.Field {
 	for _, value := range field.Enum {
 		projected.Options = append(projected.Options, formset.Option{Value: value, Label: labelFor(value)})
 	}
+	if field.Type == schema.FieldMedia {
+		projected.UIHint = "media"
+	} else if field.Relation != nil {
+		projected.UIHint = field.Relation.Resource
+		projected.StorageHint = string(field.Relation.Cardinality)
+	}
 	if field.Items != nil {
 		item := projectField(*field.Items)
 		projected.Items = &item
@@ -128,6 +134,8 @@ func projectType(field schema.Field) formset.FieldType {
 	case schema.FieldEnum:
 		return formset.FieldSelect
 	case schema.FieldRelation:
+		return formset.FieldRelation
+	case schema.FieldMedia:
 		return formset.FieldRelation
 	case schema.FieldCollection:
 		return formset.FieldCollection

@@ -42,6 +42,18 @@ func TestMediaUploadPersistsMetadataAndEnforcesPrivateAccess(t *testing.T) {
 		t.Fatalf("anonymous user opened private media")
 	}
 
+	blank, err := service.Upload(context.Background(), uploader, applicationmedia.Upload{
+		Filename: "cover.webp", MIMEType: "image/webp",
+		Alt: content.LocalizedText{"en": "  "}, Reader: strings.NewReader("bytes"),
+		Status: content.StatusDraft, Visibility: content.VisibilityPrivate,
+	})
+	if err != nil {
+		t.Fatalf("upload without alt: %v", err)
+	}
+	if blank.Alt["en"] != "cover.webp" {
+		t.Fatalf("expected filename alt, got %#v", blank.Alt)
+	}
+
 	reader := authz.NewPrincipal("reader", authz.CapabilityMediaReadPrivate)
 	download, err := service.Open(context.Background(), reader, asset.ID)
 	if err != nil {

@@ -90,7 +90,12 @@ func (service *Service) Upload(
 	if err != nil {
 		return domainmedia.Asset{}, core.WrapDomainError(core.ErrorCodeValidation, "media upload failed", err)
 	}
-	title := input.Alt
+	title := content.LocalizedText{}
+	for locale, value := range input.Alt {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			title[locale] = trimmed
+		}
+	}
 	if len(title) == 0 {
 		title = content.LocalizedText{"en": input.Filename}
 	}

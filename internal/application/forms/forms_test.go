@@ -59,6 +59,29 @@ func TestRecordProjectsNestedObjectFields(t *testing.T) {
 	}
 }
 
+func TestRecordProjectsRelationAndMediaHints(t *testing.T) {
+	t.Parallel()
+	record := Record(schema.Resource{
+		ID: "product", Collection: "products",
+		Form: []schema.Field{
+			{
+				ID: "category_id", Type: schema.FieldRelation,
+				Relation: &schema.Relation{Resource: "course_category", Cardinality: schema.CardinalityOne},
+			},
+			{ID: "cover", Type: schema.FieldMedia},
+		},
+	})
+	if len(record.Fields) != 2 {
+		t.Fatalf("fields: %#v", record.Fields)
+	}
+	if record.Fields[0].Type != "relation" || record.Fields[0].UIHint != "course_category" {
+		t.Fatalf("relation projection: %#v", record.Fields[0])
+	}
+	if record.Fields[1].Type != "relation" || record.Fields[1].UIHint != "media" {
+		t.Fatalf("media projection: %#v", record.Fields[1])
+	}
+}
+
 func TestValidateEntryRejectsMissingRequiredFormField(t *testing.T) {
 	t.Parallel()
 	resource := schema.Resource{

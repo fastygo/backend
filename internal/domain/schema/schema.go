@@ -130,7 +130,7 @@ func (resource Resource) RegistersCodexCollection() bool {
 		return false
 	}
 	switch resource.Collection {
-	case "media", "taxonomies", "search", "content-types", "types", "menus", "settings":
+	case "media", "taxonomies", "search", "content-types", "types":
 		return false
 	default:
 		return true

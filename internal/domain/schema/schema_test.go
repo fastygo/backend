@@ -124,8 +124,8 @@ func TestRegistersCodexCollectionFollowsShowInRest(t *testing.T) {
 		t.Fatal("rest_visible false must not register a collection route")
 	}
 	menu := Resource{ID: "menu", Collection: "menus", RESTVisible: true}
-	if menu.RegistersCodexCollection() {
-		t.Fatal("menus stay on the dedicated controller")
+	if !menu.RegistersCodexCollection() {
+		t.Fatal("menus use the same collection controller as other RESTVisible kinds")
 	}
 }
 
