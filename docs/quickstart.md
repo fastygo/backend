@@ -24,5 +24,6 @@ successful startup. For recovery or service automation, create a standalone admi
 go run ./cmd/headless-token -subject admin -role administrator -ttl 24h
 ```
 
-Use `HEADLESS_MANIFEST_PATH` to load product-specific resources. Without one, the backend starts
-with neutral `post`, `page`, `menu`, and `setting` resources.
+Use `HEADLESS_MANIFEST_PATH` to load extra resources from the **product** repo. Without one, the
+backend starts with Codex `post`, `page`, `menu`, and `setting` (each with a FormSet form).
+`./dev/example.manifest.json` is a generic extra CPT, not a storefront.

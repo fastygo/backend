@@ -17,7 +17,8 @@ Keep dependencies pointing inward:
 - Application packages own their repository interfaces.
 - Storage and delivery packages implement application ports.
 - Framework and Panel integration stays in `internal/platform` and `internal/bootstrap`.
-- Product-specific fields and resources belong in manifests, not hard-coded domain branches.
+- Product-specific fields and resources belong in the consumer manifest loaded via
+  `HEADLESS_MANIFEST_PATH`, not in this repository's default identity.
 
 All code comments must be in English. Add tests for authorization, optimistic locking, transaction
 rollback, public/private projection, and adapter parity when those contracts are affected.

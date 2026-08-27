@@ -130,16 +130,77 @@ func TestBuildBootstrapsDurableAdminLogin(t *testing.T) {
 	}
 }
 
-func TestLoadManifestKeepsCodexKindsOnGitCourseProfile(t *testing.T) {
+func TestDefaultManifestIsCodexOnly(t *testing.T) {
 	t.Parallel()
-	manifest, err := loadManifest(filepath.Join("..", "..", "dev", "gitcourse.manifest.json"))
+	manifest := DefaultManifest()
+	want := map[string]struct{}{"post": {}, "page": {}, "menu": {}, "setting": {}}
+	if len(manifest.Resources) != 4 {
+		t.Fatalf("default kinds=%d", len(manifest.Resources))
+	}
+	for _, resource := range manifest.Resources {
+		if _, ok := want[resource.ID]; !ok {
+			t.Fatalf("unexpected default kind %s", resource.ID)
+		}
+	}
+	post, ok := manifest.Resource("post")
+	if !ok || len(post.Form) != 3 {
+		t.Fatal("codex post kind must expose title/excerpt/content form")
+	}
+}
+
+func TestCodexPostCollectionFormIsBoundToDocumentFields(t *testing.T) {
+	runtime, err := Build(context.Background(), Config{
+		App: app.Config{
+			AppBind: "127.0.0.1:0", DefaultLocale: "en", AvailableLocales: []string{"en"},
+			HealthLivePath: "/healthz", HealthReadyPath: "/readyz",
+		},
+		Storage: "bbolt", BboltPath: filepath.Join(t.TempDir(), "backend.db"),
+		MediaRoot: filepath.Join(t.TempDir(), "media"), MediaMaxBytes: 1 << 20,
+		Manifest: DefaultManifest(), AllowInsecureAuth: true,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"post", "page", "product", "menu", "setting"} {
-		if _, ok := manifest.Resource(id); !ok {
-			t.Fatalf("gitcourse profile missing core or site kind %s", id)
+	t.Cleanup(func() { _ = runtime.Close() })
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/go-json/go/v2/posts/form", nil)
+	request.Header.Set("User-Agent", "headless-conformance/1.0")
+	runtime.App.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Fields []struct {
+			ID string `json:"id"`
+		} `json:"fields"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]struct{}{}
+	for _, field := range body.Fields {
+		got[field.ID] = struct{}{}
+	}
+	for _, id := range []string{"title", "excerpt", "content"} {
+		if _, ok := got[id]; !ok {
+			t.Fatalf("form fields=%v missing %s", body.Fields, id)
 		}
+	}
+}
+
+func TestLoadManifestMergesCoreKindsIntoExternalProfile(t *testing.T) {
+	t.Parallel()
+	manifest, err := loadManifest(filepath.Join("..", "..", "dev", "example.manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"post", "page", "item", "menu", "setting"} {
+		if _, ok := manifest.Resource(id); !ok {
+			t.Fatalf("example profile missing core or declared kind %s", id)
+		}
+	}
+	if _, ok := manifest.Resource("product"); ok {
+		t.Fatal("example profile must not carry a product CPT")
 	}
 	for _, resource := range manifest.Resources {
 		if !resource.RegistersCodexCollection() {

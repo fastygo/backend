@@ -79,16 +79,23 @@ type Manifest struct {
 
 // CoreResources are the go-codex kinds every profile must keep.
 func CoreResources() []Resource {
+	documentForm := []Field{
+		{ID: "title", Type: FieldString, Localized: true},
+		{ID: "excerpt", Type: FieldText, Localized: true},
+		{ID: "content", Type: FieldText, Localized: true},
+	}
 	return []Resource{
-		{ID: "post", Collection: "posts", Public: true, RESTVisible: true, GraphQLVisible: true},
-		{ID: "page", Collection: "pages", Public: true, RESTVisible: true, GraphQLVisible: true},
+		{ID: "post", Collection: "posts", Public: true, RESTVisible: true, GraphQLVisible: true, Form: append([]Field(nil), documentForm...)},
+		{ID: "page", Collection: "pages", Public: true, RESTVisible: true, GraphQLVisible: true, Form: append([]Field(nil), documentForm...)},
 		{
 			ID: "menu", Collection: "menus", Public: true, RESTVisible: true, GraphQLVisible: true,
 			Fields: []Field{{ID: "items", Type: FieldJSON}},
+			Form:   []Field{{ID: "items", Type: FieldJSON}},
 		},
 		{
 			ID: "setting", Collection: "settings", Public: true, RESTVisible: true, GraphQLVisible: true,
 			Fields: []Field{{ID: "value", Type: FieldJSON}},
+			Form:   []Field{{ID: "value", Type: FieldJSON}},
 		},
 	}
 }

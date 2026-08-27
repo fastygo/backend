@@ -2,7 +2,7 @@ APP_NAME ?= headless-backend
 GO       ?= go
 DIST     ?= dist
 
-SEED ?= ../@GitCourse/cms/gitcourse.data-seed.json
+SEED ?=
 
 .PHONY: build run test conformance vet lint vuln race live-sql live-sql-up live-sql-down verify-light verify token backup restore seed docker-build docker-test clean
 
@@ -57,6 +57,7 @@ verify-light: test conformance vet lint vuln
 	$(GO) build ./cmd/server ./cmd/headless-token ./cmd/headless-backup ./cmd/headless-seed
 
 seed:
+	@if [ -z "$(SEED)" ]; then echo "SEED is required (product seed file)"; exit 1; fi
 	$(GO) run ./cmd/headless-seed -path "$(SEED)"
 
 verify: verify-light race

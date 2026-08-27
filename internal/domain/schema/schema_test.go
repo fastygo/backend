@@ -56,7 +56,7 @@ func TestManifestValidation(t *testing.T) {
 func TestWithCoreResourcesKeepsSiteKinds(t *testing.T) {
 	t.Parallel()
 	manifest := WithCoreResources(Manifest{
-		Name: "gitcourse", Version: "1",
+		Name: "site", Version: "1",
 		Resources: []Resource{
 			{ID: "product", Collection: "products", Public: true},
 			{ID: "post", Collection: "posts", Public: true, Form: []Field{{ID: "content", Type: FieldText}}},
@@ -96,10 +96,10 @@ func TestRegistersCodexCollectionFollowsShowInRest(t *testing.T) {
 func TestManifestAcceptsCamelCaseFormFieldIDs(t *testing.T) {
 	t.Parallel()
 	manifest := Manifest{
-		Name: "gitcourse", Version: "1",
+		Name: "site", Version: "1",
 		Resources: []Resource{{
-			ID: "product", Collection: "products", RESTVisible: true,
-			Form: []Field{{ID: "shortTitle", Type: FieldString, Localized: true}},
+			ID: "item", Collection: "items", RESTVisible: true,
+			Form: []Field{{ID: "displayName", Type: FieldString, Localized: true}},
 		}},
 	}
 	if err := manifest.Validate(); err != nil {

@@ -12,7 +12,7 @@ import (
 	bboltstorage "github.com/fastygo/backend/internal/storage/bbolt"
 )
 
-func TestApplyIsIdempotentForGitCourseRecords(t *testing.T) {
+func TestApplyIsIdempotentForManifestRecords(t *testing.T) {
 	t.Parallel()
 	adapter, err := bboltstorage.Open(filepath.Join(t.TempDir(), "seed.db"), 0o600, nil)
 	if err != nil {
@@ -24,7 +24,7 @@ func TestApplyIsIdempotentForGitCourseRecords(t *testing.T) {
 		t.Fatalf("new service: %v", err)
 	}
 	if err := service.SetManifest(schema.Manifest{
-		Name: "gitcourse", Version: "1",
+		Name: "example", Version: "1",
 		Resources: []schema.Resource{{
 			ID: "product", Collection: "products", Public: true,
 			Fields: []schema.Field{{ID: "payload_ru", Type: schema.FieldJSON}, {ID: "payload_en", Type: schema.FieldJSON}},

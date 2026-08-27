@@ -121,10 +121,11 @@ relation, collection, JSON, date/time, numeric, money, URI, and media fields.
 Relations declare cardinality and deletion behavior and are validated by
 application services.
 
-The active schema is supplied as a versioned manifest at startup. Manifests are
-validated before storage or HTTP listeners are opened. Runtime schema-draft
-editing is intentionally outside the core binary; products deploy a reviewed
-manifest and use backup/restore when changing storage layouts.
+The active schema is supplied as a versioned manifest at startup **by the
+product composition** (BFF or admin), not as a baked-in storefront profile.
+Manifests are validated before storage or HTTP listeners are opened. Runtime
+schema-draft editing is intentionally outside the core binary; products deploy
+a reviewed manifest and use backup/restore when changing storage layouts.
 
 ### Taxonomies
 

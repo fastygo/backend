@@ -15,7 +15,7 @@ import (
 	bboltstorage "github.com/fastygo/backend/internal/storage/bbolt"
 )
 
-func TestGraphQLSupportsSvelteCMSCreateUpdateListContract(t *testing.T) {
+func TestGraphQLSupportsAdminCreateUpdateListContract(t *testing.T) {
 	adapter, err := bboltstorage.Open(filepath.Join(t.TempDir(), "graphql.db"), 0o600, nil)
 	if err != nil {
 		t.Fatalf("open storage: %v", err)

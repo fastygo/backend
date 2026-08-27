@@ -1,0 +1,22 @@
+{
+  "name": "example",
+  "version": "1",
+  "resources": [
+    {
+      "id": "item",
+      "collection": "items",
+      "public": true,
+      "rest_visible": true,
+      "graphql_visible": true,
+      "fields": [
+        {"id": "payload_ru", "type": "json"},
+        {"id": "payload_en", "type": "json"}
+      ],
+      "form": [
+        {"id": "title", "type": "string", "localized": true},
+        {"id": "summary", "type": "text", "localized": true},
+        {"id": "price", "type": "money"}
+      ]
+    }
+  ]
+}

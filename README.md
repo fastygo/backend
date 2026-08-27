@@ -4,8 +4,9 @@ A brand-neutral, manifest-driven content backend for Go 1.25. It uses
 [`fastygo/framework`](https://github.com/fastygo/framework) for the process and HTTP lifecycle
 and [`fastygo/panel`](https://github.com/fastygo/panel) for UI-neutral control-plane descriptors.
 
-The backend has no SSR, theme, plugin, Redis, or JavaScript runtime dependency. It can serve a
-store, marketplace, corporate site, documentation site, or blog by changing the resource manifest.
+The backend has no SSR, theme, plugin, Redis, or JavaScript runtime dependency.
+Product CPTs and form catalogs belong to the consumer (BFF or admin composition).
+This binary accepts a manifest path; it does not ship a storefront schema.
 
 ## Capabilities
 
@@ -29,13 +30,17 @@ cp .env.example .env
 go run ./cmd/server
 ```
 
-Local GitCourse development uses SQLite at `./var/lib/headless/backend.sqlite`
-and `./dev/gitcourse.manifest.json`. After the first start, seed published
-records from the storefront repo:
+Local development stores SQLite at `./var/lib/headless/backend.sqlite`. The default
+process is Codex-only (`post`, `page`, `menu`, `setting`). Point
+`HEADLESS_MANIFEST_PATH` at a **product** manifest (the consumer repo), then seed
+that product's records:
 
 ```bash
-go run ./cmd/headless-seed -path ../@GitCourse/cms/gitcourse.data-seed.json
+HEADLESS_MANIFEST_PATH=./dev/example.manifest.json
 ```
+
+Without `HEADLESS_MANIFEST_PATH`, the process stays Codex-only. Extra CPTs and seed
+files belong in the product repository; pass their paths at composition time.
 
 The default bbolt deployment stores data under `./var/lib/headless`.
 
