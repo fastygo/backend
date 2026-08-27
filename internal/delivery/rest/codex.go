@@ -40,6 +40,7 @@ func NewCodexHandler(
 }
 
 func (handler *CodexHandler) Routes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /{$}", handler.origin)
 	mux.HandleFunc("GET /go-json", handler.root)
 	mux.HandleFunc("GET /go-json/go/v2/{$}", handler.discovery)
 	mux.HandleFunc("GET /go-json/go/v2/content-types", handler.contentTypes)
@@ -50,6 +51,27 @@ func (handler *CodexHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /go-json/go/v2/menus", handler.list("menu"))
 	mux.HandleFunc("GET /go-json/go/v2/menus/{slug}", handler.bySlug("menu"))
 	mux.HandleFunc("GET /go-json/go/v2/settings", handler.list("setting"))
+}
+
+func (handler *CodexHandler) origin(response http.ResponseWriter, _ *http.Request) {
+	writeJSON(response, http.StatusOK, map[string]any{
+		"name":    handler.manifest.Name,
+		"version": "2",
+		"kind":    "codex",
+		"routes": map[string]any{
+			"json":    "/go-json",
+			"go/v2":   "/go-json/go/v2/",
+			"graphql": "/go-graphql",
+			"healthz": "/healthz",
+			"readyz":  "/readyz",
+			"openapi": "/go-json/go/v2/openapi.json",
+			"types":   "/go-json/go/v2/types",
+		},
+		"authentication": []string{"bearer"},
+		"links": map[string]any{
+			"self": "/", "json": "/go-json", "v2": "/go-json/go/v2/",
+		},
+	})
 }
 
 func (handler *CodexHandler) root(response http.ResponseWriter, _ *http.Request) {

@@ -15,7 +15,7 @@ import (
 
 func TestGoCodexLevel0Discovery(t *testing.T) {
 	runtime := newRuntime(t)
-	for _, path := range []string{"/go-json", "/go-json/go/v2/"} {
+	for _, path := range []string{"/", "/go-json", "/go-json/go/v2/"} {
 		response := request(runtime.App, http.MethodGet, path, "", "")
 		if response.Code != http.StatusOK {
 			t.Fatalf("%s returned %d: %s", path, response.Code, response.Body.String())

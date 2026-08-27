@@ -31,6 +31,7 @@ func TestBuildComposesFrameworkPanelRESTAndBbolt(t *testing.T) {
 	for _, path := range []string{
 		"/healthz",
 		"/readyz",
+		"/",
 		"/go-json",
 		"/go-json/go/v2/",
 		"/go-json/go/v2/posts",
