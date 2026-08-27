@@ -110,6 +110,24 @@ func WithCoreResources(manifest Manifest) Manifest {
 
 var identifier = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,62}$`)
 
+// ReservedCodexCollections cannot be used as a CPT rest_base under /go-json/go/v2/.
+func ReservedCodexCollections() []string {
+	return []string{"media", "taxonomies", "search", "content-types", "types"}
+}
+
+// RegistersCodexCollection is WordPress show_in_rest: same posts controller on rest_base.
+func (resource Resource) RegistersCodexCollection() bool {
+	if !resource.RESTVisible {
+		return false
+	}
+	switch resource.Collection {
+	case "media", "taxonomies", "search", "content-types", "types", "menus", "settings":
+		return false
+	default:
+		return true
+	}
+}
+
 func (manifest Manifest) Validate() error {
 	if strings.TrimSpace(manifest.Name) == "" || strings.TrimSpace(manifest.Version) == "" {
 		return errors.New("manifest name and version are required")
@@ -119,6 +137,9 @@ func (manifest Manifest) Validate() error {
 	for _, resource := range manifest.Resources {
 		if !identifier.MatchString(resource.ID) || !identifier.MatchString(resource.Collection) {
 			return errors.New("resource identifier is invalid")
+		}
+		if err := validateCodexCollection(resource); err != nil {
+			return err
 		}
 		if _, exists := resources[resource.ID]; exists {
 			return errors.New("resource identifier is duplicated")
@@ -169,6 +190,21 @@ func (manifest Manifest) Canonical() Manifest {
 		slices.Sort(canonical.Resources[index].Taxonomies)
 	}
 	return canonical
+}
+
+func validateCodexCollection(resource Resource) error {
+	for _, name := range ReservedCodexCollections() {
+		if resource.Collection == name {
+			return errors.New("resource collection is reserved")
+		}
+	}
+	if resource.Collection == "menus" && resource.ID != "menu" {
+		return errors.New("menus collection is reserved")
+	}
+	if resource.Collection == "settings" && resource.ID != "setting" {
+		return errors.New("settings collection is reserved")
+	}
+	return nil
 }
 
 func validateFields(fields []Field) error {

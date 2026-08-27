@@ -40,29 +40,31 @@ func NewCodexHandler(
 
 func (handler *CodexHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /go-json", handler.root)
-	mux.HandleFunc("GET /go-json/go/v2/", handler.discovery)
-	for _, route := range []struct {
-		collection string
-		kind       domaincontent.Kind
-	}{
-		{collection: "posts", kind: domaincontent.KindPost},
-		{collection: "pages", kind: domaincontent.KindPage},
-		{collection: "media", kind: "media"},
-	} {
-		mux.HandleFunc("GET /go-json/go/v2/"+route.collection, handler.list(route.kind))
-		mux.HandleFunc("POST /go-json/go/v2/"+route.collection, handler.create(route.kind))
-		mux.HandleFunc("GET /go-json/go/v2/"+route.collection+"/by-slug/{slug}", handler.bySlug(route.kind))
-		mux.HandleFunc("GET /go-json/go/v2/"+route.collection+"/{id}", handler.get(route.kind))
-		mux.HandleFunc("PATCH /go-json/go/v2/"+route.collection+"/{id}", handler.update(route.kind))
-		mux.HandleFunc("DELETE /go-json/go/v2/"+route.collection+"/{id}", handler.trash(route.kind))
+	mux.HandleFunc("GET /go-json/go/v2/{$}", handler.discovery)
+	handler.registerCollection(mux, "media", "media")
+	for _, resource := range handler.manifest.Resources {
+		if !resource.RegistersCodexCollection() {
+			continue
+		}
+		handler.registerCollection(mux, resource.Collection, domaincontent.Kind(resource.ID))
 	}
 	mux.HandleFunc("GET /go-json/go/v2/content-types", handler.contentTypes)
+	mux.HandleFunc("GET /go-json/go/v2/types", handler.contentTypes)
 	mux.HandleFunc("GET /go-json/go/v2/taxonomies", handler.listTaxonomies)
 	mux.HandleFunc("GET /go-json/go/v2/taxonomies/{taxonomy}", handler.listTerms)
 	mux.HandleFunc("GET /go-json/go/v2/search", handler.search)
 	mux.HandleFunc("GET /go-json/go/v2/menus", handler.list("menu"))
 	mux.HandleFunc("GET /go-json/go/v2/menus/{slug}", handler.bySlug("menu"))
 	mux.HandleFunc("GET /go-json/go/v2/settings", handler.list("setting"))
+}
+
+func (handler *CodexHandler) registerCollection(mux *http.ServeMux, collection string, kind domaincontent.Kind) {
+	mux.HandleFunc("GET /go-json/go/v2/"+collection, handler.list(kind))
+	mux.HandleFunc("POST /go-json/go/v2/"+collection, handler.create(kind))
+	mux.HandleFunc("GET /go-json/go/v2/"+collection+"/by-slug/{slug}", handler.bySlug(kind))
+	mux.HandleFunc("GET /go-json/go/v2/"+collection+"/{id}", handler.get(kind))
+	mux.HandleFunc("PATCH /go-json/go/v2/"+collection+"/{id}", handler.update(kind))
+	mux.HandleFunc("DELETE /go-json/go/v2/"+collection+"/{id}", handler.trash(kind))
 }
 
 func (handler *CodexHandler) root(response http.ResponseWriter, _ *http.Request) {
@@ -75,16 +77,22 @@ func (handler *CodexHandler) root(response http.ResponseWriter, _ *http.Request)
 }
 
 func (handler *CodexHandler) discovery(response http.ResponseWriter, _ *http.Request) {
+	routes := map[string]any{
+		"posts": "/go-json/go/v2/posts", "pages": "/go-json/go/v2/pages",
+		"media": "/go-json/go/v2/media", "taxonomies": "/go-json/go/v2/taxonomies",
+		"menus": "/go-json/go/v2/menus", "settings": "/go-json/go/v2/settings",
+		"search": "/go-json/go/v2/search", "contentTypes": "/go-json/go/v2/content-types",
+		"types": "/go-json/go/v2/types",
+	}
+	for _, resource := range handler.manifest.Resources {
+		if resource.RegistersCodexCollection() {
+			routes[resource.Collection] = "/go-json/go/v2/" + resource.Collection
+		}
+	}
 	writeJSON(response, http.StatusOK, map[string]any{
 		"name": handler.manifest.Name, "version": "2",
-		"routes": map[string]any{
-			"posts": "/go-json/go/v2/posts", "pages": "/go-json/go/v2/pages",
-			"media": "/go-json/go/v2/media", "taxonomies": "/go-json/go/v2/taxonomies",
-			"menus": "/go-json/go/v2/menus", "settings": "/go-json/go/v2/settings",
-			"search": "/go-json/go/v2/search", "contentTypes": "/go-json/go/v2/content-types",
-		},
-		"authentication": []string{"bearer"},
-		"links":          map[string]any{"self": "/go-json/go/v2/"},
+		"routes": routes, "authentication": []string{"bearer"},
+		"links": map[string]any{"self": "/go-json/go/v2/"},
 	})
 }
 
@@ -106,7 +114,7 @@ func (handler *CodexHandler) list(kind domaincontent.Kind) http.HandlerFunc {
 			return
 		}
 		writeJSON(response, http.StatusOK, map[string]any{
-			"data": codexEntries(result.Entries), "pagination": projectPage(result.Page),
+			"data": handler.codexEntries(result.Entries), "pagination": projectPage(result.Page),
 		})
 	}
 }
@@ -125,7 +133,7 @@ func (handler *CodexHandler) get(kind domaincontent.Kind) http.HandlerFunc {
 			writeError(response, request, err)
 			return
 		}
-		writeJSON(response, http.StatusOK, map[string]any{"data": codexEntry(entry)})
+		writeJSON(response, http.StatusOK, map[string]any{"data": handler.codexEntry(entry)})
 	}
 }
 
@@ -146,7 +154,7 @@ func (handler *CodexHandler) bySlug(kind domaincontent.Kind) http.HandlerFunc {
 			writeError(response, request, err)
 			return
 		}
-		writeJSON(response, http.StatusOK, map[string]any{"data": codexEntry(entry)})
+		writeJSON(response, http.StatusOK, map[string]any{"data": handler.codexEntry(entry)})
 	}
 }
 
@@ -175,7 +183,7 @@ func (handler *CodexHandler) create(kind domaincontent.Kind) http.HandlerFunc {
 		}
 		response.Header().Set("Location", request.URL.Path+"/"+string(created.ID))
 		response.Header().Set("ETag", versionETag(created.Version))
-		writeJSON(response, http.StatusCreated, map[string]any{"data": codexEntry(created)})
+		writeJSON(response, http.StatusCreated, map[string]any{"data": handler.codexEntry(created)})
 	}
 }
 
@@ -209,7 +217,7 @@ func (handler *CodexHandler) update(kind domaincontent.Kind) http.HandlerFunc {
 			return
 		}
 		response.Header().Set("ETag", versionETag(updated.Version))
-		writeJSON(response, http.StatusOK, map[string]any{"data": codexEntry(updated)})
+		writeJSON(response, http.StatusOK, map[string]any{"data": handler.codexEntry(updated)})
 	}
 }
 
@@ -287,7 +295,7 @@ func (handler *CodexHandler) search(response http.ResponseWriter, request *http.
 		return
 	}
 	writeJSON(response, http.StatusOK, map[string]any{
-		"data": codexEntries(result.Entries), "pagination": projectPage(result.Page),
+		"data": handler.codexEntries(result.Entries), "pagination": projectPage(result.Page),
 	})
 }
 
@@ -306,15 +314,25 @@ func (handler *CodexHandler) resolve(
 	return principal, true
 }
 
-func codexEntries(entries []domaincontent.Entry) []map[string]any {
+func (handler *CodexHandler) codexEntries(entries []domaincontent.Entry) []map[string]any {
 	items := make([]map[string]any, 0, len(entries))
 	for _, entry := range entries {
-		items = append(items, codexEntry(entry))
+		items = append(items, handler.codexEntry(entry))
 	}
 	return items
 }
 
-func codexEntry(entry domaincontent.Entry) map[string]any {
+func (handler *CodexHandler) collectionFor(kind domaincontent.Kind) string {
+	if kind == "media" {
+		return "media"
+	}
+	if resource, ok := handler.manifest.Resource(string(kind)); ok {
+		return resource.Collection
+	}
+	return string(kind)
+}
+
+func (handler *CodexHandler) codexEntry(entry domaincontent.Entry) map[string]any {
 	metadata := make(map[string]any, len(entry.Metadata))
 	for key, value := range entry.Metadata {
 		metadata[key] = value.Value
@@ -330,7 +348,9 @@ func codexEntry(entry domaincontent.Entry) map[string]any {
 		"featured_media_id": entry.FeaturedMediaID, "taxonomy_ids": termIDs,
 		"metadata": metadata, "created_at": entry.CreatedAt, "updated_at": entry.UpdatedAt,
 		"published_at": entry.PublishedAt,
-		"links":        map[string]string{"self": "/go-json/go/v2/" + string(entry.Kind) + "s/" + string(entry.ID)},
+		"links": map[string]string{
+			"self": "/go-json/go/v2/" + handler.collectionFor(entry.Kind) + "/" + string(entry.ID),
+		},
 	}
 }
 

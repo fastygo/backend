@@ -65,6 +65,7 @@ func TestGoCodexLevel1ContentAndMetadata(t *testing.T) {
 		"/go-json/go/v2/posts",
 		"/go-json/go/v2/posts/by-slug/conformance?locale=en",
 		"/go-json/go/v2/content-types",
+		"/go-json/go/v2/types",
 		"/go-json/go/v2/taxonomies",
 		"/go-json/go/v2/menus",
 		"/go-json/go/v2/settings",

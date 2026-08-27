@@ -21,6 +21,21 @@ func TestManifestValidation(t *testing.T) {
 			},
 			wantError: true,
 		},
+		"reserved rest_base": {
+			mutate: func(manifest *Manifest) {
+				manifest.Resources = append(manifest.Resources, Resource{
+					ID: "lead", Collection: "search", RESTVisible: true,
+				})
+			},
+			wantError: true,
+		},
+		"lead collection": {
+			mutate: func(manifest *Manifest) {
+				manifest.Resources = append(manifest.Resources, Resource{
+					ID: "lead", Collection: "leads", Public: false, RESTVisible: true,
+				})
+			},
+		},
 	}
 	for name, test := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -59,6 +74,22 @@ func TestWithCoreResourcesKeepsSiteKinds(t *testing.T) {
 	}
 	if err := manifest.Validate(); err != nil {
 		t.Fatalf("merged manifest: %v", err)
+	}
+}
+
+func TestRegistersCodexCollectionFollowsShowInRest(t *testing.T) {
+	t.Parallel()
+	lead := Resource{ID: "lead", Collection: "leads", RESTVisible: true}
+	if !lead.RegistersCodexCollection() {
+		t.Fatal("lead with rest_visible must register /go/v2/leads")
+	}
+	hidden := Resource{ID: "note", Collection: "notes", RESTVisible: false}
+	if hidden.RegistersCodexCollection() {
+		t.Fatal("rest_visible false must not register a collection route")
+	}
+	menu := Resource{ID: "menu", Collection: "menus", RESTVisible: true}
+	if menu.RegistersCodexCollection() {
+		t.Fatal("menus stay on the dedicated controller")
 	}
 }
 
