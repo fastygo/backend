@@ -5,7 +5,7 @@ go 1.25.0
 toolchain go1.25.13
 
 require (
-	github.com/fastygo/formset v0.1.0
+	github.com/fastygo/formset v0.1.1-0.20260829000509-4c0f1d5d0d37
 	github.com/fastygo/framework v0.0.0-20260728192540-4fbac65b139f
 	github.com/fastygo/panel v0.0.0-20260526234749-cfef0826406f
 	github.com/go-sql-driver/mysql v1.10.0
@@ -16,8 +16,6 @@ require (
 	golang.org/x/crypto v0.55.0
 	modernc.org/sqlite v1.57.0
 )
-
-replace github.com/fastygo/formset => ../@FormSet
 
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect

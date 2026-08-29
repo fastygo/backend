@@ -7,8 +7,8 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
-github.com/fastygo/formset v0.1.0 h1:cOlH2WJVirTQUet+2PO8gXZJDdCsruH/J8dp3aQbJvs=
-github.com/fastygo/formset v0.1.0/go.mod h1:V/oAhmICRXpVlKz1XXUkcSJP0+v+V7blcsFcBFFs+kA=
+github.com/fastygo/formset v0.1.1-0.20260829000509-4c0f1d5d0d37 h1:CKcpYXs7NV57e1zwiggrbi6ZHwIaXkd8Zh5KRAJ2uL8=
+github.com/fastygo/formset v0.1.1-0.20260829000509-4c0f1d5d0d37/go.mod h1:V/oAhmICRXpVlKz1XXUkcSJP0+v+V7blcsFcBFFs+kA=
 github.com/fastygo/framework v0.0.0-20260728192540-4fbac65b139f h1:Ig//SvPcQII3HuQPZ00Cv1yZ29NH0KM0FuJQmHi9n8U=
 github.com/fastygo/framework v0.0.0-20260728192540-4fbac65b139f/go.mod h1:4MDilxXxsPqrsEqPJg/n6D1ZIDYI1wylfp7lQ27XX3I=
 github.com/fastygo/panel v0.0.0-20260526234749-cfef0826406f h1:vfWyP3W6V8Uv+m9teF293UjW+/F21nuhflI5IlwJm4c=
