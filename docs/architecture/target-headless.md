@@ -1,4 +1,9 @@
-# Target Headless Architecture
+# Codex architecture: achieved model and remaining work
+
+This document describes the intended long-lived boundary. Core Codex REST,
+manifests, storage adapters, CLI, health endpoints, and conformance are
+implemented. External private-network topology, probes, backup destinations,
+and product release gates remain operator/consumer work.
 
 ## Decision
 
@@ -25,9 +30,8 @@ other clients consume the same application services through delivery adapters.
 - locale negotiation and optional cookie/OIDC primitives.
 
 GoBackend must not maintain parallel implementations of these facilities.
-The existing fasthttp router, custom lifecycle manager, HTTP context adapter,
-health handler, Zap wrapper, and duplicate configuration surface are removed
-as their replacements become wired.
+Any legacy lifecycle or transport code still present during a migration is
+historical compatibility debt, not an alternate architecture.
 
 ### Panel
 
@@ -86,7 +90,6 @@ The product-neutral extension surface is:
 /go-json/go/v2/types
 /go-json/go/v2/{collection}
 /go-json/go/v2/openapi.json
-/go-graphql
 /go-graphql
 ```
 
@@ -203,21 +206,16 @@ The core binary does not include:
 Compile-time modules, external workers, webhooks, and frontend applications
 extend the platform through documented APIs and events.
 
-## Migration from the current repository
+## Status and remaining work
 
-The following current areas are replaced:
+The current process provides the documented Codex domain, delivery adapters,
+SQL/bbolt storage choices, and operational commands. `dev/example.manifest.json`
+is deliberately non-product example data.
 
-- fasthttp router and handlers;
-- task/profile/aggregate demo domains and repositories;
-- Redis session/JWT mismatch;
-- BoltDB offline write buffer;
-- custom process lifecycle, health, logging, and HTTP configuration already
-  supplied by Framework;
-- aspirational examples that are not executable.
-
-The migration preserves the module path, license, contribution metadata, and
-useful deployment history. Compatibility tests are ported before old routes are
-removed.
+Remaining work is not a second application architecture: operators must deploy
+private binds and TLS, store backups independently, expose external probes, and
+prove recovery against the actual tenant DSN/media store. Consumers must pin a
+compatible release and avoid local module replacements.
 
 ## Completion evidence
 

@@ -27,3 +27,23 @@ go run ./cmd/headless-token -subject admin -role administrator -ttl 24h
 Use `HEADLESS_MANIFEST_PATH` to load extra resources from the **product** repo. Without one, the
 backend starts with Codex `post`, `page`, `menu`, and `setting` (each with a FormSet form).
 `./dev/example.manifest.json` is a generic extra CPT, not a storefront.
+
+## Explicit bootstrap and recovery
+
+Seed only deliberately, after the target storage and product manifest are
+configured. It creates missing records and skips existing ones; it is not a
+server-start synchronization mechanism.
+
+```bash
+go run ./cmd/headless-seed -path /secure/product.seed.json
+go run ./cmd/headless-backup -mode export -path /secure/backup.json
+```
+
+Recovery requires the paired `backup.json` and `backup.json.media.tar` in an
+empty target store:
+
+```bash
+go run ./cmd/headless-backup -mode restore -path /secure/backup.json
+```
+
+See [operations](operations/) for release, backup, and SLO boundaries.
