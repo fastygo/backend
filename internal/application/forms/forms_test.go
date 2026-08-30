@@ -5,6 +5,7 @@ import (
 
 	domaincontent "github.com/fastygo/backend/internal/domain/content"
 	"github.com/fastygo/backend/internal/domain/schema"
+	"github.com/fastygo/formset"
 )
 
 func TestBindKeepsUnknownPayloadKeys(t *testing.T) {
@@ -71,10 +72,10 @@ func TestRecordProjectsRichTextAndMarkdown(t *testing.T) {
 	if len(record.Fields) != 2 {
 		t.Fatalf("fields: %#v", record.Fields)
 	}
-	if record.Fields[0].Type != "richtext" || record.Fields[0].UIHint != "tiptap" {
+	if record.Fields[0].Type != "richtext" || record.Fields[0].UIHint != formset.UIHintTipTap {
 		t.Fatalf("richtext projection: %#v", record.Fields[0])
 	}
-	if record.Fields[1].Type != "markdown" || record.Fields[1].UIHint != "markdown" {
+	if record.Fields[1].Type != "markdown" || record.Fields[1].UIHint != formset.UIHintMarkdown {
 		t.Fatalf("markdown projection: %#v", record.Fields[1])
 	}
 }

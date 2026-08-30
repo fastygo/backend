@@ -103,9 +103,9 @@ func projectField(field schema.Field) formset.Field {
 	if field.Type == schema.FieldMedia {
 		projected.UIHint = "media"
 	} else if field.Type == schema.FieldRichText {
-		projected.UIHint = "tiptap"
+		projected.UIHint = formset.UIHintTipTap
 	} else if field.Type == schema.FieldMarkdown {
-		projected.UIHint = "markdown"
+		projected.UIHint = formset.UIHintMarkdown
 	} else if field.Relation != nil {
 		projected.UIHint = field.Relation.Resource
 		projected.StorageHint = string(field.Relation.Cardinality)
