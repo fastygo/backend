@@ -47,7 +47,8 @@ func projectResource(resource domainschema.Resource) panel.Resource[Capability] 
 			columns = append(columns, panel.Column{
 				ID: field.ID, Label: labelFor(field.ID), Type: projectColumnType(field.Type),
 				Sortable:   field.Type != domainschema.FieldJSON && field.Type != domainschema.FieldCollection,
-				Searchable: field.Type == domainschema.FieldString || field.Type == domainschema.FieldText,
+				Searchable: field.Type == domainschema.FieldString || field.Type == domainschema.FieldText ||
+					field.Type == domainschema.FieldRichText || field.Type == domainschema.FieldMarkdown,
 				Toggleable: true,
 			})
 		}
@@ -105,7 +106,7 @@ func projectField(field domainschema.Field) panel.Field {
 
 func projectFieldType(fieldType domainschema.FieldType) panel.FieldType {
 	switch fieldType {
-	case domainschema.FieldText:
+	case domainschema.FieldText, domainschema.FieldRichText, domainschema.FieldMarkdown:
 		return panel.FieldTextarea
 	case domainschema.FieldBoolean:
 		return panel.FieldBoolean

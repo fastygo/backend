@@ -683,7 +683,7 @@ func validateFieldValue(field schema.Field, value any) error {
 		return nil
 	}
 	switch field.Type {
-	case schema.FieldString, schema.FieldText:
+	case schema.FieldString, schema.FieldText, schema.FieldRichText, schema.FieldMarkdown:
 		if _, ok := value.(string); !ok {
 			return invalidField(field.ID, "must be a string")
 		}

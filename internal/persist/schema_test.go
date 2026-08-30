@@ -22,7 +22,7 @@ func TestManifestDocumentRoundTrip(t *testing.T) {
 				Form: []schema.Field{{ID: "price", Type: schema.FieldMoney}, {
 					ID: "author", Type: schema.FieldObject,
 					Fields: []schema.Field{{ID: "name", Type: schema.FieldString}, {ID: "role", Type: schema.FieldString}},
-				}},
+				}, {ID: "body", Type: schema.FieldRichText, Localized: true}},
 			}},
 		},
 	}

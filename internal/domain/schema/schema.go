@@ -29,6 +29,8 @@ const (
 	FieldCollection FieldType = "collection"
 	FieldObject     FieldType = "object"
 	FieldMedia      FieldType = "media"
+	FieldRichText   FieldType = "richtext"
+	FieldMarkdown   FieldType = "markdown"
 )
 
 const (
@@ -321,7 +323,7 @@ func (fieldType FieldType) Valid() bool {
 	switch fieldType {
 	case FieldString, FieldText, FieldBoolean, FieldInteger, FieldNumber, FieldDecimal,
 		FieldMoney, FieldDate, FieldDateTime, FieldURI, FieldUUID, FieldJSON, FieldEnum,
-		FieldRelation, FieldCollection, FieldObject, FieldMedia:
+		FieldRelation, FieldCollection, FieldObject, FieldMedia, FieldRichText, FieldMarkdown:
 		return true
 	default:
 		return false

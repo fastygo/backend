@@ -102,6 +102,10 @@ func projectField(field schema.Field) formset.Field {
 	}
 	if field.Type == schema.FieldMedia {
 		projected.UIHint = "media"
+	} else if field.Type == schema.FieldRichText {
+		projected.UIHint = "tiptap"
+	} else if field.Type == schema.FieldMarkdown {
+		projected.UIHint = "markdown"
 	} else if field.Relation != nil {
 		projected.UIHint = field.Relation.Resource
 		projected.StorageHint = string(field.Relation.Cardinality)
@@ -125,6 +129,10 @@ func projectType(field schema.Field) formset.FieldType {
 		return formset.FieldString
 	case schema.FieldText:
 		return formset.FieldTextarea
+	case schema.FieldRichText:
+		return formset.FieldRichText
+	case schema.FieldMarkdown:
+		return formset.FieldMarkdown
 	case schema.FieldBoolean:
 		return formset.FieldBoolean
 	case schema.FieldInteger, schema.FieldNumber, schema.FieldDecimal, schema.FieldMoney:

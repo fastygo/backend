@@ -59,6 +59,26 @@ func TestRecordProjectsNestedObjectFields(t *testing.T) {
 	}
 }
 
+func TestRecordProjectsRichTextAndMarkdown(t *testing.T) {
+	t.Parallel()
+	record := Record(schema.Resource{
+		ID: "page", Collection: "pages",
+		Form: []schema.Field{
+			{ID: "body", Type: schema.FieldRichText, Localized: true},
+			{ID: "notes", Type: schema.FieldMarkdown},
+		},
+	})
+	if len(record.Fields) != 2 {
+		t.Fatalf("fields: %#v", record.Fields)
+	}
+	if record.Fields[0].Type != "richtext" || record.Fields[0].UIHint != "tiptap" {
+		t.Fatalf("richtext projection: %#v", record.Fields[0])
+	}
+	if record.Fields[1].Type != "markdown" || record.Fields[1].UIHint != "markdown" {
+		t.Fatalf("markdown projection: %#v", record.Fields[1])
+	}
+}
+
 func TestRecordProjectsRelationAndMediaHints(t *testing.T) {
 	t.Parallel()
 	record := Record(schema.Resource{

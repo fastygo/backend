@@ -65,6 +65,14 @@ func TestManifestValidation(t *testing.T) {
 			},
 			wantError: true,
 		},
+		"richtext and markdown form fields": {
+			mutate: func(manifest *Manifest) {
+				manifest.Resources[0].Form = []Field{
+					{ID: "body", Type: FieldRichText, Localized: true},
+					{ID: "notes", Type: FieldMarkdown},
+				}
+			},
+		},
 		"lead collection": {
 			mutate: func(manifest *Manifest) {
 				manifest.Resources = append(manifest.Resources, Resource{
