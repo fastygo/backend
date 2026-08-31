@@ -37,19 +37,6 @@ func (handler *TaxonomyHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /go-json/go/v2/taxonomies/{taxonomy}/terms/{term}", handler.deleteTerm)
 }
 
-func (handler *TaxonomyHandler) listDefinitions(response http.ResponseWriter, request *http.Request) {
-	principal, ok := handler.resolvePrincipal(response, request)
-	if !ok {
-		return
-	}
-	items, err := handler.service.ListDefinitions(request.Context(), principal)
-	if err != nil {
-		writeError(response, request, err)
-		return
-	}
-	writeJSON(response, http.StatusOK, map[string]any{"data": projectDefinitions(items)})
-}
-
 func (handler *TaxonomyHandler) createDefinition(response http.ResponseWriter, request *http.Request) {
 	principal, ok := handler.resolvePrincipal(response, request)
 	if !ok {
@@ -111,19 +98,6 @@ func (handler *TaxonomyHandler) deleteDefinition(response http.ResponseWriter, r
 		return
 	}
 	response.WriteHeader(http.StatusNoContent)
-}
-
-func (handler *TaxonomyHandler) listTerms(response http.ResponseWriter, request *http.Request) {
-	principal, ok := handler.resolvePrincipal(response, request)
-	if !ok {
-		return
-	}
-	items, err := handler.service.ListTerms(request.Context(), principal, request.PathValue("taxonomy"))
-	if err != nil {
-		writeError(response, request, err)
-		return
-	}
-	writeJSON(response, http.StatusOK, map[string]any{"data": projectTerms(items)})
 }
 
 func (handler *TaxonomyHandler) createTerm(response http.ResponseWriter, request *http.Request) {

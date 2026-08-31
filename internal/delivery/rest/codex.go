@@ -19,8 +19,9 @@ type CodexHandler struct {
 	content       *application.Service
 	taxonomies    *applicationtaxonomy.Service
 	principal     PrincipalResolver
-	manifest      schema.Manifest
-	defaultLocale string
+	manifest          schema.Manifest
+	defaultLocale     string
+	availableLocales  []string
 }
 
 func NewCodexHandler(
@@ -37,7 +38,7 @@ func NewCodexHandler(
 	}
 	return &CodexHandler{
 		content: content, taxonomies: taxonomies, principal: principal, manifest: manifest,
-		defaultLocale: "en",
+		defaultLocale: "en", availableLocales: []string{"en"},
 	}, nil
 }
 
@@ -45,6 +46,25 @@ func (handler *CodexHandler) SetDefaultLocale(locale string) {
 	locale = domaincontent.NormalizeLocale(locale)
 	if locale != "" {
 		handler.defaultLocale = locale
+	}
+}
+
+func (handler *CodexHandler) SetAvailableLocales(locales []string) {
+	seen := map[string]struct{}{}
+	next := make([]string, 0, len(locales))
+	for _, locale := range locales {
+		locale = domaincontent.NormalizeLocale(locale)
+		if locale == "" {
+			continue
+		}
+		if _, exists := seen[locale]; exists {
+			continue
+		}
+		seen[locale] = struct{}{}
+		next = append(next, locale)
+	}
+	if len(next) > 0 {
+		handler.availableLocales = next
 	}
 }
 
@@ -82,6 +102,8 @@ func (handler *CodexHandler) origin(response http.ResponseWriter, _ *http.Reques
 			"types":   "/go-json/go/v2/types",
 		},
 		"authentication": []string{"bearer"},
+		"locales":        handler.availableLocales,
+		"default_locale": handler.defaultLocale,
 		"links": map[string]any{
 			"self": "/", "json": "/go-json", "v2": "/go-json/go/v2/",
 		},
@@ -113,6 +135,7 @@ func (handler *CodexHandler) discovery(response http.ResponseWriter, _ *http.Req
 	writeJSON(response, http.StatusOK, map[string]any{
 		"name": handler.manifest.Name, "version": "2",
 		"routes": routes, "authentication": []string{"bearer"},
+		"locales": handler.availableLocales, "default_locale": handler.defaultLocale,
 		"links": map[string]any{"self": "/go-json/go/v2/"},
 	})
 }

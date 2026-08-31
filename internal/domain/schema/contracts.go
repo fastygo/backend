@@ -74,7 +74,7 @@ func (manifest Manifest) GraphQLSDL() (string, error) {
 	result.WriteString("scalar JSON\nscalar DateTime\n\n")
 	result.WriteString("type SchemaIdentity { name: String!, version: String!, digest: String! }\n")
 	result.WriteString("type FormsetIssue { locale: String, field: String, code: String!, message: String! }\n")
-	result.WriteString("type FormsetForm { record: String!, locales: [String!]!, fields: JSON!, values: JSON!, extra: JSON, issues: [FormsetIssue!]!, schema: JSON!, payloads: JSON! }\n\n")
+	result.WriteString("type FormsetForm { record: String!, locales: [String!]!, fields: JSON!, values: JSON!, extra: JSON, issues: [FormsetIssue!]!, schema: JSON!, documents: JSON! }\n\n")
 	result.WriteString("type Query {\n  schemaIdentity: SchemaIdentity!\n")
 	result.WriteString("  formsetSchema(resource: ID!): FormsetForm!\n")
 	result.WriteString("  formset(resource: ID!, id: ID!): FormsetForm!\n")
@@ -280,7 +280,7 @@ func writeGraphQLResource(result *strings.Builder, resource Resource) {
 	result.WriteString("type " + name + " {\n")
 	result.WriteString("  id: ID!\n  version: Int!\n  title: String!\n  slug: String!\n")
 	result.WriteString("  titleLocalized: JSON\n  slugLocalized: JSON\n  contentLocalized: JSON\n  excerptLocalized: JSON\n")
-	result.WriteString("  status: String!\n  visibility: String!\n  payloadRu: JSON\n  payloadEn: JSON\n  createdAt: DateTime!\n  updatedAt: DateTime!\n")
+	result.WriteString("  status: String!\n  visibility: String!\n  locales: JSON\n  document: JSON\n  createdAt: DateTime!\n  updatedAt: DateTime!\n")
 	for _, field := range resource.Fields {
 		if !field.Sensitive {
 			result.WriteString("  " + graphQLField(field.ID) + ": " + graphQLType(field, false) + "\n")
@@ -288,7 +288,7 @@ func writeGraphQLResource(result *strings.Builder, resource Resource) {
 	}
 	result.WriteString("}\n\ninput " + name + "Input {\n")
 	result.WriteString("  title: String\n  slug: String\n  titleLocalized: JSON\n  slugLocalized: JSON\n")
-	result.WriteString("  contentLocalized: JSON\n  excerptLocalized: JSON\n  status: String\n  visibility: String\n  payloadRu: JSON\n  payloadEn: JSON\n")
+	result.WriteString("  contentLocalized: JSON\n  excerptLocalized: JSON\n  status: String\n  visibility: String\n  locales: JSON\n")
 	for _, field := range resource.Fields {
 		if !field.ReadOnly {
 			result.WriteString("  " + graphQLField(field.ID) + ": " + graphQLType(field, field.Required && !field.Nullable) + "\n")

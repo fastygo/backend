@@ -86,7 +86,6 @@ func (handler *ContentHandler) bindForm(response http.ResponseWriter, request *h
 	}
 	document["form"] = form
 	document["documents"] = form.Documents()
-	document["payloads"] = forms.LegacyPayloadEnvelope(form)
 	writeJSON(response, http.StatusOK, document)
 }
 

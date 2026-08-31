@@ -134,8 +134,7 @@ func TestContentRESTFormBindRoundTripsExtraKeys(t *testing.T) {
 		t.Fatalf("form schema %d: %s", schemaResponse.Code, schemaResponse.Body.String())
 	}
 	bind := performJSON(mux, http.MethodPost, "/go-json/go/v2/types/product/form/bind", `{
-		"payload_ru":{"title":"Курс","kicker":"Backend"},
-		"payload_en":{"title":"Course"}
+		"locale":"ru","data":{"title":"Курс","kicker":"Backend"}
 	}`, "")
 	if bind.Code != http.StatusOK {
 		t.Fatalf("bind %d: %s", bind.Code, bind.Body.String())
@@ -144,10 +143,10 @@ func TestContentRESTFormBindRoundTripsExtraKeys(t *testing.T) {
 	if err := json.Unmarshal(bind.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	payloads, _ := body["payloads"].(map[string]any)
-	ru, _ := payloads["payload_ru"].(map[string]any)
+	documents, _ := body["documents"].(map[string]any)
+	ru, _ := documents["ru"].(map[string]any)
 	if ru["kicker"] != "Backend" || ru["title"] != "Курс" {
-		t.Fatalf("payloads: %#v", payloads)
+		t.Fatalf("documents: %#v", documents)
 	}
 	localeBind := performJSON(mux, http.MethodPost, "/go-json/go/v2/types/product/form/bind", `{
 		"locale":"de","data":{"title":"Kurs","kicker":"Backend"}

@@ -43,13 +43,13 @@ func TestGraphQLSupportsAdminCreateUpdateListContract(t *testing.T) {
 	create := execute(t, mux, `
 		mutation CreateProduct($input: ProductInput!, $idempotencyKey: String!) {
 			createProduct(input: $input, idempotencyKey: $idempotencyKey) {
-				id version title slug status visibility payloadEn
+				id version title slug status visibility locales
 			}
 		}`,
 		map[string]any{
 			"input": map[string]any{
 				"title": "Course", "slug": "course", "status": "published", "visibility": "public",
-				"payloadEn": map[string]any{"price": 49},
+				"locales": map[string]any{"en": map[string]any{"data": map[string]any{"price": 49}}},
 			},
 			"idempotencyKey": "create-product-1",
 		},
@@ -76,7 +76,7 @@ func TestGraphQLSupportsAdminCreateUpdateListContract(t *testing.T) {
 	list := execute(t, mux, `
 		query ProductList($page: Int!, $perPage: Int!) {
 			products(page: $page, perPage: $perPage) {
-				items { id title payloadEn }
+				items { id title locales }
 				page perPage total totalPages
 			}
 		}`,
@@ -183,8 +183,10 @@ func TestGraphQLFormsetBindsLocaleDocuments(t *testing.T) {
 		}`,
 		map[string]any{"input": map[string]any{
 			"title": "Course", "slug": "course", "status": "published", "visibility": "public",
-			"payloadRu": map[string]any{"title": "Курс", "price": 39900.0, "kicker": "Backend"},
-			"payloadEn": map[string]any{"title": "Course", "price": 39900.0},
+			"locales": map[string]any{
+				"ru": map[string]any{"data": map[string]any{"title": "Курс", "price": 39900.0, "kicker": "Backend"}},
+				"en": map[string]any{"data": map[string]any{"title": "Course", "price": 39900.0}},
+			},
 		}},
 	)
 	id := created["data"].(map[string]any)["createProduct"].(map[string]any)["id"]

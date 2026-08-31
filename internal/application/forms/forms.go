@@ -70,16 +70,6 @@ func Bind(resource schema.Resource, documents map[string]map[string]any, locales
 	return formset.Bind(Record(resource), documents, locales...)
 }
 
-// LegacyPayloadEnvelope keeps the old bind-form JSON keys until SvelteCMS
-// reads form.Documents() / locale + data.
-func LegacyPayloadEnvelope(form formset.Form) map[string]any {
-	documents := form.Documents()
-	return map[string]any{
-		"payload_ru": documents["ru"],
-		"payload_en": documents["en"],
-	}
-}
-
 func BindEntry(resource schema.Resource, entry domaincontent.Entry) (formset.Form, error) {
 	documents := LocaleDocumentsFromEntry(entry)
 	locales := make([]string, 0, len(documents))
@@ -199,17 +189,6 @@ func deleteBehavior(policy schema.DeletePolicy) formset.DeleteBehavior {
 	default:
 		return formset.DeleteRestrict
 	}
-}
-
-func metadataValue(entry domaincontent.Entry, key string) any {
-	if entry.Metadata == nil {
-		return nil
-	}
-	value, exists := entry.Metadata[key]
-	if !exists {
-		return nil
-	}
-	return value.Value
 }
 
 func metadataDocument(entry domaincontent.Entry) map[string]any {

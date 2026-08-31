@@ -161,7 +161,7 @@ func (handler *Handler) buildSchema(manifest domainschema.Manifest) (graphql.Sch
 			"extra":    &graphql.Field{Type: jsonScalar},
 			"issues":   &graphql.Field{Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(formsetIssue)))},
 			"schema":   &graphql.Field{Type: graphql.NewNonNull(jsonScalar)},
-			"payloads": &graphql.Field{Type: graphql.NewNonNull(jsonScalar)},
+			"documents": &graphql.Field{Type: graphql.NewNonNull(jsonScalar)},
 		},
 	})
 	queryFields["formsetSchema"] = &graphql.Field{
@@ -292,8 +292,7 @@ func formsetView(resource domainschema.Resource, form formset.Form) (map[string]
 		"values":   form.Values,
 		"extra":    form.Extra,
 		"issues":   issues,
-		"schema":   jsonSchema,
-		"payloads": forms.LegacyPayloadEnvelope(form),
+		"schema":    jsonSchema,
 		"documents": form.Documents(),
 	}, nil
 }
@@ -424,8 +423,6 @@ func resourceObject(resource domainschema.Resource, jsonScalar *graphql.Scalar) 
 		"excerptLocalized": &graphql.Field{Type: jsonScalar},
 		"status":           &graphql.Field{Type: graphql.NewNonNull(graphql.String)},
 		"visibility":       &graphql.Field{Type: graphql.NewNonNull(graphql.String)},
-		"payloadRu":        &graphql.Field{Type: jsonScalar},
-		"payloadEn":        &graphql.Field{Type: jsonScalar},
 		"locales":          &graphql.Field{Type: jsonScalar},
 		"document":         &graphql.Field{Type: jsonScalar},
 		"createdAt":        &graphql.Field{Type: graphql.NewNonNull(graphql.String)},
@@ -450,8 +447,6 @@ func resourceInput(resource domainschema.Resource, jsonScalar *graphql.Scalar) *
 		"excerptLocalized": &graphql.InputObjectFieldConfig{Type: jsonScalar},
 		"status":           &graphql.InputObjectFieldConfig{Type: graphql.String},
 		"visibility":       &graphql.InputObjectFieldConfig{Type: graphql.String},
-		"payloadRu":        &graphql.InputObjectFieldConfig{Type: jsonScalar},
-		"payloadEn":        &graphql.InputObjectFieldConfig{Type: jsonScalar},
 		"locales":          &graphql.InputObjectFieldConfig{Type: jsonScalar},
 	}
 	for _, field := range resource.Fields {
@@ -510,10 +505,6 @@ func applyGraphQLInput(entry *domaincontent.Entry, input map[string]any) {
 			entry.Status = domaincontent.Status(fmt.Sprint(value))
 		case "visibility":
 			entry.Visibility = domaincontent.Visibility(fmt.Sprint(value))
-		case "payloadRu":
-			applyGraphQLLocale(entry, "ru", value)
-		case "payloadEn":
-			applyGraphQLLocale(entry, "en", value)
 		case "locales":
 			applyGraphQLLocales(entry, value)
 		default:
@@ -545,13 +536,12 @@ func graphQLRecord(entry domaincontent.Entry) map[string]any {
 		"updatedAt": entry.UpdatedAt.UTC().Format(time.RFC3339Nano),
 	}
 	entry.LiftLocaleMetadata()
-	if document, ok := entry.Locales["ru"]; ok {
-		record["payloadRu"] = document.Data
+	locales := map[string]any{}
+	for locale, document := range entry.Locales {
+		locales[locale] = map[string]any{"data": document.Data, "status": document.Status}
 	}
-	if document, ok := entry.Locales["en"]; ok {
-		record["payloadEn"] = document.Data
-	}
-	record["locales"] = entry.Locales
+	record["locales"] = locales
+	record["document"] = entry.ResolveLocale("", "en").Data
 	for key, value := range entry.Metadata {
 		if strings.HasPrefix(key, "payload_") {
 			continue

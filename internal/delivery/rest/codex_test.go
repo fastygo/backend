@@ -52,6 +52,8 @@ func TestCodexRegistersManifestPostTypes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create handler: %v", err)
 	}
+	handler.SetDefaultLocale("de")
+	handler.SetAvailableLocales([]string{"de", "en"})
 	contentHandler, err := NewContentHandler(service, fixedPrincipal{principal: editor}, manifest)
 	if err != nil {
 		t.Fatalf("create content handler: %v", err)
@@ -71,10 +73,15 @@ func TestCodexRegistersManifestPostTypes(t *testing.T) {
 		t.Fatalf("discovery %d: %s", discovery.Code, discovery.Body.String())
 	}
 	var document struct {
-		Routes map[string]string `json:"routes"`
+		Routes        map[string]string `json:"routes"`
+		Locales       []string          `json:"locales"`
+		DefaultLocale string            `json:"default_locale"`
 	}
 	if err := json.Unmarshal(discovery.Body.Bytes(), &document); err != nil {
 		t.Fatalf("decode discovery: %v", err)
+	}
+	if document.DefaultLocale != "de" || strings.Join(document.Locales, ",") != "de,en" {
+		t.Fatalf("tenant locales: %#v", document)
 	}
 	if document.Routes["leads"] != "/go-json/go/v2/leads" || document.Routes["types"] != "/go-json/go/v2/types" {
 		t.Fatalf("discovery routes: %#v", document.Routes)

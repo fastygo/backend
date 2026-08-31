@@ -5,7 +5,7 @@ go 1.25.0
 toolchain go1.25.13
 
 require (
-	github.com/fastygo/formset v0.1.1-0.20260830214942-1bcbd54926a2
+	github.com/fastygo/formset v0.1.1-0.20260831091811-ff95375a260a
 	github.com/fastygo/framework v0.0.0-20260728192540-4fbac65b139f
 	github.com/fastygo/panel v0.0.0-20260526234749-cfef0826406f
 	github.com/go-sql-driver/mysql v1.10.0
