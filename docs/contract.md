@@ -7,6 +7,7 @@ Codex is a published product-neutral process. A product installs
 | Contract | Consumer expectation |
 | --- | --- |
 | Content API | `/go-json/go/v2` REST envelope and manifest discovery |
+| Locale | `?locale=` selects one `entry_locales` document; whole-document fallback; see ADR-0009 |
 | Schema | Reserved core resources plus product manifest resources |
 | Admin auth | Cookie session `/go-json/auth/*` and CSRF policy |
 | Server identity | Bearer capabilities for services and automation |

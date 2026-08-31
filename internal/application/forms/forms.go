@@ -2,6 +2,7 @@ package forms
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"unicode"
 
@@ -45,22 +46,48 @@ func Schema(resource schema.Resource) (formset.JSONSchema, error) {
 	return formset.JSONSchemaFromRecord(record), nil
 }
 
-func DocumentsFromEntry(entry domaincontent.Entry) formset.Documents {
-	ru := asObject(metadataValue(entry, "payload_ru"))
-	en := asObject(metadataValue(entry, "payload_en"))
-	if ru == nil && en == nil {
-		document := metadataDocument(entry)
-		return formset.Documents{RU: document, EN: document}
+// LocaleDocumentsFromEntry reads per-locale JSON. During migration it still
+// accepts metadata payload_<locale>. An entry with no locale rows uses other
+// metadata as a single implicit document (caller must pass Bind locales).
+func LocaleDocumentsFromEntry(entry domaincontent.Entry) map[string]map[string]any {
+	entry.LiftLocaleMetadata()
+	documents := map[string]map[string]any{}
+	for locale, document := range entry.Locales {
+		if document.Data != nil {
+			documents[locale] = document.Data
+		}
 	}
-	return formset.Documents{RU: ru, EN: en}
+	if len(documents) > 0 {
+		return documents
+	}
+	if document := metadataDocument(entry); len(document) > 0 {
+		documents["en"] = document
+	}
+	return documents
 }
 
-func Bind(resource schema.Resource, documents formset.Documents) (formset.Form, error) {
-	return formset.BindDocuments(Record(resource), documents)
+func Bind(resource schema.Resource, documents map[string]map[string]any, locales ...string) (formset.Form, error) {
+	return formset.Bind(Record(resource), documents, locales...)
+}
+
+// LegacyPayloadEnvelope keeps the old bind-form JSON keys until SvelteCMS
+// reads form.Documents() / locale + data.
+func LegacyPayloadEnvelope(form formset.Form) map[string]any {
+	documents := form.Documents()
+	return map[string]any{
+		"payload_ru": documents["ru"],
+		"payload_en": documents["en"],
+	}
 }
 
 func BindEntry(resource schema.Resource, entry domaincontent.Entry) (formset.Form, error) {
-	return Bind(resource, DocumentsFromEntry(entry))
+	documents := LocaleDocumentsFromEntry(entry)
+	locales := make([]string, 0, len(documents))
+	for locale := range documents {
+		locales = append(locales, locale)
+	}
+	sort.Strings(locales)
+	return Bind(resource, documents, locales...)
 }
 
 func ValidateEntry(resource schema.Resource, entry domaincontent.Entry) error {
@@ -188,7 +215,7 @@ func metadataValue(entry domaincontent.Entry, key string) any {
 func metadataDocument(entry domaincontent.Entry) map[string]any {
 	document := map[string]any{}
 	for key, value := range entry.Metadata {
-		if key == "payload_ru" || key == "payload_en" {
+		if strings.HasPrefix(key, "payload_") {
 			continue
 		}
 		document[key] = value.Value
@@ -197,13 +224,17 @@ func metadataDocument(entry domaincontent.Entry) map[string]any {
 }
 
 func validatePayloadDocuments(entry domaincontent.Entry) error {
-	for _, key := range []string{"payload_ru", "payload_en"} {
-		value, exists := entry.Metadata[key]
-		if !exists || value.Value == nil {
+	for key, value := range entry.Metadata {
+		if _, ok := strings.CutPrefix(key, "payload_"); !ok || value.Value == nil {
 			continue
 		}
 		if asObject(value.Value) == nil {
 			return core.NewDomainError(core.ErrorCodeValidation, key+" must be a JSON object")
+		}
+	}
+	for locale, document := range entry.Locales {
+		if document.Data == nil {
+			return core.NewDomainError(core.ErrorCodeValidation, locale+" locale data must be a JSON object")
 		}
 	}
 	return nil

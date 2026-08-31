@@ -3,12 +3,12 @@ package rest
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/fastygo/backend/internal/application/forms"
 	domaincontent "github.com/fastygo/backend/internal/domain/content"
 	"github.com/fastygo/backend/internal/domain/schema"
 	"github.com/fastygo/backend/internal/persist"
-	"github.com/fastygo/formset"
 	"github.com/fastygo/framework/pkg/core"
 )
 
@@ -68,11 +68,12 @@ func (handler *ContentHandler) bindForm(response http.ResponseWriter, request *h
 		return
 	}
 	request.Body = http.MaxBytesReader(response, request.Body, maxRequestBody)
-	var documents formset.Documents
-	if err := json.NewDecoder(request.Body).Decode(&documents); err != nil {
+	var body map[string]any
+	if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
 		writeError(response, request, core.WrapDomainError(core.ErrorCodeValidation, "invalid JSON body", err))
 		return
 	}
+	documents := localeDocumentsFromBindBody(body)
 	form, err := forms.Bind(resource, documents)
 	if err != nil {
 		writeError(response, request, core.WrapDomainError(core.ErrorCodeValidation, "form schema is invalid", err))
@@ -84,7 +85,8 @@ func (handler *ContentHandler) bindForm(response http.ResponseWriter, request *h
 		return
 	}
 	document["form"] = form
-	document["payloads"] = form.PayloadDocuments()
+	document["documents"] = form.Documents()
+	document["payloads"] = forms.LegacyPayloadEnvelope(form)
 	writeJSON(response, http.StatusOK, document)
 }
 
@@ -124,6 +126,28 @@ func (handler *ContentHandler) entryForm(response http.ResponseWriter, request *
 	}
 	document["form"] = form
 	writeJSON(response, http.StatusOK, document)
+}
+
+func localeDocumentsFromBindBody(body map[string]any) map[string]map[string]any {
+	documents := map[string]map[string]any{}
+	if data, ok := body["data"].(map[string]any); ok {
+		locale, _ := body["locale"].(string)
+		if locale == "" {
+			locale = "en"
+		}
+		documents[locale] = data
+		return documents
+	}
+	for key, value := range body {
+		locale, ok := strings.CutPrefix(key, "payload_")
+		if !ok || locale == "" {
+			continue
+		}
+		if document, isObject := value.(map[string]any); isObject {
+			documents[locale] = document
+		}
+	}
+	return documents
 }
 
 func formDocument(resource schema.Resource) (map[string]any, error) {

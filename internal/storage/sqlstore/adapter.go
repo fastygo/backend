@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -135,6 +136,11 @@ func (adapter *Adapter) Migrate(ctx context.Context) error {
 			}
 			if err := backfillContentProjections(ctx, transaction, adapter.dialect); err != nil {
 				return fmt.Errorf("failed to backfill SQL content projections: %w", err)
+			}
+		}
+		if migration.version == 6 {
+			if err := backfillContentLocales(ctx, transaction, adapter.dialect); err != nil {
+				return fmt.Errorf("failed to backfill SQL content locales: %w", err)
 			}
 		}
 		if _, err := transaction.ExecContext(
@@ -403,7 +409,10 @@ func (repository contentRepository) Create(ctx context.Context, entry content.En
 	); err != nil {
 		return fmt.Errorf("%w: %v", ErrConflict, err)
 	}
-	return repository.replaceProjections(ctx, entry)
+	if err := repository.replaceProjections(ctx, entry); err != nil {
+		return err
+	}
+	return repository.replaceLocales(ctx, entry)
 }
 
 func (repository contentRepository) Update(
@@ -434,7 +443,10 @@ func (repository contentRepository) Update(
 	if affected != 1 {
 		return ErrConflict
 	}
-	return repository.replaceProjections(ctx, entry)
+	if err := repository.replaceProjections(ctx, entry); err != nil {
+		return err
+	}
+	return repository.replaceLocales(ctx, entry)
 }
 
 func (repository contentRepository) Delete(ctx context.Context, id content.ID, expectedVersion uint64) error {
@@ -443,7 +455,7 @@ func (repository contentRepository) Delete(ctx context.Context, id content.ID, e
 	); err != nil {
 		return err
 	}
-	for _, table := range []string{"content_search", "content_terms", "content_index"} {
+	for _, table := range []string{"content_search", "content_terms", "content_index", "content_locales"} {
 		if _, err := repository.transaction.ExecContext(
 			ctx, bind(repository.dialect, "DELETE FROM "+table+" WHERE entry_id = ?"), id,
 		); err != nil {
@@ -594,6 +606,38 @@ func (repository contentRepository) replaceProjections(ctx context.Context, entr
 			); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+func (repository contentRepository) replaceLocales(ctx context.Context, entry content.Entry) error {
+	if _, err := repository.transaction.ExecContext(
+		ctx, bind(repository.dialect, "DELETE FROM content_locales WHERE entry_id = ?"), entry.ID,
+	); err != nil {
+		return err
+	}
+	entry.LiftLocaleMetadata()
+	statement := bind(repository.dialect,
+		"INSERT INTO content_locales (entry_id, locale, status, updated_at, data) VALUES (?, ?, ?, ?, ?)",
+	)
+	for locale, document := range entry.Locales {
+		encoded, err := json.Marshal(document.Data)
+		if err != nil {
+			return err
+		}
+		updatedAt := entry.UpdatedAt.UnixNano()
+		if !document.UpdatedAt.IsZero() {
+			updatedAt = document.UpdatedAt.UnixNano()
+		}
+		status := document.Status
+		if status == "" {
+			status = entry.Status
+		}
+		if _, err := repository.transaction.ExecContext(
+			ctx, statement, entry.ID, content.NormalizeLocale(locale), status, updatedAt, encoded,
+		); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -945,6 +989,16 @@ func migrations(dialect Dialect) []migration {
 				PRIMARY KEY (entry_id, field_id, related_id)
 			)`,
 		}},
+		{version: 6, statements: []string{
+			fmt.Sprintf(`CREATE TABLE IF NOT EXISTS content_locales (
+				entry_id VARCHAR(64) NOT NULL,
+				locale VARCHAR(35) NOT NULL,
+				status VARCHAR(31) NOT NULL,
+				updated_at BIGINT NOT NULL,
+				data %s NOT NULL,
+				PRIMARY KEY (entry_id, locale)
+			)`, payloadType),
+		}},
 	}
 }
 
@@ -1030,6 +1084,52 @@ func backfillContentProjections(ctx context.Context, transaction *sql.Tx, dialec
 		}
 		for _, entry := range entries {
 			if err := repository.replaceProjections(ctx, entry); err != nil {
+				return err
+			}
+		}
+		if len(entries) < 100 {
+			return nil
+		}
+	}
+}
+
+func backfillContentLocales(ctx context.Context, transaction *sql.Tx, dialect Dialect) error {
+	repository := contentRepository{transaction: transaction, dialect: dialect}
+	lastID := ""
+	for {
+		rows, err := transaction.QueryContext(
+			ctx,
+			bind(dialect,
+				"SELECT id, payload FROM content_entries WHERE id > ? ORDER BY id LIMIT 100"),
+			lastID,
+		)
+		if err != nil {
+			return err
+		}
+		entries := make([]content.Entry, 0, 100)
+		for rows.Next() {
+			var id string
+			var encoded []byte
+			if err := rows.Scan(&id, &encoded); err != nil {
+				_ = rows.Close()
+				return err
+			}
+			entry, err := decodeEntry(encoded)
+			if err != nil {
+				_ = rows.Close()
+				return err
+			}
+			entries = append(entries, entry)
+			lastID = id
+		}
+		if err := rows.Close(); err != nil {
+			return err
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		for _, entry := range entries {
+			if err := repository.replaceLocales(ctx, entry); err != nil {
 				return err
 			}
 		}

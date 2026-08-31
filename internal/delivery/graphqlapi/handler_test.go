@@ -110,7 +110,7 @@ func TestGraphQLKeepsPagedListWhenResourceAndCollectionShareAName(t *testing.T) 
 		Name: "shop", Version: "1",
 		Resources: []schema.Resource{{
 			ID: "site_settings", Collection: "site-settings", Public: true, GraphQLVisible: true,
-			Fields: []schema.Field{{ID: "payload_ru", Type: schema.FieldJSON}, {ID: "payload_en", Type: schema.FieldJSON}},
+			Fields: []schema.Field{{ID: "sku", Type: schema.FieldString}},
 		}},
 	}
 	handler, err := New(service, manifest, fixedPrincipal{principal})
@@ -154,7 +154,7 @@ func TestGraphQLFormsetBindsLocaleDocuments(t *testing.T) {
 		Name: "shop", Version: "1",
 		Resources: []schema.Resource{{
 			ID: "product", Collection: "products", Public: true, GraphQLVisible: true,
-			Fields: []schema.Field{{ID: "payload_ru", Type: schema.FieldJSON}, {ID: "payload_en", Type: schema.FieldJSON}},
+			Fields: []schema.Field{{ID: "sku", Type: schema.FieldString}},
 			Form:   []schema.Field{{ID: "title", Type: schema.FieldString}, {ID: "price", Type: schema.FieldMoney}},
 		}},
 	})
@@ -168,7 +168,7 @@ func TestGraphQLFormsetBindsLocaleDocuments(t *testing.T) {
 		Name: "shop", Version: "1",
 		Resources: []schema.Resource{{
 			ID: "product", Collection: "products", Public: true, GraphQLVisible: true,
-			Fields: []schema.Field{{ID: "payload_ru", Type: schema.FieldJSON}, {ID: "payload_en", Type: schema.FieldJSON}},
+			Fields: []schema.Field{{ID: "sku", Type: schema.FieldString}},
 			Form:   []schema.Field{{ID: "title", Type: schema.FieldString}, {ID: "price", Type: schema.FieldMoney}},
 		}},
 	}, fixedPrincipal{principal})

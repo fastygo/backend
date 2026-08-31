@@ -67,6 +67,7 @@ type Entry struct {
 	FeaturedMediaID string
 	Template        string
 	Metadata        map[string]MetadataValue
+	Locales         map[string]LocaleDocument
 	Terms           []TermRef
 	Version         uint64
 	CreatedAt       time.Time
@@ -127,6 +128,12 @@ func (entry Entry) PublicProjection() Entry {
 	for key, value := range entry.Metadata {
 		if !value.Private {
 			projected.Metadata[key] = value
+		}
+	}
+	if entry.Locales != nil {
+		projected.Locales = make(map[string]LocaleDocument, len(entry.Locales))
+		for locale, document := range entry.Locales {
+			projected.Locales[locale] = document
 		}
 	}
 	return projected

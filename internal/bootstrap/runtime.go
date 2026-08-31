@@ -157,6 +157,7 @@ func Build(ctx context.Context, config Config) (*Runtime, error) {
 		_ = storage.Close()
 		return nil, err
 	}
+	codexHandler.SetDefaultLocale(config.App.DefaultLocale)
 	collectionRouter, err := rest.NewCollectionRouter(codexHandler, handler)
 	if err != nil {
 		_ = storage.Close()

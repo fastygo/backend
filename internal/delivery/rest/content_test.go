@@ -3,6 +3,7 @@ package rest
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -148,6 +149,78 @@ func TestContentRESTFormBindRoundTripsExtraKeys(t *testing.T) {
 	if ru["kicker"] != "Backend" || ru["title"] != "Курс" {
 		t.Fatalf("payloads: %#v", payloads)
 	}
+	localeBind := performJSON(mux, http.MethodPost, "/go-json/go/v2/types/product/form/bind", `{
+		"locale":"de","data":{"title":"Kurs","kicker":"Backend"}
+	}`, "")
+	if localeBind.Code != http.StatusOK {
+		t.Fatalf("locale bind %d: %s", localeBind.Code, localeBind.Body.String())
+	}
+}
+
+func TestContentRESTLocaleQueryFallsBackToWholeDocument(t *testing.T) {
+	t.Parallel()
+	mux, _ := newShopMux(t, authz.NewPrincipal(
+		"editor",
+		authz.CapabilityContentCreate,
+		authz.CapabilityContentEditOwn,
+		authz.CapabilityContentPublish,
+		authz.CapabilityContentReadPrivate,
+	))
+	created := performJSON(mux, http.MethodPost, "/go-json/go/v2/products", `{
+		"title":{"en":"Course"},
+		"slug":{"en":"course"},
+		"status":"published",
+		"visibility":"public",
+		"locales":{"en":{"data":{"title":"Course","sku":"A"}}}
+	}`, "")
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create %d: %s", created.Code, created.Body.String())
+	}
+	got := httptest.NewRecorder()
+	mux.ServeHTTP(got, httptest.NewRequest(http.MethodGet, "/go-json/go/v2/products/by-slug/course?locale=de", nil))
+	if got.Code != http.StatusOK {
+		t.Fatalf("get %d: %s", got.Code, got.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(got.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := body["data"].(map[string]any)
+	doc, _ := data["document"].(map[string]any)
+	if data["locale"] != "en" || data["requested"] != "de" || data["fallback"] != true || doc["title"] != "Course" {
+		t.Fatalf("locale projection: %#v", data)
+	}
+
+	var createdBody struct {
+		Data struct {
+			ID      string `json:"id"`
+			Version uint64 `json:"version"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(created.Body.Bytes(), &createdBody); err != nil {
+		t.Fatal(err)
+	}
+	patched := performJSON(
+		mux,
+		http.MethodPatch,
+		"/go-json/go/v2/products/"+createdBody.Data.ID,
+		`{"locale":"de","data":{"title":"Kurs"},"title":{"de":"Kurs"}}`,
+		fmt.Sprintf(`"v%d"`, createdBody.Data.Version),
+	)
+	if patched.Code != http.StatusOK {
+		t.Fatalf("patch locale %d: %s", patched.Code, patched.Body.String())
+	}
+	en := httptest.NewRecorder()
+	mux.ServeHTTP(en, httptest.NewRequest(http.MethodGet, "/go-json/go/v2/products/"+createdBody.Data.ID+"?locale=en", nil))
+	var enBody map[string]any
+	if err := json.Unmarshal(en.Body.Bytes(), &enBody); err != nil {
+		t.Fatal(err)
+	}
+	enData, _ := enBody["data"].(map[string]any)
+	enDoc, _ := enData["document"].(map[string]any)
+	if enDoc["title"] != "Course" {
+		t.Fatalf("en document overwritten: %#v", enData)
+	}
 }
 
 func TestContentRESTRejectsUnknownFieldsAndInvalidPagination(t *testing.T) {
@@ -169,8 +242,6 @@ func shopManifest() schema.Manifest {
 		Resources: []schema.Resource{{
 			ID: "product", Collection: "products", Public: true, RESTVisible: true,
 			Fields: []schema.Field{
-				{ID: "payload_ru", Type: schema.FieldJSON},
-				{ID: "payload_en", Type: schema.FieldJSON},
 				{ID: "sku", Type: schema.FieldString},
 				{ID: "secret", Type: schema.FieldString},
 			},

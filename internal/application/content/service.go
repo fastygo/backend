@@ -527,6 +527,7 @@ func (service *Service) validateManifest(
 	if service.manifest == nil {
 		return nil
 	}
+	entry.LiftLocaleMetadata()
 	var resource *schema.Resource
 	for index := range service.manifest.Resources {
 		if service.manifest.Resources[index].ID == string(entry.Kind) {
@@ -600,6 +601,9 @@ func (service *Service) validateManifest(
 		declared[field.ID] = struct{}{}
 	}
 	for id := range entry.Metadata {
+		if strings.HasPrefix(id, "payload_") {
+			continue
+		}
 		if _, exists := declared[id]; !exists {
 			return core.NewDomainError(
 				core.ErrorCodeValidation,

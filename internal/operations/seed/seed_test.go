@@ -27,7 +27,7 @@ func TestApplyIsIdempotentForManifestRecords(t *testing.T) {
 		Name: "example", Version: "1",
 		Resources: []schema.Resource{{
 			ID: "product", Collection: "products", Public: true,
-			Fields: []schema.Field{{ID: "payload_ru", Type: schema.FieldJSON}, {ID: "payload_en", Type: schema.FieldJSON}},
+			Fields: []schema.Field{{ID: "sku", Type: schema.FieldString}},
 		}},
 	}); err != nil {
 		t.Fatalf("set manifest: %v", err)
@@ -42,8 +42,7 @@ func TestApplyIsIdempotentForManifestRecords(t *testing.T) {
 				"slug":"course",
 				"status":"published",
 				"visibility":"public",
-				"payload_en":{"id":"gc-001"},
-				"payload_ru":{"id":"gc-001"}
+				"locales":{"en":{"id":"gc-001"},"ru":{"id":"gc-001"}}
 			}
 		}]
 	}`)

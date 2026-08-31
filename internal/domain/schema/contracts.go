@@ -7,10 +7,7 @@ import (
 	"unicode"
 )
 
-const (
-	payloadRU = "payload_ru"
-	payloadEN = "payload_en"
-)
+const payloadPrefix = "payload_"
 
 func (manifest Manifest) Resource(id string) (Resource, bool) {
 	for _, resource := range manifest.Resources {
@@ -28,7 +25,7 @@ func (resource Resource) FormFields() []Field {
 	}
 	fields := make([]Field, 0, len(resource.Fields))
 	for _, field := range resource.Fields {
-		if field.ID == payloadRU || field.ID == payloadEN {
+		if strings.HasPrefix(field.ID, payloadPrefix) {
 			continue
 		}
 		fields = append(fields, field)

@@ -18,6 +18,10 @@ func TestEncodeDecodeEntryRoundTrip(t *testing.T) {
 			Slug: content.LocalizedText{"en": "course"}, Title: content.LocalizedText{"en": "Course"},
 			Metadata: map[string]content.MetadataValue{
 				"sku": {Value: "SKU-1"}, "secret": {Value: "internal", Private: true},
+				"payload_en": {Value: map[string]any{"title": "Course"}},
+			},
+			Locales: map[string]content.LocaleDocument{
+				"en": {Data: map[string]any{"title": "Course"}, Status: content.StatusPublished},
 			},
 			Terms:   []content.TermRef{{Taxonomy: "brand", TermID: "acme"}},
 			Version: 2, CreatedAt: now, UpdatedAt: now, PublishedAt: &published,

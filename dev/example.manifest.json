@@ -9,8 +9,7 @@
       "rest_visible": true,
       "graphql_visible": true,
       "fields": [
-        {"id": "payload_ru", "type": "json"},
-        {"id": "payload_en", "type": "json"}
+        {"id": "sku", "type": "string"}
       ],
       "form": [
         {"id": "title", "type": "string", "localized": true},

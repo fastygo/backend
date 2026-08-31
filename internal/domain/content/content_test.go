@@ -62,6 +62,31 @@ func TestValidationAndPublicMetadataProjection(t *testing.T) {
 	}
 }
 
+func TestLiftLocaleMetadataAndWholeDocumentFallback(t *testing.T) {
+	t.Parallel()
+	entry := Entry{
+		Status: StatusPublished,
+		Metadata: map[string]MetadataValue{
+			"payload_en": {Value: map[string]any{"title": "Hello"}},
+			"sku":        {Value: "A"},
+		},
+	}
+	entry.LiftLocaleMetadata()
+	if _, exists := entry.Metadata["payload_en"]; exists {
+		t.Fatal("payload_en must leave metadata")
+	}
+	if entry.Metadata["sku"].Value != "A" {
+		t.Fatal("canon metadata lost")
+	}
+	if entry.Locales["en"].Data["title"] != "Hello" {
+		t.Fatalf("locale lift: %#v", entry.Locales)
+	}
+	resolved := entry.ResolveLocale("de", "en")
+	if !resolved.Fallback || resolved.Served != "en" || resolved.Requested != "de" || resolved.Data["title"] != "Hello" {
+		t.Fatalf("fallback: %#v", resolved)
+	}
+}
+
 func TestLocalizedTextAndUnicodeSlug(t *testing.T) {
 	t.Parallel()
 	cases := map[string]struct {

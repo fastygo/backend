@@ -91,15 +91,18 @@ func entryFromRecord(record Record) domaincontent.Entry {
 		Content:    domaincontent.LocalizedText{},
 		Excerpt:    domaincontent.LocalizedText{},
 		Metadata:   map[string]domaincontent.MetadataValue{},
+		Locales:    map[string]domaincontent.LocaleDocument{},
+	}
+	if raw, ok := record.Values["locales"]; ok {
+		applyLocales(&entry, raw)
 	}
 	if raw, ok := record.Values["payload_ru"]; ok {
-		entry.Metadata["payload_ru"] = domaincontent.MetadataValue{Value: raw}
 		applyPayloadLocale(&entry, "ru", raw)
 	}
 	if raw, ok := record.Values["payload_en"]; ok {
-		entry.Metadata["payload_en"] = domaincontent.MetadataValue{Value: raw}
 		applyPayloadLocale(&entry, "en", raw)
 	}
+	entry.LiftLocaleMetadata()
 	if text := stringValue(record.Values["content"]); text != "" {
 		entry.Content["en"] = text
 		if entry.Content["ru"] == "" {
@@ -115,11 +118,33 @@ func entryFromRecord(record Record) domaincontent.Entry {
 	return entry
 }
 
+func applyLocales(entry *domaincontent.Entry, raw any) {
+	root, ok := raw.(map[string]any)
+	if !ok {
+		return
+	}
+	for locale, value := range root {
+		data, _ := value.(map[string]any)
+		if wrapped, ok := data["data"].(map[string]any); ok {
+			data = wrapped
+		}
+		if data == nil {
+			continue
+		}
+		applyPayloadLocale(entry, domaincontent.NormalizeLocale(locale), data)
+	}
+}
+
 func applyPayloadLocale(entry *domaincontent.Entry, locale string, raw any) {
 	document, ok := raw.(map[string]any)
 	if !ok {
 		return
 	}
+	locale = domaincontent.NormalizeLocale(locale)
+	if entry.Locales == nil {
+		entry.Locales = map[string]domaincontent.LocaleDocument{}
+	}
+	entry.Locales[locale] = domaincontent.LocaleDocument{Data: document, Status: entry.Status}
 	if text := stringValue(document["title"]); text != "" {
 		entry.Title[locale] = text
 	}

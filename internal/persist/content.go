@@ -3,6 +3,7 @@ package persist
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/fastygo/backend/internal/domain/content"
@@ -23,12 +24,21 @@ type Entry struct {
 	FeaturedMediaID string                   `json:"featured_media_id,omitempty"`
 	Template        string                   `json:"template,omitempty"`
 	Metadata        map[string]MetadataValue `json:"metadata,omitempty"`
+	Locales         map[string]LocaleDocument `json:"locales,omitempty"`
+	Locale          string                   `json:"locale,omitempty"`
+	Data            map[string]any           `json:"data,omitempty"`
 	Terms           []TermRef                `json:"taxonomy_ids,omitempty"`
 	Version         uint64                   `json:"version"`
 	CreatedAt       time.Time                `json:"created_at"`
 	UpdatedAt       time.Time                `json:"updated_at"`
 	PublishedAt     *time.Time               `json:"published_at,omitempty"`
 	DeletedAt       *time.Time               `json:"deleted_at,omitempty"`
+}
+
+type LocaleDocument struct {
+	Data      map[string]any  `json:"data,omitempty"`
+	Status    content.Status  `json:"status,omitempty"`
+	UpdatedAt time.Time       `json:"updated_at,omitempty"`
 }
 
 type MetadataValue struct {
@@ -42,6 +52,7 @@ type TermRef struct {
 }
 
 func EntryFromDomain(entry content.Entry) Entry {
+	entry.LiftLocaleMetadata()
 	metadata := make(map[string]MetadataValue, len(entry.Metadata))
 	for key, value := range entry.Metadata {
 		metadata[key] = MetadataValue{Value: value.Value, Private: value.Private}
@@ -50,11 +61,20 @@ func EntryFromDomain(entry content.Entry) Entry {
 	for _, term := range entry.Terms {
 		terms = append(terms, TermRef{Taxonomy: term.Taxonomy, TermID: term.TermID})
 	}
+	locales := make(map[string]LocaleDocument, len(entry.Locales))
+	for locale, document := range entry.Locales {
+		locales[locale] = LocaleDocument{Data: document.Data, Status: document.Status, UpdatedAt: document.UpdatedAt}
+	}
+	for key := range metadata {
+		if _, ok := strings.CutPrefix(key, "payload_"); ok {
+			delete(metadata, key)
+		}
+	}
 	return Entry{
 		ID: entry.ID, Kind: entry.Kind, Status: entry.Status, Visibility: entry.Visibility,
 		Slug: entry.Slug, Title: entry.Title, Content: entry.Content, Excerpt: entry.Excerpt,
 		AuthorID: entry.AuthorID, ParentID: entry.ParentID, FeaturedMediaID: entry.FeaturedMediaID,
-		Template: entry.Template, Metadata: metadata, Terms: terms, Version: entry.Version,
+		Template: entry.Template, Metadata: metadata, Locales: locales, Terms: terms, Version: entry.Version,
 		CreatedAt: entry.CreatedAt, UpdatedAt: entry.UpdatedAt,
 		PublishedAt: entry.PublishedAt, DeletedAt: entry.DeletedAt,
 	}
@@ -69,17 +89,31 @@ func (entry Entry) Domain() content.Entry {
 	for _, term := range entry.Terms {
 		terms = append(terms, content.TermRef{Taxonomy: term.Taxonomy, TermID: term.TermID})
 	}
-	return content.Entry{
+	locales := make(map[string]content.LocaleDocument, len(entry.Locales))
+	for locale, document := range entry.Locales {
+		locales[content.NormalizeLocale(locale)] = content.LocaleDocument{
+			Data: document.Data, Status: document.Status, UpdatedAt: document.UpdatedAt,
+		}
+	}
+	if loc := content.NormalizeLocale(entry.Locale); loc != "" && len(entry.Data) > 0 {
+		if _, exists := locales[loc]; !exists {
+			locales[loc] = content.LocaleDocument{Data: entry.Data, Status: entry.Status}
+		}
+	}
+	resolved := content.Entry{
 		ID: entry.ID, Kind: entry.Kind, Status: entry.Status, Visibility: entry.Visibility,
 		Slug: entry.Slug, Title: entry.Title, Content: entry.Content, Excerpt: entry.Excerpt,
 		AuthorID: entry.AuthorID, ParentID: entry.ParentID, FeaturedMediaID: entry.FeaturedMediaID,
-		Template: entry.Template, Metadata: metadata, Terms: terms, Version: entry.Version,
+		Template: entry.Template, Metadata: metadata, Locales: locales, Terms: terms, Version: entry.Version,
 		CreatedAt: entry.CreatedAt, UpdatedAt: entry.UpdatedAt,
 		PublishedAt: entry.PublishedAt, DeletedAt: entry.DeletedAt,
 	}
+	resolved.LiftLocaleMetadata()
+	return resolved
 }
 
 func EncodeEntry(entry content.Entry) ([]byte, error) {
+	entry.LiftLocaleMetadata()
 	encoded, err := json.Marshal(EntryFromDomain(entry))
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode content entry: %w", err)

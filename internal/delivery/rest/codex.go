@@ -16,10 +16,11 @@ import (
 
 // CodexHandler exposes the stable go-codex Level 0/1 compatibility surface.
 type CodexHandler struct {
-	content    *application.Service
-	taxonomies *applicationtaxonomy.Service
-	principal  PrincipalResolver
-	manifest   schema.Manifest
+	content       *application.Service
+	taxonomies    *applicationtaxonomy.Service
+	principal     PrincipalResolver
+	manifest      schema.Manifest
+	defaultLocale string
 }
 
 func NewCodexHandler(
@@ -36,7 +37,23 @@ func NewCodexHandler(
 	}
 	return &CodexHandler{
 		content: content, taxonomies: taxonomies, principal: principal, manifest: manifest,
+		defaultLocale: "en",
 	}, nil
+}
+
+func (handler *CodexHandler) SetDefaultLocale(locale string) {
+	locale = domaincontent.NormalizeLocale(locale)
+	if locale != "" {
+		handler.defaultLocale = locale
+	}
+}
+
+func (handler *CodexHandler) requestedLocale(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return handler.defaultLocale
+	}
+	return value
 }
 
 func (handler *CodexHandler) Routes(mux *http.ServeMux) {
@@ -127,7 +144,7 @@ func (handler *CodexHandler) list(kind domaincontent.Kind) http.HandlerFunc {
 			result.Entries = matched
 		}
 		writeJSON(response, http.StatusOK, map[string]any{
-			"data": handler.codexEntries(result.Entries), "pagination": projectPage(result.Page),
+			"data": handler.codexEntries(result.Entries, handler.requestedLocale(query.Locale)), "pagination": projectPage(result.Page),
 		})
 	}
 }
@@ -146,7 +163,9 @@ func (handler *CodexHandler) get(kind domaincontent.Kind) http.HandlerFunc {
 			writeError(response, request, err)
 			return
 		}
-		writeJSON(response, http.StatusOK, map[string]any{"data": handler.codexEntry(entry)})
+		writeJSON(response, http.StatusOK, map[string]any{
+			"data": handler.codexEntry(entry, handler.requestedLocale(request.URL.Query().Get("locale"))),
+		})
 	}
 }
 
@@ -156,18 +175,19 @@ func (handler *CodexHandler) bySlug(kind domaincontent.Kind) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		locale := strings.TrimSpace(request.URL.Query().Get("locale"))
-		if locale == "" {
-			locale = "en"
+		locale := handler.requestedLocale(request.URL.Query().Get("locale"))
+		slug := request.PathValue("slug")
+		entry, err := handler.content.GetBySlug(request.Context(), principal, kind, locale, slug)
+		if err != nil && locale != handler.defaultLocale {
+			entry, err = handler.content.GetBySlug(
+				request.Context(), principal, kind, handler.defaultLocale, slug,
+			)
 		}
-		entry, err := handler.content.GetBySlug(
-			request.Context(), principal, kind, locale, request.PathValue("slug"),
-		)
 		if err != nil {
 			writeError(response, request, err)
 			return
 		}
-		writeJSON(response, http.StatusOK, map[string]any{"data": handler.codexEntry(entry)})
+		writeJSON(response, http.StatusOK, map[string]any{"data": handler.codexEntry(entry, locale)})
 	}
 }
 
@@ -199,7 +219,7 @@ func (handler *CodexHandler) create(kind domaincontent.Kind) http.HandlerFunc {
 		}
 		response.Header().Set("Location", request.URL.Path+"/"+string(created.ID))
 		response.Header().Set("ETag", versionETag(created.Version))
-		writeJSON(response, http.StatusCreated, map[string]any{"data": handler.codexEntry(created)})
+		writeJSON(response, http.StatusCreated, map[string]any{"data": handler.codexEntry(created, handler.requestedLocale(request.URL.Query().Get("locale")))})
 	}
 }
 
@@ -236,7 +256,7 @@ func (handler *CodexHandler) update(kind domaincontent.Kind) http.HandlerFunc {
 			return
 		}
 		response.Header().Set("ETag", versionETag(updated.Version))
-		writeJSON(response, http.StatusOK, map[string]any{"data": handler.codexEntry(updated)})
+		writeJSON(response, http.StatusOK, map[string]any{"data": handler.codexEntry(updated, handler.requestedLocale(request.URL.Query().Get("locale")))})
 	}
 }
 
@@ -317,7 +337,7 @@ func (handler *CodexHandler) search(response http.ResponseWriter, request *http.
 		return
 	}
 	writeJSON(response, http.StatusOK, map[string]any{
-		"data": handler.codexEntries(result.Entries), "pagination": projectPage(result.Page),
+		"data": handler.codexEntries(result.Entries, query.Locale), "pagination": projectPage(result.Page),
 	})
 }
 
@@ -336,10 +356,10 @@ func (handler *CodexHandler) resolve(
 	return principal, true
 }
 
-func (handler *CodexHandler) codexEntries(entries []domaincontent.Entry) []map[string]any {
+func (handler *CodexHandler) codexEntries(entries []domaincontent.Entry, locale string) []map[string]any {
 	items := make([]map[string]any, 0, len(entries))
 	for _, entry := range entries {
-		items = append(items, handler.codexEntry(entry))
+		items = append(items, handler.codexEntry(entry, locale))
 	}
 	return items
 }
@@ -354,9 +374,14 @@ func (handler *CodexHandler) collectionFor(kind domaincontent.Kind) string {
 	return string(kind)
 }
 
-func (handler *CodexHandler) codexEntry(entry domaincontent.Entry) map[string]any {
+func (handler *CodexHandler) codexEntry(entry domaincontent.Entry, requested string) map[string]any {
+	entry.LiftLocaleMetadata()
+	resolved := entry.ResolveLocale(requested, handler.defaultLocale)
 	metadata := make(map[string]any, len(entry.Metadata))
 	for key, value := range entry.Metadata {
+		if strings.HasPrefix(key, "payload_") {
+			continue
+		}
 		metadata[key] = value.Value
 	}
 	termIDs := make([]string, 0, len(entry.Terms))
@@ -370,7 +395,10 @@ func (handler *CodexHandler) codexEntry(entry domaincontent.Entry) map[string]an
 		"slug": entry.Slug, "title": entry.Title, "content": entry.Content,
 		"excerpt": entry.Excerpt, "author_id": entry.AuthorID,
 		"featured_media_id": entry.FeaturedMediaID, "taxonomy_ids": termIDs,
-		"metadata": metadata, "created_at": entry.CreatedAt, "updated_at": entry.UpdatedAt,
+		"metadata": metadata, "document": resolved.Data,
+		"locale": resolved.Served, "requested": resolved.Requested, "fallback": resolved.Fallback,
+		"locale_status": resolved.Status, "locale_index": entry.LocaleIndex(),
+		"created_at": entry.CreatedAt, "updated_at": entry.UpdatedAt,
 		"published_at": entry.PublishedAt,
 		"links": map[string]string{
 			"self": record, "form": record + "/form", "revisions": record + "/revisions",
@@ -397,22 +425,31 @@ func mergeEntry(target *domaincontent.Entry, patch domaincontent.Entry) {
 	if patch.Visibility != "" {
 		target.Visibility = patch.Visibility
 	}
-	if len(patch.Slug) > 0 {
-		target.Slug = patch.Slug
-	}
-	if len(patch.Title) > 0 {
-		target.Title = patch.Title
-	}
-	if len(patch.Content) > 0 {
-		target.Content = patch.Content
-	}
-	if len(patch.Excerpt) > 0 {
-		target.Excerpt = patch.Excerpt
-	}
+	target.Slug = mergeLocalizedText(target.Slug, patch.Slug)
+	target.Title = mergeLocalizedText(target.Title, patch.Title)
+	target.Content = mergeLocalizedText(target.Content, patch.Content)
+	target.Excerpt = mergeLocalizedText(target.Excerpt, patch.Excerpt)
 	if patch.Metadata != nil {
 		target.Metadata = patch.Metadata
+	}
+	if len(patch.Locales) > 0 {
+		target.Locales = domaincontent.MergeLocales(target.Locales, patch.Locales)
 	}
 	if patch.Terms != nil {
 		target.Terms = patch.Terms
 	}
+	target.LiftLocaleMetadata()
+}
+
+func mergeLocalizedText(target, patch domaincontent.LocalizedText) domaincontent.LocalizedText {
+	if len(patch) == 0 {
+		return target
+	}
+	if target == nil {
+		target = domaincontent.LocalizedText{}
+	}
+	for locale, value := range patch {
+		target[locale] = value
+	}
+	return target
 }

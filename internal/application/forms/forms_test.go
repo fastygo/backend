@@ -12,10 +12,6 @@ func TestBindKeepsUnknownPayloadKeys(t *testing.T) {
 	t.Parallel()
 	resource := schema.Resource{
 		ID: "product", Collection: "products",
-		Fields: []schema.Field{
-			{ID: "payload_ru", Type: schema.FieldJSON},
-			{ID: "payload_en", Type: schema.FieldJSON},
-		},
 		Form: []schema.Field{
 			{ID: "title", Type: schema.FieldString, Required: true, Localized: true},
 			{ID: "price", Type: schema.FieldMoney},
@@ -128,6 +124,21 @@ func TestValidateEntryRejectsNonObjectPayload(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected payload object error")
+	}
+}
+
+func TestValidateEntryAcceptsOneLocaleWithoutTheOther(t *testing.T) {
+	t.Parallel()
+	resource := schema.Resource{
+		ID: "product", Collection: "products",
+		Form: []schema.Field{{ID: "title", Type: schema.FieldString, Required: true}},
+	}
+	if err := ValidateEntry(resource, domaincontent.Entry{
+		Locales: map[string]domaincontent.LocaleDocument{
+			"en": {Data: map[string]any{"title": "Course"}},
+		},
+	}); err != nil {
+		t.Fatalf("one locale write must not require the others: %v", err)
 	}
 }
 
