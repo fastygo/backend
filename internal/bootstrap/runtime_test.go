@@ -8,8 +8,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	_ "github.com/fastygo/backend/internal/storage/drivers"
 	"github.com/fastygo/framework/pkg/app"
 )
 
@@ -215,12 +217,12 @@ func TestLoadManifestMergesCoreKindsIntoExternalProfile(t *testing.T) {
 
 func TestOpenStorageRejectsIncompleteExternalDatabaseConfig(t *testing.T) {
 	_, err := OpenStorage(context.Background(), Config{Storage: "postgres"})
-	if err == nil {
-		t.Fatalf("PostgreSQL without DATABASE_URL was accepted")
+	if err == nil || !strings.Contains(err.Error(), "not included") {
+		t.Fatalf("PostgreSQL without a postgres build tag: %v", err)
 	}
 	_, err = OpenStorage(context.Background(), Config{Storage: "unknown"})
-	if err == nil {
-		t.Fatalf("unknown storage engine was accepted")
+	if err == nil || !strings.Contains(err.Error(), "not included") {
+		t.Fatalf("unknown storage engine: %v", err)
 	}
 }
 

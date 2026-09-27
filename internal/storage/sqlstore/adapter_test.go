@@ -14,6 +14,8 @@ import (
 	"github.com/fastygo/backend/internal/domain/authz"
 	"github.com/fastygo/backend/internal/persist"
 	"github.com/fastygo/codex/content"
+
+	_ "modernc.org/sqlite"
 )
 
 func TestSQLitePersistsContentRevisionsAndSlugs(t *testing.T) {

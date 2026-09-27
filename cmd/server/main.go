@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/fastygo/backend/internal/bootstrap"
+	_ "github.com/fastygo/backend/internal/storage/drivers"
 )
 
 func main() {

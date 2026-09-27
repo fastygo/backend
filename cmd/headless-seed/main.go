@@ -12,6 +12,7 @@ import (
 	"github.com/fastygo/backend/internal/bootstrap"
 	"github.com/fastygo/backend/internal/domain/authz"
 	"github.com/fastygo/backend/internal/operations/seed"
+	_ "github.com/fastygo/backend/internal/storage/drivers"
 )
 
 func main() {

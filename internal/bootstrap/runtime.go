@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -23,9 +22,7 @@ import (
 	"github.com/fastygo/backend/internal/operations/backup"
 	"github.com/fastygo/backend/internal/persist"
 	"github.com/fastygo/backend/internal/platform"
-	bboltstorage "github.com/fastygo/backend/internal/storage/bbolt"
 	"github.com/fastygo/backend/internal/storage/localmedia"
-	"github.com/fastygo/backend/internal/storage/sqlstore"
 	"github.com/fastygo/framework/pkg/app"
 )
 
@@ -255,33 +252,6 @@ func (runtime *Runtime) Close() error {
 		return nil
 	}
 	return runtime.storage.Close()
-}
-
-func OpenStorage(ctx context.Context, config Config) (Storage, error) {
-	switch strings.ToLower(strings.TrimSpace(config.Storage)) {
-	case "bbolt":
-		return bboltstorage.Open(config.BboltPath, 0o600, nil)
-	case "sqlite":
-		if config.DataSource == "" {
-			return nil, errors.New("DATABASE_URL is required for SQLite")
-		}
-		if err := os.MkdirAll(filepath.Dir(config.DataSource), 0o755); err != nil {
-			return nil, fmt.Errorf("failed to create SQLite directory: %w", err)
-		}
-		return sqlstore.Open(ctx, "sqlite", config.DataSource, sqlstore.DialectSQLite)
-	case "mysql", "mariadb":
-		if config.DataSource == "" {
-			return nil, errors.New("DATABASE_URL is required for MySQL or MariaDB")
-		}
-		return sqlstore.Open(ctx, "mysql", config.DataSource, sqlstore.DialectMySQL)
-	case "postgres", "postgresql":
-		if config.DataSource == "" {
-			return nil, errors.New("DATABASE_URL is required for PostgreSQL")
-		}
-		return sqlstore.Open(ctx, "pgx", config.DataSource, sqlstore.DialectPostgreSQL)
-	default:
-		return nil, errors.New("HEADLESS_STORAGE must be bbolt, sqlite, mysql, mariadb, or postgres")
-	}
 }
 
 func DefaultManifest() schema.Manifest {

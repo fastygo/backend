@@ -23,3 +23,8 @@ jobs:
           cache: true
       - run: go test -count=1 ./...
       - run: go vet ./...
+      - name: Canary server links bbolt only
+        run: |
+          deps="$(go list -deps -f '{{.ImportPath}}' ./cmd/server)"
+          printf '%s\n' "$deps" | grep -E 'modernc.org/sqlite|github.com/go-sql-driver/mysql|github.com/jackc/pgx' && exit 1 || true
+          printf '%s\n' "$deps" | grep -q 'go.etcd.io/bbolt'

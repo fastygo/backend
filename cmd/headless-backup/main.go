@@ -12,6 +12,7 @@ import (
 
 	"github.com/fastygo/backend/internal/bootstrap"
 	"github.com/fastygo/backend/internal/operations/backup"
+	_ "github.com/fastygo/backend/internal/storage/drivers"
 	"github.com/fastygo/backend/internal/storage/localmedia"
 )
 

@@ -16,6 +16,7 @@ build:
 run:
 	$(GO) run ./cmd/server
 
+# Untagged build is the bbolt canary. SQL drivers use -tags sqlite, mysql, or postgres.
 test:
 	$(GO) test -count=1 ./...
 

@@ -20,10 +20,6 @@ import (
 	"github.com/fastygo/codex/content"
 	"github.com/fastygo/codex/revision"
 	"github.com/google/uuid"
-
-	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/jackc/pgx/v5/stdlib"
-	_ "modernc.org/sqlite"
 )
 
 type Dialect string
