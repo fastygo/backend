@@ -7,9 +7,9 @@ import (
 	applicationidentity "github.com/fastygo/backend/internal/application/identity"
 	"github.com/fastygo/backend/internal/domain/audit"
 	domainidentity "github.com/fastygo/backend/internal/domain/identity"
-	"github.com/fastygo/backend/internal/domain/revision"
-	"github.com/fastygo/backend/internal/domain/taxonomy"
 	"github.com/fastygo/backend/internal/persist"
+	"github.com/fastygo/codex/revision"
+	"github.com/fastygo/codex/taxonomy"
 )
 
 type paginationDocument struct {

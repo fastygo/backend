@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/fastygo/backend/internal/domain/audit"
-	"github.com/fastygo/backend/internal/domain/content"
-	"github.com/fastygo/backend/internal/domain/revision"
-	"github.com/fastygo/backend/internal/domain/taxonomy"
+	"github.com/fastygo/codex/content"
+	"github.com/fastygo/codex/revision"
+	"github.com/fastygo/codex/taxonomy"
 )
 
 type Query struct {

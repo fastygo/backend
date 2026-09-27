@@ -8,8 +8,9 @@ import (
 	"strings"
 
 	application "github.com/fastygo/backend/internal/application/content"
+	"github.com/fastygo/backend/internal/contentcompat"
 	"github.com/fastygo/backend/internal/domain/authz"
-	domaincontent "github.com/fastygo/backend/internal/domain/content"
+	domaincontent "github.com/fastygo/codex/content"
 	"github.com/google/uuid"
 )
 
@@ -83,7 +84,7 @@ func entryFromRecord(record Record) domaincontent.Entry {
 	title := stringValue(record.Values["title"])
 	slug := stringValue(record.Values["slug"])
 	entry := domaincontent.Entry{
-		ID: domaincontent.ID(uuid.NewSHA1(idempotencyNamespace, []byte(record.IdempotencyKey)).String()),
+		ID:   domaincontent.ID(uuid.NewSHA1(idempotencyNamespace, []byte(record.IdempotencyKey)).String()),
 		Kind: domaincontent.Kind(record.Resource), Status: domaincontent.Status(stringValue(record.Values["status"])),
 		Visibility: domaincontent.Visibility(stringValue(record.Values["visibility"])),
 		Title:      domaincontent.LocalizedText{"en": title, "ru": title},
@@ -102,7 +103,7 @@ func entryFromRecord(record Record) domaincontent.Entry {
 	if raw, ok := record.Values["payload_en"]; ok {
 		applyPayloadLocale(&entry, "en", raw)
 	}
-	entry.LiftLocaleMetadata()
+	contentcompat.Lift(&entry)
 	if text := stringValue(record.Values["content"]); text != "" {
 		entry.Content["en"] = text
 		if entry.Content["ru"] == "" {

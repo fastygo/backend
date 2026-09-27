@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/fastygo/backend/internal/domain/content"
-	"github.com/fastygo/backend/internal/domain/taxonomy"
+	"github.com/fastygo/codex/content"
+	"github.com/fastygo/codex/taxonomy"
 )
 
 type Definition struct {

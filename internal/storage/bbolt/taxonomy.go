@@ -5,8 +5,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fastygo/backend/internal/domain/taxonomy"
 	"github.com/fastygo/backend/internal/persist"
+	"github.com/fastygo/codex/taxonomy"
 	bolt "go.etcd.io/bbolt"
 )
 

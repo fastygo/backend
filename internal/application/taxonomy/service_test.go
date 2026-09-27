@@ -8,9 +8,9 @@ import (
 	applicationcontent "github.com/fastygo/backend/internal/application/content"
 	applicationtaxonomy "github.com/fastygo/backend/internal/application/taxonomy"
 	"github.com/fastygo/backend/internal/domain/authz"
-	"github.com/fastygo/backend/internal/domain/content"
-	"github.com/fastygo/backend/internal/domain/taxonomy"
 	"github.com/fastygo/backend/internal/storage/bbolt"
+	"github.com/fastygo/codex/content"
+	"github.com/fastygo/codex/taxonomy"
 )
 
 func TestTaxonomyLifecycleAndContentAssignment(t *testing.T) {

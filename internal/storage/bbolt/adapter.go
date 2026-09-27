@@ -15,10 +15,10 @@ import (
 	contentapplication "github.com/fastygo/backend/internal/application/content"
 	identityapplication "github.com/fastygo/backend/internal/application/identity"
 	taxonomyapplication "github.com/fastygo/backend/internal/application/taxonomy"
-	"github.com/fastygo/backend/internal/domain/content"
-	"github.com/fastygo/backend/internal/domain/revision"
 	"github.com/fastygo/backend/internal/operations/backup"
 	"github.com/fastygo/backend/internal/persist"
+	"github.com/fastygo/codex/content"
+	"github.com/fastygo/codex/revision"
 	"github.com/google/uuid"
 	bolt "go.etcd.io/bbolt"
 )

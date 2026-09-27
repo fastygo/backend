@@ -19,7 +19,7 @@ func TestUserValidation(t *testing.T) {
 		mutate    func(*User)
 		wantError bool
 	}{
-		"valid": {},
+		"valid":         {},
 		"missing email": {mutate: func(user *User) { user.Email = "not-an-email" }, wantError: true},
 		"no roles":      {mutate: func(user *User) { user.RoleIDs = nil }, wantError: true},
 	}

@@ -9,8 +9,8 @@ import (
 
 	applicationmedia "github.com/fastygo/backend/internal/application/media"
 	"github.com/fastygo/backend/internal/domain/authz"
-	"github.com/fastygo/backend/internal/domain/content"
 	domainmedia "github.com/fastygo/backend/internal/domain/media"
+	"github.com/fastygo/codex/content"
 	"github.com/fastygo/framework/pkg/core"
 )
 

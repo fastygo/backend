@@ -11,8 +11,8 @@ import (
 
 	contentapplication "github.com/fastygo/backend/internal/application/content"
 	"github.com/fastygo/backend/internal/domain/authz"
-	"github.com/fastygo/backend/internal/domain/content"
 	domainmedia "github.com/fastygo/backend/internal/domain/media"
+	"github.com/fastygo/codex/content"
 	"github.com/fastygo/framework/pkg/core"
 	"github.com/google/uuid"
 )

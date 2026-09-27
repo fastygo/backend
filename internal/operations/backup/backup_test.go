@@ -11,13 +11,13 @@ import (
 	identityapplication "github.com/fastygo/backend/internal/application/identity"
 	taxonomyapplication "github.com/fastygo/backend/internal/application/taxonomy"
 	"github.com/fastygo/backend/internal/domain/authz"
-	"github.com/fastygo/backend/internal/domain/content"
 	"github.com/fastygo/backend/internal/domain/schema"
-	"github.com/fastygo/backend/internal/domain/taxonomy"
 	tokenidentity "github.com/fastygo/backend/internal/identity"
 	"github.com/fastygo/backend/internal/operations/backup"
 	bboltstorage "github.com/fastygo/backend/internal/storage/bbolt"
 	"github.com/fastygo/backend/internal/storage/sqlstore"
+	"github.com/fastygo/codex/content"
+	"github.com/fastygo/codex/taxonomy"
 )
 
 func TestBackupRestoresAcrossBboltAndSQLiteAdapters(t *testing.T) {

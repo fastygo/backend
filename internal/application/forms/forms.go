@@ -6,8 +6,9 @@ import (
 	"strings"
 	"unicode"
 
-	domaincontent "github.com/fastygo/backend/internal/domain/content"
+	"github.com/fastygo/backend/internal/contentcompat"
 	"github.com/fastygo/backend/internal/domain/schema"
+	domaincontent "github.com/fastygo/codex/content"
 	"github.com/fastygo/formset"
 	"github.com/fastygo/framework/pkg/core"
 )
@@ -50,7 +51,7 @@ func Schema(resource schema.Resource) (formset.JSONSchema, error) {
 // accepts metadata payload_<locale>. An entry with no locale rows uses other
 // metadata as a single implicit document (caller must pass Bind locales).
 func LocaleDocumentsFromEntry(entry domaincontent.Entry) map[string]map[string]any {
-	entry.LiftLocaleMetadata()
+	contentcompat.Lift(&entry)
 	documents := map[string]map[string]any{}
 	for locale, document := range entry.Locales {
 		if document.Data != nil {

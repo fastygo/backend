@@ -12,10 +12,11 @@ import (
 
 	application "github.com/fastygo/backend/internal/application/content"
 	"github.com/fastygo/backend/internal/application/forms"
+	"github.com/fastygo/backend/internal/contentcompat"
 	"github.com/fastygo/backend/internal/domain/authz"
-	domaincontent "github.com/fastygo/backend/internal/domain/content"
 	domainschema "github.com/fastygo/backend/internal/domain/schema"
 	"github.com/fastygo/backend/internal/persist"
+	domaincontent "github.com/fastygo/codex/content"
 	"github.com/fastygo/formset"
 	"github.com/google/uuid"
 	"github.com/graphql-go/graphql"
@@ -154,13 +155,13 @@ func (handler *Handler) buildSchema(manifest domainschema.Manifest) (graphql.Sch
 	formsetForm := graphql.NewObject(graphql.ObjectConfig{
 		Name: "FormsetForm",
 		Fields: graphql.Fields{
-			"record":   &graphql.Field{Type: graphql.NewNonNull(graphql.String)},
-			"locales":  &graphql.Field{Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(graphql.String)))},
-			"fields":   &graphql.Field{Type: graphql.NewNonNull(jsonScalar)},
-			"values":   &graphql.Field{Type: graphql.NewNonNull(jsonScalar)},
-			"extra":    &graphql.Field{Type: jsonScalar},
-			"issues":   &graphql.Field{Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(formsetIssue)))},
-			"schema":   &graphql.Field{Type: graphql.NewNonNull(jsonScalar)},
+			"record":    &graphql.Field{Type: graphql.NewNonNull(graphql.String)},
+			"locales":   &graphql.Field{Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(graphql.String)))},
+			"fields":    &graphql.Field{Type: graphql.NewNonNull(jsonScalar)},
+			"values":    &graphql.Field{Type: graphql.NewNonNull(jsonScalar)},
+			"extra":     &graphql.Field{Type: jsonScalar},
+			"issues":    &graphql.Field{Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(formsetIssue)))},
+			"schema":    &graphql.Field{Type: graphql.NewNonNull(jsonScalar)},
 			"documents": &graphql.Field{Type: graphql.NewNonNull(jsonScalar)},
 		},
 	})
@@ -286,12 +287,12 @@ func formsetView(resource domainschema.Resource, form formset.Form) (map[string]
 		issues = []formset.Issue{}
 	}
 	return map[string]any{
-		"record":   string(form.Record),
-		"locales":  form.Locales,
-		"fields":   form.Fields,
-		"values":   form.Values,
-		"extra":    form.Extra,
-		"issues":   issues,
+		"record":    string(form.Record),
+		"locales":   form.Locales,
+		"fields":    form.Fields,
+		"values":    form.Values,
+		"extra":     form.Extra,
+		"issues":    issues,
 		"schema":    jsonSchema,
 		"documents": form.Documents(),
 	}, nil
@@ -511,6 +512,13 @@ func applyGraphQLInput(entry *domaincontent.Entry, input map[string]any) {
 			entry.Metadata[key] = domaincontent.MetadataValue{Value: value}
 		}
 	}
+	for locale, document := range entry.Locales {
+		if document.Status.Valid() {
+			continue
+		}
+		document.Status = entry.Status
+		entry.Locales[locale] = document
+	}
 }
 
 func applyLocalizedText(target domaincontent.LocalizedText, value any) {
@@ -535,7 +543,7 @@ func graphQLRecord(entry domaincontent.Entry) map[string]any {
 		"createdAt": entry.CreatedAt.UTC().Format(time.RFC3339Nano),
 		"updatedAt": entry.UpdatedAt.UTC().Format(time.RFC3339Nano),
 	}
-	entry.LiftLocaleMetadata()
+	contentcompat.Lift(&entry)
 	locales := map[string]any{}
 	for locale, document := range entry.Locales {
 		locales[locale] = map[string]any{"data": document.Data, "status": document.Status}

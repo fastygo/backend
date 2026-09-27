@@ -12,8 +12,8 @@ import (
 
 	application "github.com/fastygo/backend/internal/application/content"
 	"github.com/fastygo/backend/internal/domain/authz"
-	"github.com/fastygo/backend/internal/domain/content"
 	"github.com/fastygo/backend/internal/persist"
+	"github.com/fastygo/codex/content"
 )
 
 func TestSQLitePersistsContentRevisionsAndSlugs(t *testing.T) {
@@ -120,8 +120,8 @@ func TestSQLiteListFiltersSortsAndPaginatesInSQL(t *testing.T) {
 		{
 			ID: "product_2", Kind: "product", Status: content.StatusPublished,
 			Visibility: content.VisibilityPublic, AuthorID: "author-2",
-			Title:   content.LocalizedText{"en": "Alpha", "ru": "Альфа"},
-			Content: content.LocalizedText{"en": "Needle description", "ru": "Описание"},
+			Title:    content.LocalizedText{"en": "Alpha", "ru": "Альфа"},
+			Content:  content.LocalizedText{"en": "Needle description", "ru": "Описание"},
 			Terms:    []content.TermRef{{Taxonomy: "catalog", TermID: "featured"}},
 			Metadata: map[string]content.MetadataValue{"brand": {Value: "brand_1"}},
 			Version:  1, CreatedAt: now.Add(time.Minute), UpdatedAt: now.Add(time.Minute),

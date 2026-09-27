@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fastygo/backend/internal/domain/content"
-	"github.com/fastygo/backend/internal/domain/revision"
+	"github.com/fastygo/codex/content"
+	"github.com/fastygo/codex/revision"
 )
 
 func TestEncodeDecodeRevisionRoundTrip(t *testing.T) {

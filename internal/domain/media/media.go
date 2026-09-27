@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/fastygo/backend/internal/domain/content"
+	"github.com/fastygo/codex/content"
 )
 
 const (

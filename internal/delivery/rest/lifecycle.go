@@ -8,9 +8,9 @@ import (
 	"time"
 
 	application "github.com/fastygo/backend/internal/application/content"
-	domaincontent "github.com/fastygo/backend/internal/domain/content"
-	"github.com/fastygo/backend/internal/domain/revision"
 	"github.com/fastygo/backend/internal/persist"
+	domaincontent "github.com/fastygo/codex/content"
+	"github.com/fastygo/codex/revision"
 	"github.com/fastygo/framework/pkg/core"
 )
 

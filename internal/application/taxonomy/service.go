@@ -9,7 +9,7 @@ import (
 	contentapplication "github.com/fastygo/backend/internal/application/content"
 	"github.com/fastygo/backend/internal/domain/audit"
 	"github.com/fastygo/backend/internal/domain/authz"
-	domaintaxonomy "github.com/fastygo/backend/internal/domain/taxonomy"
+	domaintaxonomy "github.com/fastygo/codex/taxonomy"
 	"github.com/fastygo/framework/pkg/core"
 )
 

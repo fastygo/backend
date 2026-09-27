@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fastygo/backend/internal/domain/content"
+	"github.com/fastygo/codex/content"
 )
 
 func TestFromEntryAndValidation(t *testing.T) {

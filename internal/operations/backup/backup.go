@@ -10,11 +10,11 @@ import (
 
 	application "github.com/fastygo/backend/internal/application/content"
 	"github.com/fastygo/backend/internal/domain/audit"
-	"github.com/fastygo/backend/internal/domain/content"
-	"github.com/fastygo/backend/internal/domain/revision"
 	"github.com/fastygo/backend/internal/domain/schema"
-	"github.com/fastygo/backend/internal/domain/taxonomy"
 	"github.com/fastygo/backend/internal/persist"
+	"github.com/fastygo/codex/content"
+	"github.com/fastygo/codex/revision"
+	"github.com/fastygo/codex/taxonomy"
 )
 
 const FormatVersion = 3

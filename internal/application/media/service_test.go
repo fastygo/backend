@@ -11,9 +11,9 @@ import (
 	contentapplication "github.com/fastygo/backend/internal/application/content"
 	applicationmedia "github.com/fastygo/backend/internal/application/media"
 	"github.com/fastygo/backend/internal/domain/authz"
-	"github.com/fastygo/backend/internal/domain/content"
 	bboltstorage "github.com/fastygo/backend/internal/storage/bbolt"
 	"github.com/fastygo/backend/internal/storage/localmedia"
+	"github.com/fastygo/codex/content"
 )
 
 func TestMediaUploadPersistsMetadataAndEnforcesPrivateAccess(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 
 	application "github.com/fastygo/backend/internal/application/content"
 	"github.com/fastygo/backend/internal/domain/authz"
-	"github.com/fastygo/backend/internal/domain/content"
+	"github.com/fastygo/codex/content"
 )
 
 func TestAdapterPersistsContentAndRevisionsAcrossReopen(t *testing.T) {

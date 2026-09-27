@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"github.com/fastygo/backend/internal/application/forms"
-	domaincontent "github.com/fastygo/backend/internal/domain/content"
 	"github.com/fastygo/backend/internal/domain/schema"
 	"github.com/fastygo/backend/internal/persist"
+	domaincontent "github.com/fastygo/codex/content"
 	"github.com/fastygo/framework/pkg/core"
 )
 

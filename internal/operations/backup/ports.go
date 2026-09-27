@@ -5,10 +5,10 @@ import (
 
 	contentapplication "github.com/fastygo/backend/internal/application/content"
 	"github.com/fastygo/backend/internal/domain/audit"
-	"github.com/fastygo/backend/internal/domain/content"
 	domainidentity "github.com/fastygo/backend/internal/domain/identity"
-	"github.com/fastygo/backend/internal/domain/revision"
-	"github.com/fastygo/backend/internal/domain/taxonomy"
+	"github.com/fastygo/codex/content"
+	"github.com/fastygo/codex/revision"
+	"github.com/fastygo/codex/taxonomy"
 )
 
 type ContentRepository interface {

@@ -46,7 +46,7 @@ func projectResource(resource domainschema.Resource) panel.Resource[Capability] 
 		if len(columns) < 7 && !field.Sensitive {
 			columns = append(columns, panel.Column{
 				ID: field.ID, Label: labelFor(field.ID), Type: projectColumnType(field.Type),
-				Sortable:   field.Type != domainschema.FieldJSON && field.Type != domainschema.FieldCollection,
+				Sortable: field.Type != domainschema.FieldJSON && field.Type != domainschema.FieldCollection,
 				Searchable: field.Type == domainschema.FieldString || field.Type == domainschema.FieldText ||
 					field.Type == domainschema.FieldRichText || field.Type == domainschema.FieldMarkdown,
 				Toggleable: true,

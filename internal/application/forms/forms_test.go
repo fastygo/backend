@@ -3,8 +3,8 @@ package forms
 import (
 	"testing"
 
-	domaincontent "github.com/fastygo/backend/internal/domain/content"
 	"github.com/fastygo/backend/internal/domain/schema"
+	domaincontent "github.com/fastygo/codex/content"
 	"github.com/fastygo/formset"
 )
 

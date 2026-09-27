@@ -16,7 +16,7 @@ func TestEventValidation(t *testing.T) {
 		mutate    func(*Event)
 		wantError bool
 	}{
-		"valid": {},
+		"valid":               {},
 		"missing id":          {mutate: func(event *Event) { event.ID = " " }, wantError: true},
 		"missing timestamp":   {mutate: func(event *Event) { event.OccurredAt = time.Time{} }, wantError: true},
 		"missing actor":       {mutate: func(event *Event) { event.ActorID = "" }, wantError: true},

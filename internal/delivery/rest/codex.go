@@ -7,21 +7,22 @@ import (
 
 	application "github.com/fastygo/backend/internal/application/content"
 	applicationtaxonomy "github.com/fastygo/backend/internal/application/taxonomy"
+	"github.com/fastygo/backend/internal/contentcompat"
 	"github.com/fastygo/backend/internal/domain/authz"
-	domaincontent "github.com/fastygo/backend/internal/domain/content"
 	"github.com/fastygo/backend/internal/domain/schema"
 	"github.com/fastygo/backend/internal/persist"
+	domaincontent "github.com/fastygo/codex/content"
 	"github.com/fastygo/framework/pkg/core"
 )
 
 // CodexHandler exposes the stable go-codex Level 0/1 compatibility surface.
 type CodexHandler struct {
-	content       *application.Service
-	taxonomies    *applicationtaxonomy.Service
-	principal     PrincipalResolver
-	manifest          schema.Manifest
-	defaultLocale     string
-	availableLocales  []string
+	content          *application.Service
+	taxonomies       *applicationtaxonomy.Service
+	principal        PrincipalResolver
+	manifest         schema.Manifest
+	defaultLocale    string
+	availableLocales []string
 }
 
 func NewCodexHandler(
@@ -398,7 +399,7 @@ func (handler *CodexHandler) collectionFor(kind domaincontent.Kind) string {
 }
 
 func (handler *CodexHandler) codexEntry(entry domaincontent.Entry, requested string) map[string]any {
-	entry.LiftLocaleMetadata()
+	contentcompat.Lift(&entry)
 	resolved := entry.ResolveLocale(requested, handler.defaultLocale)
 	metadata := make(map[string]any, len(entry.Metadata))
 	for key, value := range entry.Metadata {
@@ -456,12 +457,21 @@ func mergeEntry(target *domaincontent.Entry, patch domaincontent.Entry) {
 		target.Metadata = patch.Metadata
 	}
 	if len(patch.Locales) > 0 {
-		target.Locales = domaincontent.MergeLocales(target.Locales, patch.Locales)
+		if merged, err := domaincontent.MergeLocales(target.Locales, patch.Locales); err == nil {
+			target.Locales = merged
+		}
+		for locale, document := range target.Locales {
+			if document.Status.Valid() {
+				continue
+			}
+			document.Status = target.Status
+			target.Locales[locale] = document
+		}
 	}
 	if patch.Terms != nil {
 		target.Terms = patch.Terms
 	}
-	target.LiftLocaleMetadata()
+	contentcompat.Lift(target)
 }
 
 func mergeLocalizedText(target, patch domaincontent.LocalizedText) domaincontent.LocalizedText {

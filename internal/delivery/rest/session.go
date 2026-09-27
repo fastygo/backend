@@ -106,4 +106,3 @@ func (handler *SessionHandler) writeSessionCookie(response http.ResponseWriter, 
 	}
 	http.SetCookie(response, cookie)
 }
-

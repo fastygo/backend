@@ -14,10 +14,11 @@ import (
 	contentapplication "github.com/fastygo/backend/internal/application/content"
 	identityapplication "github.com/fastygo/backend/internal/application/identity"
 	taxonomyapplication "github.com/fastygo/backend/internal/application/taxonomy"
-	"github.com/fastygo/backend/internal/domain/content"
-	"github.com/fastygo/backend/internal/domain/revision"
+	"github.com/fastygo/backend/internal/contentcompat"
 	"github.com/fastygo/backend/internal/operations/backup"
 	"github.com/fastygo/backend/internal/persist"
+	"github.com/fastygo/codex/content"
+	"github.com/fastygo/codex/revision"
 	"github.com/google/uuid"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -617,7 +618,7 @@ func (repository contentRepository) replaceLocales(ctx context.Context, entry co
 	); err != nil {
 		return err
 	}
-	entry.LiftLocaleMetadata()
+	contentcompat.Lift(&entry)
 	statement := bind(repository.dialect,
 		"INSERT INTO content_locales (entry_id, locale, status, updated_at, data) VALUES (?, ?, ?, ?, ?)",
 	)

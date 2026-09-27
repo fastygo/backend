@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"strings"
 
-	domaincontent "github.com/fastygo/backend/internal/domain/content"
+	domaincontent "github.com/fastygo/codex/content"
 )
 
 const collectionPrefix = "/go-json/go/v2/"

@@ -12,12 +12,13 @@ import (
 	"time"
 
 	"github.com/fastygo/backend/internal/application/forms"
+	"github.com/fastygo/backend/internal/contentcompat"
 	"github.com/fastygo/backend/internal/domain/audit"
 	"github.com/fastygo/backend/internal/domain/authz"
-	domaincontent "github.com/fastygo/backend/internal/domain/content"
-	"github.com/fastygo/backend/internal/domain/revision"
 	"github.com/fastygo/backend/internal/domain/schema"
-	domainTaxonomy "github.com/fastygo/backend/internal/domain/taxonomy"
+	domaincontent "github.com/fastygo/codex/content"
+	"github.com/fastygo/codex/revision"
+	domainTaxonomy "github.com/fastygo/codex/taxonomy"
 	"github.com/fastygo/framework/pkg/core"
 	"github.com/google/uuid"
 )
@@ -527,7 +528,7 @@ func (service *Service) validateManifest(
 	if service.manifest == nil {
 		return nil
 	}
-	entry.LiftLocaleMetadata()
+	contentcompat.Lift(entry)
 	var resource *schema.Resource
 	for index := range service.manifest.Resources {
 		if service.manifest.Resources[index].ID == string(entry.Kind) {

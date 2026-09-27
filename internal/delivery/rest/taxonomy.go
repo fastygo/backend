@@ -8,8 +8,8 @@ import (
 
 	applicationtaxonomy "github.com/fastygo/backend/internal/application/taxonomy"
 	"github.com/fastygo/backend/internal/domain/authz"
-	domaintaxonomy "github.com/fastygo/backend/internal/domain/taxonomy"
 	"github.com/fastygo/backend/internal/persist"
+	domaintaxonomy "github.com/fastygo/codex/taxonomy"
 	"github.com/fastygo/framework/pkg/core"
 )
 
