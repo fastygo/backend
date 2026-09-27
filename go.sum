@@ -21,6 +21,8 @@ github.com/fastygo/framework v0.4.0 h1:l02BXSrCp5ZXfyjdNai2oKL+Ova1zgdNAODwNJT0K
 github.com/fastygo/framework v0.4.0/go.mod h1:Uf0fR/rtZq3W/hHnEH90Uc0SC4QP8jqRgjz0w8o0yBM=
 github.com/fastygo/panel v0.0.0-20260526234749-cfef0826406f h1:vfWyP3W6V8Uv+m9teF293UjW+/F21nuhflI5IlwJm4c=
 github.com/fastygo/panel v0.0.0-20260526234749-cfef0826406f/go.mod h1:WjPcCDq27OZxGzemgEOGQ4YYVrnO7ogFvrTNl2BDkr0=
+github.com/fastygo/panel v0.1.0 h1:z84v1uKqNqZhn/LDo4H8obMXG6Zorgy0nDFhsacvyZA=
+github.com/fastygo/panel v0.1.0/go.mod h1:WjPcCDq27OZxGzemgEOGQ4YYVrnO7ogFvrTNl2BDkr0=
 github.com/go-sql-driver/mysql v1.10.0 h1:Q+1LV8DkHJvSYAdR83XzuhDaTykuDx0l6fkXxoWCWfw=
 github.com/go-sql-driver/mysql v1.10.0/go.mod h1:M+cqaI7+xxXGG9swrdeUIoPG3Y3KCkF0pZej+SK+nWk=
 github.com/google/go-cmdtest v0.4.1-0.20220921163831-55ab3332a786 h1:rcv+Ippz6RAtvaGgKxc+8FQIpxHgsF+HBzPyYL2cyVU=
