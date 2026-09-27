@@ -17,6 +17,8 @@ github.com/fastygo/formset v0.2.0 h1:4fRuyuOZFAbu1ceDX5R9oHGHZAv3zdJTsKk3A72eVUQ
 github.com/fastygo/formset v0.2.0/go.mod h1:7CukK+d/NdCPOAJ+94Fq+T+n39y9jZ+oiEY4GQJQ7mU=
 github.com/fastygo/framework v0.0.0-20260728192540-4fbac65b139f h1:Ig//SvPcQII3HuQPZ00Cv1yZ29NH0KM0FuJQmHi9n8U=
 github.com/fastygo/framework v0.0.0-20260728192540-4fbac65b139f/go.mod h1:4MDilxXxsPqrsEqPJg/n6D1ZIDYI1wylfp7lQ27XX3I=
+github.com/fastygo/framework v0.4.0 h1:l02BXSrCp5ZXfyjdNai2oKL+Ova1zgdNAODwNJT0K+E=
+github.com/fastygo/framework v0.4.0/go.mod h1:Uf0fR/rtZq3W/hHnEH90Uc0SC4QP8jqRgjz0w8o0yBM=
 github.com/fastygo/panel v0.0.0-20260526234749-cfef0826406f h1:vfWyP3W6V8Uv+m9teF293UjW+/F21nuhflI5IlwJm4c=
 github.com/fastygo/panel v0.0.0-20260526234749-cfef0826406f/go.mod h1:WjPcCDq27OZxGzemgEOGQ4YYVrnO7ogFvrTNl2BDkr0=
 github.com/go-sql-driver/mysql v1.10.0 h1:Q+1LV8DkHJvSYAdR83XzuhDaTykuDx0l6fkXxoWCWfw=
