@@ -162,14 +162,19 @@ Docker requires the secrets declared in `.env.example`. The image runs as an unp
 
 ## Verification
 
+Laptop canary, and the GitHub Actions job:
+
 ```bash
-make verify
+go test -count=1 ./...
+go vet ./...
 ```
 
-The production gate runs tests, conformance, vet, Staticcheck, `govulncheck`,
-Linux race detection, module verification, and all command builds. On Windows,
-the race detector runs in Docker. CI additionally exercises PostgreSQL, MySQL,
-and MariaDB through `make live-sql`.
+The untagged `./cmd/server` build links bbolt only. Race detection, Staticcheck,
+`govulncheck`, and `make live-sql` are the VPS gate. They are not required for
+this canary tag.
+
+Entries, taxonomies, and revisions come from `github.com/fastygo/codex`.
+Collection names and REST/GraphQL visibility stay in this module.
 
 See `docs/deployment/bare-metal.md` for a systemd installation and
 `docs/architecture/target-headless.md` for architectural boundaries.

@@ -22,10 +22,14 @@ Hard rules:
 - No storefront SSR, product schemas in `DefaultManifest`, cart/checkout, or
   server-side markdown compilation.
 - No second content REST API or duplicate auth/visibility/lifecycle rules.
-- No committed local `replace` for Framework, Panel, or FormSet.
+- No committed local `replace` for Codex, Framework, Panel, or FormSet.
+  Pin published tags: Codex v0.3.0, FormSet v0.2.0, Framework v0.4.0, Panel v0.1.0.
+- The untagged server binary links bbolt only. SQL drivers use `-tags sqlite`,
+  `mysql`, or `postgres`. MariaDB uses the mysql tag.
 - `headless-seed` is a one-shot CLI; do not invent server seed-on-start env.
 - Do not claim direct credentialed CORS or public `0.0.0.0` bind as production.
 - Auth/session/CSRF modifications require REST tests and security-doc updates.
+- Cookie mutations require `X-CSRF-Token`. Bearer requests are exempt.
 
-Run `make verify`, `make live-sql`, and
-`go test ./internal/conformance/...` when their affected contracts change.
+The laptop canary is `go test -count=1 ./...` and `go vet ./...`.
+`make verify` (race) and `make live-sql` run on a VPS, not on this machine.
