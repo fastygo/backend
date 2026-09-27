@@ -66,7 +66,7 @@ func LoadConfig() (Config, error) {
 	loadDotEnv(".env")
 	frameworkConfig, err := app.LoadConfig()
 	if err != nil {
-		return Config{}, err
+		return Config{}, fmt.Errorf("failed to load framework config: %w", err)
 	}
 	if frameworkConfig.HealthLivePath == "" {
 		frameworkConfig.HealthLivePath = "/healthz"
@@ -89,7 +89,7 @@ func LoadConfig() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	return Config{
+	config := Config{
 		App:               frameworkConfig,
 		Storage:           strings.ToLower(env("HEADLESS_STORAGE", "bbolt")),
 		DataSource:        strings.TrimSpace(os.Getenv("DATABASE_URL")),
@@ -104,7 +104,11 @@ func LoadConfig() (Config, error) {
 		MediaRoot:         env("HEADLESS_MEDIA_ROOT", "var/lib/headless/media"),
 		MediaMaxBytes:     mediaMaxBytes,
 		ScheduleInterval:  scheduleInterval,
-	}, nil
+	}
+	if config.TokenSecret != "" && len(config.TokenSecret) < 32 {
+		return Config{}, errors.New("HEADLESS_TOKEN_SECRET must contain at least 32 bytes")
+	}
+	return config, nil
 }
 
 func Build(ctx context.Context, config Config) (*Runtime, error) {
@@ -258,6 +262,9 @@ func (runtime *Runtime) Close() error {
 }
 
 func OpenStorage(ctx context.Context, config Config) (Storage, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("open storage: %w", err)
+	}
 	switch strings.ToLower(strings.TrimSpace(config.Storage)) {
 	case "bbolt":
 		return bboltstorage.Open(config.BboltPath, 0o600, nil)

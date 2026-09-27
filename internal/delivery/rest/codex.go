@@ -16,12 +16,12 @@ import (
 
 // CodexHandler exposes the stable go-codex Level 0/1 compatibility surface.
 type CodexHandler struct {
-	content       *application.Service
-	taxonomies    *applicationtaxonomy.Service
-	principal     PrincipalResolver
-	manifest          schema.Manifest
-	defaultLocale     string
-	availableLocales  []string
+	content          *application.Service
+	taxonomies       *applicationtaxonomy.Service
+	principal        PrincipalResolver
+	manifest         schema.Manifest
+	defaultLocale    string
+	availableLocales []string
 }
 
 func NewCodexHandler(
@@ -430,15 +430,7 @@ func (handler *CodexHandler) codexEntry(entry domaincontent.Entry, requested str
 }
 
 func (handler *CodexHandler) guardMutation(response http.ResponseWriter, request *http.Request) bool {
-	guard, ok := handler.principal.(interface{ ValidateCookieCSRF(*http.Request) error })
-	if !ok {
-		return true
-	}
-	if err := guard.ValidateCookieCSRF(request); err != nil {
-		writeError(response, request, core.NewDomainError(core.ErrorCodeForbidden, "csrf token is invalid"))
-		return false
-	}
-	return true
+	return guardCookieMutation(handler.principal, response, request)
 }
 
 func mergeEntry(target *domaincontent.Entry, patch domaincontent.Entry) {

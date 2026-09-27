@@ -316,13 +316,33 @@ func TestBuildExposesCMSCookieSession(t *testing.T) {
 	}
 }
 
+func TestLoadConfigRejectsShortTokenSecret(t *testing.T) {
+	t.Setenv("HEADLESS_TOKEN_SECRET", "too-short")
+	if _, err := LoadConfig(); err == nil {
+		t.Fatal("short token secret was accepted")
+	}
+}
+
+func TestOpenStorageRespectsCancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := OpenStorage(ctx, Config{Storage: "bbolt", BboltPath: filepath.Join(t.TempDir(), "cancelled.db")})
+	if err == nil {
+		t.Fatal("cancelled storage open succeeded")
+	}
+}
+
 func TestFrameworkConfigBoundsHTTPShutdown(t *testing.T) {
 	t.Parallel()
 	config, err := app.LoadConfig()
 	if err != nil {
 		t.Fatalf("load framework config: %v", err)
 	}
-	if config.HTTPShutdownTimeout <= 0 || config.HTTPReadTimeout <= 0 || config.HTTPWriteTimeout <= 0 {
+	if config.HTTPShutdownTimeout <= 0 ||
+		config.HTTPReadTimeout <= 0 ||
+		config.HTTPReadHeaderTimeout <= 0 ||
+		config.HTTPWriteTimeout <= 0 ||
+		config.HTTPIdleTimeout <= 0 {
 		t.Fatalf("HTTP timeouts must be bounded: %#v", config)
 	}
 }

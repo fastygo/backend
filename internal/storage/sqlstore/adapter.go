@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync"
 	"time"
 
 	contentapplication "github.com/fastygo/backend/internal/application/content"
@@ -39,8 +40,10 @@ var (
 )
 
 type Adapter struct {
-	database *sql.DB
-	dialect  Dialect
+	database  *sql.DB
+	dialect   Dialect
+	closeOnce sync.Once
+	closeErr  error
 }
 
 var (
@@ -58,9 +61,7 @@ func Open(ctx context.Context, driver, dataSource string, dialect Dialect) (*Ada
 	if err != nil {
 		return nil, fmt.Errorf("failed to open SQL database: %w", err)
 	}
-	if dialect == DialectSQLite {
-		database.SetMaxOpenConns(1)
-	}
+	configurePool(database, dialect)
 	adapter := &Adapter{database: database, dialect: dialect}
 	if err := adapter.Ping(ctx); err != nil {
 		_ = database.Close()
@@ -74,10 +75,26 @@ func Open(ctx context.Context, driver, dataSource string, dialect Dialect) (*Ada
 }
 
 func (adapter *Adapter) Close() error {
-	if adapter == nil || adapter.database == nil {
+	if adapter == nil {
 		return nil
 	}
-	return adapter.database.Close()
+	adapter.closeOnce.Do(func() {
+		if adapter.database != nil {
+			adapter.closeErr = adapter.database.Close()
+		}
+	})
+	return adapter.closeErr
+}
+
+func configurePool(database *sql.DB, dialect Dialect) {
+	if dialect == DialectSQLite {
+		database.SetMaxOpenConns(1)
+		return
+	}
+	database.SetMaxOpenConns(25)
+	database.SetMaxIdleConns(5)
+	database.SetConnMaxLifetime(5 * time.Minute)
+	database.SetConnMaxIdleTime(time.Minute)
 }
 
 func (adapter *Adapter) Ping(ctx context.Context) error {
@@ -167,13 +184,16 @@ func (adapter *Adapter) update(ctx context.Context, operation func(*sql.Tx) erro
 	}
 	transaction, err := adapter.database.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to begin SQL transaction: %w", err)
 	}
 	defer func() { _ = transaction.Rollback() }()
 	if err := operation(transaction); err != nil {
 		return err
 	}
-	return transaction.Commit()
+	if err := transaction.Commit(); err != nil {
+		return fmt.Errorf("failed to commit SQL transaction: %w", err)
+	}
+	return nil
 }
 
 func (dialect Dialect) Valid() bool {

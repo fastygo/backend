@@ -14,7 +14,10 @@ type taxonomyRepository struct {
 	transaction *bolt.Tx
 }
 
-func (repository taxonomyRepository) GetDefinition(_ context.Context, id string) (taxonomy.Definition, error) {
+func (repository taxonomyRepository) GetDefinition(ctx context.Context, id string) (taxonomy.Definition, error) {
+	if err := ctx.Err(); err != nil {
+		return taxonomy.Definition{}, err
+	}
 	value := repository.transaction.Bucket(taxonomiesBucket).Get([]byte(id))
 	if value == nil {
 		return taxonomy.Definition{}, ErrNotFound
@@ -22,7 +25,10 @@ func (repository taxonomyRepository) GetDefinition(_ context.Context, id string)
 	return persist.DecodeDefinition(value)
 }
 
-func (repository taxonomyRepository) ListDefinitions(context.Context) ([]taxonomy.Definition, error) {
+func (repository taxonomyRepository) ListDefinitions(ctx context.Context) ([]taxonomy.Definition, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	items := make([]taxonomy.Definition, 0)
 	err := repository.transaction.Bucket(taxonomiesBucket).ForEach(func(_, value []byte) error {
 		item, err := persist.DecodeDefinition(value)
@@ -39,10 +45,13 @@ func (repository taxonomyRepository) ListDefinitions(context.Context) ([]taxonom
 }
 
 func (repository taxonomyRepository) SaveDefinition(
-	_ context.Context,
+	ctx context.Context,
 	item taxonomy.Definition,
 	expectedVersion uint64,
 ) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	bucket := repository.transaction.Bucket(taxonomiesBucket)
 	key := []byte(item.ID)
 	currentValue := bucket.Get(key)
@@ -66,12 +75,12 @@ func (repository taxonomyRepository) SaveDefinition(
 }
 
 func (repository taxonomyRepository) DeleteDefinition(
-	_ context.Context,
+	ctx context.Context,
 	id string,
 	expectedVersion uint64,
 ) error {
 	bucket := repository.transaction.Bucket(taxonomiesBucket)
-	current, err := repository.GetDefinition(context.Background(), id)
+	current, err := repository.GetDefinition(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -81,7 +90,10 @@ func (repository taxonomyRepository) DeleteDefinition(
 	return bucket.Delete([]byte(id))
 }
 
-func (repository taxonomyRepository) GetTerm(_ context.Context, id taxonomy.ID) (taxonomy.Term, error) {
+func (repository taxonomyRepository) GetTerm(ctx context.Context, id taxonomy.ID) (taxonomy.Term, error) {
+	if err := ctx.Err(); err != nil {
+		return taxonomy.Term{}, err
+	}
 	value := repository.transaction.Bucket(termsBucket).Get([]byte(id))
 	if value == nil {
 		return taxonomy.Term{}, ErrNotFound
@@ -89,7 +101,10 @@ func (repository taxonomyRepository) GetTerm(_ context.Context, id taxonomy.ID) 
 	return persist.DecodeTerm(value)
 }
 
-func (repository taxonomyRepository) ListTerms(_ context.Context, taxonomyID string) ([]taxonomy.Term, error) {
+func (repository taxonomyRepository) ListTerms(ctx context.Context, taxonomyID string) ([]taxonomy.Term, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	items := make([]taxonomy.Term, 0)
 	err := repository.transaction.Bucket(termsBucket).ForEach(func(_, value []byte) error {
 		item, err := persist.DecodeTerm(value)
@@ -108,10 +123,13 @@ func (repository taxonomyRepository) ListTerms(_ context.Context, taxonomyID str
 }
 
 func (repository taxonomyRepository) SaveTerm(
-	_ context.Context,
+	ctx context.Context,
 	item taxonomy.Term,
 	expectedVersion uint64,
 ) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	bucket := repository.transaction.Bucket(termsBucket)
 	key := []byte(item.ID)
 	currentValue := bucket.Get(key)
@@ -135,12 +153,12 @@ func (repository taxonomyRepository) SaveTerm(
 }
 
 func (repository taxonomyRepository) DeleteTerm(
-	_ context.Context,
+	ctx context.Context,
 	id taxonomy.ID,
 	expectedVersion uint64,
 ) error {
 	bucket := repository.transaction.Bucket(termsBucket)
-	current, err := repository.GetTerm(context.Background(), id)
+	current, err := repository.GetTerm(ctx, id)
 	if err != nil {
 		return err
 	}

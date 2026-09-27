@@ -40,6 +40,22 @@ func writeJSON(response http.ResponseWriter, status int, value any) {
 	_ = json.NewEncoder(response).Encode(value)
 }
 
+type cookieCSRFValidator interface {
+	ValidateCookieCSRF(*http.Request) error
+}
+
+func guardCookieMutation(resolver PrincipalResolver, response http.ResponseWriter, request *http.Request) bool {
+	guard, ok := resolver.(cookieCSRFValidator)
+	if !ok {
+		return true
+	}
+	if err := guard.ValidateCookieCSRF(request); err != nil {
+		writeError(response, request, core.NewDomainError(core.ErrorCodeForbidden, "csrf token is invalid"))
+		return false
+	}
+	return true
+}
+
 func requestID(request *http.Request) string {
 	if requestID := request.Header.Get("X-Request-ID"); requestID != "" {
 		return requestID

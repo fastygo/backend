@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	contentapplication "github.com/fastygo/backend/internal/application/content"
@@ -41,7 +42,9 @@ var (
 )
 
 type Adapter struct {
-	database *bolt.DB
+	database  *bolt.DB
+	closeOnce sync.Once
+	closeErr  error
 }
 
 var (
@@ -58,6 +61,9 @@ func Open(path string, mode os.FileMode, options *bolt.Options) (*Adapter, error
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return nil, fmt.Errorf("failed to create bbolt directory: %w", err)
+	}
+	if options == nil {
+		options = &bolt.Options{Timeout: time.Second}
 	}
 	database, err := bolt.Open(path, mode, options)
 	if err != nil {
@@ -98,10 +104,15 @@ func Open(path string, mode os.FileMode, options *bolt.Options) (*Adapter, error
 }
 
 func (adapter *Adapter) Close() error {
-	if adapter == nil || adapter.database == nil {
+	if adapter == nil {
 		return nil
 	}
-	return adapter.database.Close()
+	adapter.closeOnce.Do(func() {
+		if adapter.database != nil {
+			adapter.closeErr = adapter.database.Close()
+		}
+	})
+	return adapter.closeErr
 }
 
 func (adapter *Adapter) Ping(ctx context.Context) error {

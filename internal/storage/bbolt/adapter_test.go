@@ -10,6 +10,7 @@ import (
 	application "github.com/fastygo/backend/internal/application/content"
 	"github.com/fastygo/backend/internal/domain/authz"
 	"github.com/fastygo/backend/internal/domain/content"
+	bolt "go.etcd.io/bbolt"
 )
 
 func TestAdapterPersistsContentAndRevisionsAcrossReopen(t *testing.T) {
@@ -168,6 +169,44 @@ func newTestService(t *testing.T, adapter *Adapter, now time.Time) *application.
 		t.Fatalf("create content service: %v", err)
 	}
 	return service
+}
+
+func TestAdapterCloseIsIdempotent(t *testing.T) {
+	adapter := openTestAdapter(t, filepath.Join(t.TempDir(), "close.db"))
+	if err := adapter.Close(); err != nil {
+		t.Fatalf("first close: %v", err)
+	}
+	if err := adapter.Close(); err != nil {
+		t.Fatalf("second close: %v", err)
+	}
+}
+
+func TestOpenTimesOutWhenDatabaseIsLocked(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "locked.db")
+	held := openTestAdapter(t, path)
+	t.Cleanup(func() { _ = held.Close() })
+	started := time.Now()
+	_, err := Open(path, 0o600, &bolt.Options{Timeout: 50 * time.Millisecond})
+	if err == nil {
+		t.Fatal("locked bbolt was opened twice")
+	}
+	if time.Since(started) > time.Second {
+		t.Fatalf("lock wait was not bounded: %v", time.Since(started))
+	}
+}
+
+func TestUpdateRespectsCancelledContext(t *testing.T) {
+	adapter := openTestAdapter(t, filepath.Join(t.TempDir(), "cancel.db"))
+	t.Cleanup(func() { _ = adapter.Close() })
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := adapter.WithinContentTransaction(ctx, func(application.Transaction) error {
+		t.Fatal("cancelled transaction must not run")
+		return nil
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled transaction error=%v", err)
+	}
 }
 
 func testEntry(now time.Time) content.Entry {

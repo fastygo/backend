@@ -40,6 +40,9 @@ func (handler *MediaHandler) Routes(mux *http.ServeMux) {
 }
 
 func (handler *MediaHandler) upload(response http.ResponseWriter, request *http.Request) {
+	if !guardCookieMutation(handler.principal, response, request) {
+		return
+	}
 	principal, ok := resolvePrincipal(handler.principal, response, request)
 	if !ok {
 		return

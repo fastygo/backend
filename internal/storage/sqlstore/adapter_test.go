@@ -120,8 +120,8 @@ func TestSQLiteListFiltersSortsAndPaginatesInSQL(t *testing.T) {
 		{
 			ID: "product_2", Kind: "product", Status: content.StatusPublished,
 			Visibility: content.VisibilityPublic, AuthorID: "author-2",
-			Title:   content.LocalizedText{"en": "Alpha", "ru": "Альфа"},
-			Content: content.LocalizedText{"en": "Needle description", "ru": "Описание"},
+			Title:    content.LocalizedText{"en": "Alpha", "ru": "Альфа"},
+			Content:  content.LocalizedText{"en": "Needle description", "ru": "Описание"},
 			Terms:    []content.TermRef{{Taxonomy: "catalog", TermID: "featured"}},
 			Metadata: map[string]content.MetadataValue{"brand": {Value: "brand_1"}},
 			Version:  1, CreatedAt: now.Add(time.Minute), UpdatedAt: now.Add(time.Minute),
@@ -380,6 +380,66 @@ func TestLiveSQLDialects(t *testing.T) {
 				t.Fatalf("verify live %s database: %v", name, err)
 			}
 		})
+	}
+}
+
+func TestAdapterCloseIsIdempotent(t *testing.T) {
+	adapter := openSQLite(t, filepath.Join(t.TempDir(), "close.sqlite"))
+	if err := adapter.Close(); err != nil {
+		t.Fatalf("first close: %v", err)
+	}
+	if err := adapter.Close(); err != nil {
+		t.Fatalf("second close: %v", err)
+	}
+}
+
+func TestOpenRespectsCancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := Open(ctx, "sqlite", filepath.Join(t.TempDir(), "cancelled.sqlite"), DialectSQLite)
+	if err == nil {
+		t.Fatal("cancelled SQL open succeeded")
+	}
+}
+
+func TestConfigurePoolBoundsConnections(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		dialect Dialect
+		want    int
+	}{
+		{name: "sqlite", dialect: DialectSQLite, want: 1},
+		{name: "postgres", dialect: DialectPostgreSQL, want: 25},
+		{name: "mysql", dialect: DialectMySQL, want: 25},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			database, err := sql.Open("sqlite", filepath.Join(t.TempDir(), test.name+".sqlite"))
+			if err != nil {
+				t.Fatalf("open sqlite handle: %v", err)
+			}
+			t.Cleanup(func() { _ = database.Close() })
+			configurePool(database, test.dialect)
+			if database.Stats().MaxOpenConnections != test.want {
+				t.Fatalf("max open connections=%d want %d", database.Stats().MaxOpenConnections, test.want)
+			}
+		})
+	}
+}
+
+func TestUpdateRespectsCancelledContext(t *testing.T) {
+	adapter := openSQLite(t, filepath.Join(t.TempDir(), "tx-cancel.sqlite"))
+	t.Cleanup(func() { _ = adapter.Close() })
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := adapter.WithinContentTransaction(ctx, func(application.Transaction) error {
+		t.Fatal("cancelled transaction must not run")
+		return nil
+	})
+	if err == nil {
+		t.Fatal("cancelled SQL transaction succeeded")
 	}
 }
 

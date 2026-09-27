@@ -88,6 +88,9 @@ func (handler *IdentityHandler) saveUser(
 	request *http.Request,
 	version uint64,
 ) {
+	if !guardCookieMutation(handler.principal, response, request) {
+		return
+	}
 	principal, ok := handler.resolvePrincipal(response, request)
 	if !ok {
 		return
@@ -116,6 +119,9 @@ func (handler *IdentityHandler) saveUser(
 }
 
 func (handler *IdentityHandler) deleteUser(response http.ResponseWriter, request *http.Request) {
+	if !guardCookieMutation(handler.principal, response, request) {
+		return
+	}
 	principal, ok := handler.resolvePrincipal(response, request)
 	if !ok {
 		return
@@ -163,6 +169,9 @@ func (handler *IdentityHandler) saveRole(
 	request *http.Request,
 	version uint64,
 ) {
+	if !guardCookieMutation(handler.principal, response, request) {
+		return
+	}
 	principal, ok := handler.resolvePrincipal(response, request)
 	if !ok {
 		return
@@ -191,6 +200,9 @@ func (handler *IdentityHandler) saveRole(
 }
 
 func (handler *IdentityHandler) deleteRole(response http.ResponseWriter, request *http.Request) {
+	if !guardCookieMutation(handler.principal, response, request) {
+		return
+	}
 	principal, ok := handler.resolvePrincipal(response, request)
 	if !ok {
 		return

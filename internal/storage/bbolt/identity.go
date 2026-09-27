@@ -14,7 +14,10 @@ type identityRepository struct {
 	transaction *bolt.Tx
 }
 
-func (repository identityRepository) GetUser(_ context.Context, id string) (domainidentity.User, error) {
+func (repository identityRepository) GetUser(ctx context.Context, id string) (domainidentity.User, error) {
+	if err := ctx.Err(); err != nil {
+		return domainidentity.User{}, err
+	}
 	value := repository.transaction.Bucket(usersBucket).Get([]byte(id))
 	if value == nil {
 		return domainidentity.User{}, ErrNotFound
@@ -22,7 +25,10 @@ func (repository identityRepository) GetUser(_ context.Context, id string) (doma
 	return persist.DecodeUser(value)
 }
 
-func (repository identityRepository) GetUserByEmail(_ context.Context, email string) (domainidentity.User, error) {
+func (repository identityRepository) GetUserByEmail(ctx context.Context, email string) (domainidentity.User, error) {
+	if err := ctx.Err(); err != nil {
+		return domainidentity.User{}, err
+	}
 	var resolved domainidentity.User
 	err := repository.transaction.Bucket(usersBucket).ForEach(func(_, value []byte) error {
 		user, err := persist.DecodeUser(value)
@@ -43,7 +49,10 @@ func (repository identityRepository) GetUserByEmail(_ context.Context, email str
 	return resolved, nil
 }
 
-func (repository identityRepository) ListUsers(context.Context) ([]domainidentity.User, error) {
+func (repository identityRepository) ListUsers(ctx context.Context) ([]domainidentity.User, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	var users []domainidentity.User
 	err := repository.transaction.Bucket(usersBucket).ForEach(func(_, value []byte) error {
 		user, err := persist.DecodeUser(value)
@@ -60,10 +69,13 @@ func (repository identityRepository) ListUsers(context.Context) ([]domainidentit
 }
 
 func (repository identityRepository) SaveUser(
-	_ context.Context,
+	ctx context.Context,
 	user domainidentity.User,
 	expectedVersion uint64,
 ) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return saveVersionedJSON(
 		repository.transaction.Bucket(usersBucket),
 		[]byte(user.ID),
@@ -76,8 +88,8 @@ func (repository identityRepository) SaveUser(
 	)
 }
 
-func (repository identityRepository) DeleteUser(_ context.Context, id string, expectedVersion uint64) error {
-	user, err := repository.GetUser(context.Background(), id)
+func (repository identityRepository) DeleteUser(ctx context.Context, id string, expectedVersion uint64) error {
+	user, err := repository.GetUser(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -87,7 +99,10 @@ func (repository identityRepository) DeleteUser(_ context.Context, id string, ex
 	return repository.transaction.Bucket(usersBucket).Delete([]byte(id))
 }
 
-func (repository identityRepository) GetRole(_ context.Context, id string) (domainidentity.Role, error) {
+func (repository identityRepository) GetRole(ctx context.Context, id string) (domainidentity.Role, error) {
+	if err := ctx.Err(); err != nil {
+		return domainidentity.Role{}, err
+	}
 	value := repository.transaction.Bucket(rolesBucket).Get([]byte(id))
 	if value == nil {
 		return domainidentity.Role{}, ErrNotFound
@@ -95,7 +110,10 @@ func (repository identityRepository) GetRole(_ context.Context, id string) (doma
 	return persist.DecodeRole(value)
 }
 
-func (repository identityRepository) ListRoles(context.Context) ([]domainidentity.Role, error) {
+func (repository identityRepository) ListRoles(ctx context.Context) ([]domainidentity.Role, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	var roles []domainidentity.Role
 	err := repository.transaction.Bucket(rolesBucket).ForEach(func(_, value []byte) error {
 		role, err := persist.DecodeRole(value)
@@ -112,10 +130,13 @@ func (repository identityRepository) ListRoles(context.Context) ([]domainidentit
 }
 
 func (repository identityRepository) SaveRole(
-	_ context.Context,
+	ctx context.Context,
 	role domainidentity.Role,
 	expectedVersion uint64,
 ) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return saveVersionedJSON(
 		repository.transaction.Bucket(rolesBucket),
 		[]byte(role.ID),
@@ -128,8 +149,8 @@ func (repository identityRepository) SaveRole(
 	)
 }
 
-func (repository identityRepository) DeleteRole(_ context.Context, id string, expectedVersion uint64) error {
-	role, err := repository.GetRole(context.Background(), id)
+func (repository identityRepository) DeleteRole(ctx context.Context, id string, expectedVersion uint64) error {
+	role, err := repository.GetRole(ctx, id)
 	if err != nil {
 		return err
 	}

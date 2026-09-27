@@ -8,12 +8,11 @@ the database, media root, or unsecured Codex bind to the internet.
 
 ## CSRF coverage
 
-Cookie-authenticated collection create/update/delete and logout are guarded by
-CSRF. Bearer requests are exempt. The following mutation paths require
-security review because coverage is not yet proven uniformly by the current
-test suite: transitions/revision restore, media upload, taxonomy CRUD, and
-identity CRUD. Do not claim “CSRF on every mutation” until tests and handler
-policy demonstrate it.
+Cookie-authenticated collection create/update/delete, taxonomy CRUD, identity
+CRUD, media upload, transitions, revision restore, GraphQL mutations, and
+logout are guarded by CSRF. Bearer requests are exempt. Login endpoints do
+not require a pre-issued CSRF token because they establish the session. Do
+not claim CSRF on login until a dedicated anti-login-CSRF design exists.
 
 ## Secrets and data
 

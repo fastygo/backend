@@ -73,15 +73,62 @@ func TestSignedSessionCookieAndCSRF(t *testing.T) {
 	if err != nil {
 		t.Fatalf("issue token: %v", err)
 	}
+	cases := []struct {
+		name    string
+		prepare func(*http.Request)
+		wantErr bool
+	}{
+		{
+			name: "cookie without csrf",
+			prepare: func(request *http.Request) {
+				request.AddCookie(&http.Cookie{Name: SessionCookieName, Value: token})
+			},
+			wantErr: true,
+		},
+		{
+			name: "cookie with csrf",
+			prepare: func(request *http.Request) {
+				request.AddCookie(&http.Cookie{Name: SessionCookieName, Value: token})
+				request.Header.Set("X-CSRF-Token", manager.CSRF(token))
+			},
+		},
+		{
+			name: "bearer exempt",
+			prepare: func(request *http.Request) {
+				request.AddCookie(&http.Cookie{Name: SessionCookieName, Value: token})
+				request.Header.Set("Authorization", "Bearer "+token)
+			},
+		},
+		{
+			name:    "anonymous",
+			prepare: func(*http.Request) {},
+		},
+		{
+			name: "cookie with wrong csrf",
+			prepare: func(request *http.Request) {
+				request.AddCookie(&http.Cookie{Name: SessionCookieName, Value: token})
+				request.Header.Set("X-CSRF-Token", "deadbeef")
+			},
+			wantErr: true,
+		},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			request := httptest.NewRequest(http.MethodPost, "/go-graphql", nil)
+			test.prepare(request)
+			err := manager.ValidateCookieCSRF(request)
+			if test.wantErr && err == nil {
+				t.Fatal("expected CSRF error")
+			}
+			if !test.wantErr && err != nil {
+				t.Fatalf("unexpected CSRF error: %v", err)
+			}
+		})
+	}
 	request := httptest.NewRequest(http.MethodPost, "/go-graphql", nil)
 	request.AddCookie(&http.Cookie{Name: SessionCookieName, Value: token})
-	if err := manager.ValidateCookieCSRF(request); err == nil {
-		t.Fatalf("cookie mutation without CSRF must fail")
-	}
 	request.Header.Set("X-CSRF-Token", manager.CSRF(token))
-	if err := manager.ValidateCookieCSRF(request); err != nil {
-		t.Fatalf("valid CSRF was rejected: %v", err)
-	}
 	principal, err := manager.Resolve(request)
 	if err != nil || principal.ID != "editor" {
 		t.Fatalf("session cookie was not resolved: %#v %v", principal, err)
