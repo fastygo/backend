@@ -40,6 +40,9 @@ func (handler *MediaHandler) Routes(mux *http.ServeMux) {
 }
 
 func (handler *MediaHandler) upload(response http.ResponseWriter, request *http.Request) {
+	if forbidCSRF(response, request, handler.principal) {
+		return
+	}
 	principal, ok := resolvePrincipal(handler.principal, response, request)
 	if !ok {
 		return

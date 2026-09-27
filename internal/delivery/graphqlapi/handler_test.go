@@ -220,7 +220,7 @@ func TestGraphQLIsMutation(t *testing.T) {
 		"# note\nmutation UpdateProduct { x }":           true,
 	}
 	for query, want := range cases {
-		if got := graphQLIsMutation(query); got != want {
+		if got := graphQLSelectedMutation(query, ""); got != want {
 			t.Fatalf("graphQLIsMutation(%q)=%v want %v", query, got, want)
 		}
 	}

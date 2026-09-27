@@ -34,6 +34,14 @@ func (handler *SessionHandler) Routes(mux *http.ServeMux) {
 }
 
 func (handler *SessionHandler) login(response http.ResponseWriter, request *http.Request) {
+	if request.Header.Get("Sec-Fetch-Site") == "cross-site" {
+		writeError(response, request, core.NewDomainError(core.ErrorCodeForbidden, "csrf token is invalid"))
+		return
+	}
+	if err := handler.tokens.ValidateCookieCSRF(request); err != nil {
+		writeError(response, request, core.NewDomainError(core.ErrorCodeForbidden, "csrf token is invalid"))
+		return
+	}
 	var input struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`

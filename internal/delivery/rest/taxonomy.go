@@ -38,6 +38,9 @@ func (handler *TaxonomyHandler) Routes(mux *http.ServeMux) {
 }
 
 func (handler *TaxonomyHandler) createDefinition(response http.ResponseWriter, request *http.Request) {
+	if forbidCSRF(response, request, handler.principal) {
+		return
+	}
 	principal, ok := handler.resolvePrincipal(response, request)
 	if !ok {
 		return
@@ -58,6 +61,9 @@ func (handler *TaxonomyHandler) createDefinition(response http.ResponseWriter, r
 }
 
 func (handler *TaxonomyHandler) updateDefinition(response http.ResponseWriter, request *http.Request) {
+	if forbidCSRF(response, request, handler.principal) {
+		return
+	}
 	principal, ok := handler.resolvePrincipal(response, request)
 	if !ok {
 		return
@@ -84,6 +90,9 @@ func (handler *TaxonomyHandler) updateDefinition(response http.ResponseWriter, r
 }
 
 func (handler *TaxonomyHandler) deleteDefinition(response http.ResponseWriter, request *http.Request) {
+	if forbidCSRF(response, request, handler.principal) {
+		return
+	}
 	principal, ok := handler.resolvePrincipal(response, request)
 	if !ok {
 		return
@@ -101,6 +110,9 @@ func (handler *TaxonomyHandler) deleteDefinition(response http.ResponseWriter, r
 }
 
 func (handler *TaxonomyHandler) createTerm(response http.ResponseWriter, request *http.Request) {
+	if forbidCSRF(response, request, handler.principal) {
+		return
+	}
 	principal, ok := handler.resolvePrincipal(response, request)
 	if !ok {
 		return
@@ -123,6 +135,9 @@ func (handler *TaxonomyHandler) createTerm(response http.ResponseWriter, request
 }
 
 func (handler *TaxonomyHandler) updateTerm(response http.ResponseWriter, request *http.Request) {
+	if forbidCSRF(response, request, handler.principal) {
+		return
+	}
 	principal, ok := handler.resolvePrincipal(response, request)
 	if !ok {
 		return
@@ -150,6 +165,9 @@ func (handler *TaxonomyHandler) updateTerm(response http.ResponseWriter, request
 }
 
 func (handler *TaxonomyHandler) deleteTerm(response http.ResponseWriter, request *http.Request) {
+	if forbidCSRF(response, request, handler.principal) {
+		return
+	}
 	principal, ok := handler.resolvePrincipal(response, request)
 	if !ok {
 		return

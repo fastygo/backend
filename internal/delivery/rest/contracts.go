@@ -62,6 +62,9 @@ func (handler *ContentHandler) writeForm(response http.ResponseWriter, request *
 }
 
 func (handler *ContentHandler) bindForm(response http.ResponseWriter, request *http.Request) {
+	if forbidCSRF(response, request, handler.principal) {
+		return
+	}
 	resource, ok := handler.manifest.Resource(request.PathValue("resource"))
 	if !ok {
 		writeError(response, request, core.NewDomainError(core.ErrorCodeNotFound, "resource schema was not found"))

@@ -75,6 +75,9 @@ func (handler *IdentityHandler) createUser(response http.ResponseWriter, request
 }
 
 func (handler *IdentityHandler) updateUser(response http.ResponseWriter, request *http.Request) {
+	if forbidCSRF(response, request, handler.principal) {
+		return
+	}
 	version, err := expectedVersion(request, 0)
 	if err != nil {
 		writeError(response, request, core.WrapDomainError(core.ErrorCodeValidation, "version is required", err))
@@ -88,6 +91,9 @@ func (handler *IdentityHandler) saveUser(
 	request *http.Request,
 	version uint64,
 ) {
+	if forbidCSRF(response, request, handler.principal) {
+		return
+	}
 	principal, ok := handler.resolvePrincipal(response, request)
 	if !ok {
 		return
@@ -116,6 +122,9 @@ func (handler *IdentityHandler) saveUser(
 }
 
 func (handler *IdentityHandler) deleteUser(response http.ResponseWriter, request *http.Request) {
+	if forbidCSRF(response, request, handler.principal) {
+		return
+	}
 	principal, ok := handler.resolvePrincipal(response, request)
 	if !ok {
 		return
@@ -150,6 +159,9 @@ func (handler *IdentityHandler) createRole(response http.ResponseWriter, request
 }
 
 func (handler *IdentityHandler) updateRole(response http.ResponseWriter, request *http.Request) {
+	if forbidCSRF(response, request, handler.principal) {
+		return
+	}
 	version, err := expectedVersion(request, 0)
 	if err != nil {
 		writeError(response, request, core.WrapDomainError(core.ErrorCodeValidation, "version is required", err))
@@ -163,6 +175,9 @@ func (handler *IdentityHandler) saveRole(
 	request *http.Request,
 	version uint64,
 ) {
+	if forbidCSRF(response, request, handler.principal) {
+		return
+	}
 	principal, ok := handler.resolvePrincipal(response, request)
 	if !ok {
 		return
@@ -191,6 +206,9 @@ func (handler *IdentityHandler) saveRole(
 }
 
 func (handler *IdentityHandler) deleteRole(response http.ResponseWriter, request *http.Request) {
+	if forbidCSRF(response, request, handler.principal) {
+		return
+	}
 	principal, ok := handler.resolvePrincipal(response, request)
 	if !ok {
 		return

@@ -26,6 +26,9 @@ type restoreDocument struct {
 }
 
 func (handler *ContentHandler) transition(response http.ResponseWriter, request *http.Request) {
+	if forbidCSRF(response, request, handler.principal) {
+		return
+	}
 	principal, ok := handler.resolvePrincipal(response, request)
 	if !ok {
 		return
@@ -84,6 +87,9 @@ func (handler *ContentHandler) revisions(response http.ResponseWriter, request *
 }
 
 func (handler *ContentHandler) restoreRevision(response http.ResponseWriter, request *http.Request) {
+	if forbidCSRF(response, request, handler.principal) {
+		return
+	}
 	principal, ok := handler.resolvePrincipal(response, request)
 	if !ok {
 		return

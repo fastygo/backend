@@ -21,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
+	"github.com/graphql-go/graphql/language/parser"
 )
 
 const maxRequestBody = 4 << 20
@@ -79,7 +80,7 @@ func (handler *Handler) serve(response http.ResponseWriter, request *http.Reques
 		})
 		return
 	}
-	if graphQLIsMutation(document.Query) {
+	if graphQLSelectedMutation(document.Query, document.OperationName) {
 		if guard, ok := handler.principal.(cookieCSRFValidator); ok {
 			if err := guard.ValidateCookieCSRF(request); err != nil {
 				writeJSON(response, http.StatusForbidden, map[string]any{
@@ -694,16 +695,31 @@ func stringArgument(arguments map[string]any, key string) string {
 	return value
 }
 
-func graphQLIsMutation(query string) bool {
-	trimmed := strings.TrimSpace(query)
-	for strings.HasPrefix(trimmed, "#") {
-		_, rest, found := strings.Cut(trimmed, "\n")
-		if !found {
-			return false
-		}
-		trimmed = strings.TrimSpace(rest)
+func graphQLSelectedMutation(query, name string) bool {
+	document, err := parser.Parse(parser.ParseParams{Source: query})
+	if err != nil {
+		return false
 	}
-	return strings.HasPrefix(strings.ToLower(trimmed), "mutation")
+	operations := make([]*ast.OperationDefinition, 0, 1)
+	for _, definition := range document.Definitions {
+		operation, ok := definition.(*ast.OperationDefinition)
+		if ok {
+			operations = append(operations, operation)
+		}
+	}
+	var selected *ast.OperationDefinition
+	switch {
+	case name != "":
+		for _, operation := range operations {
+			if operation.Name != nil && operation.Name.Value == name {
+				selected = operation
+				break
+			}
+		}
+	case len(operations) == 1:
+		selected = operations[0]
+	}
+	return selected != nil && selected.Operation == ast.OperationTypeMutation
 }
 
 func graphQLName(identifier string) string {
