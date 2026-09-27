@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/fastygo/backend/internal/bootstrap"
+	_ "github.com/fastygo/backend/internal/storage/drivers"
 	"github.com/fastygo/framework/pkg/app"
 )
 

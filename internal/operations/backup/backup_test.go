@@ -18,6 +18,8 @@ import (
 	"github.com/fastygo/backend/internal/storage/sqlstore"
 	"github.com/fastygo/codex/content"
 	"github.com/fastygo/codex/taxonomy"
+
+	_ "modernc.org/sqlite"
 )
 
 func TestBackupRestoresAcrossBboltAndSQLiteAdapters(t *testing.T) {
