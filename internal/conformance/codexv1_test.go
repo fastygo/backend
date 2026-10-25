@@ -150,7 +150,7 @@ func TestCodexV1Conform(t *testing.T) {
 		if err := json.Unmarshal(response.Body.Bytes(), &document); err != nil {
 			t.Fatalf("decode discovery: %v", err)
 		}
-		if document.CodexVersion != "0.4.1" || document.Profile != canonical.EntryProfile {
+		if document.CodexVersion != rest.CodexV04Version || document.Profile != canonical.EntryProfile {
 			t.Fatalf("discovery: %#v", document)
 		}
 		wantDigest, err := rest.ServedCodexManifest(manifest).DigestV2()
@@ -373,6 +373,16 @@ func TestCodexV1Conform(t *testing.T) {
 			t.Fatalf("terms %d: %s", terms.Code, terms.Body.String())
 		}
 		assertCodexV1Body(t, terms.Body.Bytes())
+		var termKeys map[string]json.RawMessage
+		if err := json.Unmarshal(terms.Body.Bytes(), &termKeys); err != nil {
+			t.Fatalf("decode terms envelope: %v", err)
+		}
+		if _, hasCounts := termKeys["counts"]; hasCounts {
+			t.Fatalf("terms envelope must not include counts: %s", terms.Body.String())
+		}
+		if len(termKeys) != 2 || termKeys["data"] == nil || termKeys["pagination"] == nil {
+			t.Fatalf("terms envelope keys must be exactly data, pagination: %s", terms.Body.String())
+		}
 		var termDoc struct {
 			Data []map[string]any `json:"data"`
 		}

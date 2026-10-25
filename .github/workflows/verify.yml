@@ -25,6 +25,8 @@ jobs:
       - run: go vet ./...
       - name: Codex HTTP conformance
         run: go test -count=1 -run TestCodexV1Conform ./internal/conformance
+      - name: Codex shop golden HTTP
+        run: go test -count=1 -run TestCodexV1ShopGoldenHTTP ./internal/conformance
       - name: Canary server links bbolt only
         run: |
           deps="$(go list -deps -f '{{.ImportPath}}' ./cmd/server)"

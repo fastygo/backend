@@ -22,12 +22,14 @@ record: one locale per body, unflattened public metadata, JCS bytes, and
 | `/codex/v1` | Any Codex-conform admin | Canonical v0.4 records |
 
 `GET /codex/v1/` returns `{codex_version, profile:"codex-entry/v1",
-manifest_digest}` where `manifest_digest` is Codex `Manifest.DigestV2`
-(`codex-manifest/v2:sha256:…`) of the served manifest without `Canonical()`
-sorting. Empty nested values are kept; only top-level empty optionals are
+manifest_digest}` where `codex_version` is the spec constant `0.4.0`
+(`CODEX_V04_VERSION` / `rest.CodexV04Version`, not the `fastygo/codex`
+module tag) and `manifest_digest` is Codex `Manifest.DigestV2`
+(`codex-manifest/v2:sha256:…`) of the served Codex-shaped manifest without
+`Canonical()` sorting. The WordPress delivery-map key is `wp`. List
+envelopes are exactly `{data, pagination}`. Empty nested values are kept; only top-level empty optionals are
 omitted. Every `/codex/v1` body is RFC 8785 JCS with no trailing newline
-and no `encoding/json` HTML/`U+2028` escapes. List routes wrap
-`{data, pagination}`. A single entry is the raw JCS of `codex-entry/v1` with
+and no `encoding/json` HTML/`U+2028` escapes. A single entry is the raw JCS of `codex-entry/v1` with
 `Codex-Digest` and `ETag`. `GET /codex/v1/settings` lists SettingsV04 records
 (own type, not `kind=setting` entries); `GET /codex/v1/settings/{id}` is raw
 JCS with digest headers. Terms use `codex-term/v1` and omit `count`. Default

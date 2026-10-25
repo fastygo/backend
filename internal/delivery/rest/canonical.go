@@ -19,11 +19,16 @@ import (
 )
 
 const (
-	codexV1Timeout    = 10 * time.Second
-	codexDefaultPage  = 1
-	codexDefaultSize  = 20
-	codexMaxPerPage   = 100
-	codexVersionValue = "0.4.1"
+	codexV1Timeout   = 10 * time.Second
+	codexDefaultPage = 1
+	codexDefaultSize = 20
+	codexMaxPerPage  = 100
+	// CodexV04Version is ui8kit/contract CODEX_V04_VERSION (the spec), not the
+	// github.com/fastygo/codex module tag.
+	CodexV04Version = "0.4.0"
+	// CodexDeliveryWPKey is the Codex delivery-map key for the WordPress
+	// adapter. The previous key was "wordpress".
+	CodexDeliveryWPKey = "wp"
 )
 
 var canonicalQueryKeys = map[string]struct{}{
@@ -42,13 +47,13 @@ func (handler *CodexHandler) canonicalDiscovery(response http.ResponseWriter, re
 		writeCanonicalError(response, request, err)
 		return
 	}
-	digest, err := manifestDigestV2(handler.manifest)
+	digest, err := handler.manifestDigest()
 	if err != nil {
 		writeCanonicalError(response, request, core.WrapDomainError(core.ErrorCodeInternal, "manifest digest failed", err))
 		return
 	}
 	writeCanonicalJCS(response, http.StatusOK, map[string]any{
-		"codex_version":   codexVersionValue,
+		"codex_version":   CodexV04Version,
 		"manifest_digest": digest,
 		"profile":         canonical.EntryProfile,
 	})

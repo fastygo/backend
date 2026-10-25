@@ -1,0 +1,7 @@
+repo=https://github.com/alexy-os/wp-fasty
+commit=b487fece53b3c0fde4fca00750d44114a5828fce
+branch=main
+golden=tests/fixtures/codex-draft/golden/latte-shop
+manifest=themes/latte-shop/types/codex.manifest.json
+delivery=themes/latte-shop/types/codex.delivery.json
+note=fastygo/wp-fasty is not a public GitHub repository (HTTP 404). Goldens were copied from alexy-os/wp-fasty main. The delivery JSON key "wordpress" (Theme Check-escaped in the source as \u0077ordpress) is stored here as "wp" per the Codex delivery key rename. Origin.system in golden bodies remains "wordpress" (contract WP_SYSTEM). Shop demo PHP (tools/demo/shop.php + tools/codex/seed-pinned.php) is WordPress-only; the HTTP test loads the portable Codex records from these goldens.

@@ -99,3 +99,28 @@ func TestSettingsCanonicalUsesCodexProfile(t *testing.T) {
 		t.Fatalf("settings JCS leaked kind/count: %s", body)
 	}
 }
+
+func TestCodexV04VersionIsSpecNotLibrary(t *testing.T) {
+	t.Parallel()
+	if CodexV04Version != "0.4.0" {
+		t.Fatalf("CodexV04Version %q want 0.4.0", CodexV04Version)
+	}
+}
+
+func TestCodexDeliverySectionUsesWPKey(t *testing.T) {
+	t.Parallel()
+	if CodexDeliveryWPKey != "wp" {
+		t.Fatalf("CodexDeliveryWPKey %q want wp", CodexDeliveryWPKey)
+	}
+	if _, ok := CodexDeliverySection(map[string]any{"wordpress": map[string]any{"kinds": map[string]any{}}}); ok {
+		t.Fatal("legacy delivery key wordpress must not be read")
+	}
+	section, ok := CodexDeliverySection(map[string]any{"wp": map[string]any{"kinds": map[string]any{"post": map[string]any{}}}})
+	if !ok {
+		t.Fatal("wp delivery section missing")
+	}
+	kinds, _ := section["kinds"].(map[string]any)
+	if _, has := kinds["post"]; !has {
+		t.Fatalf("wp kinds: %#v", section)
+	}
+}

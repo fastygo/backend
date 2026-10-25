@@ -245,8 +245,25 @@ func sortSettings(items []domaincontent.Settings) {
 	})
 }
 
+func (handler *CodexHandler) manifestDigest() (string, error) {
+	if handler != nil && len(handler.servedCodexManifestJSON) > 0 {
+		return canonical.ManifestDigest(string(handler.servedCodexManifestJSON))
+	}
+	return manifestDigestV2(handler.manifest)
+}
+
 func manifestDigestV2(manifest schema.Manifest) (string, error) {
 	return ServedCodexManifest(manifest).DigestV2()
+}
+
+// CodexDeliverySection returns the WordPress adapter object from a Codex
+// delivery map. The contract key is "wp" (formerly "wordpress").
+func CodexDeliverySection(delivery map[string]any) (map[string]any, bool) {
+	if delivery == nil {
+		return nil, false
+	}
+	section, ok := delivery[CodexDeliveryWPKey].(map[string]any)
+	return section, ok
 }
 
 // ServedCodexManifest projects the delivery schema into a Codex v0.4.1

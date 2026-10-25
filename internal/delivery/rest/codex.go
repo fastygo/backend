@@ -17,12 +17,13 @@ import (
 
 // CodexHandler exposes the stable go-codex Level 0/1 compatibility surface.
 type CodexHandler struct {
-	content          *application.Service
-	taxonomies       *applicationtaxonomy.Service
-	principal        PrincipalResolver
-	manifest         schema.Manifest
-	defaultLocale    string
-	availableLocales []string
+	content                 *application.Service
+	taxonomies              *applicationtaxonomy.Service
+	principal               PrincipalResolver
+	manifest                schema.Manifest
+	servedCodexManifestJSON []byte
+	defaultLocale           string
+	availableLocales        []string
 }
 
 func NewCodexHandler(
@@ -48,6 +49,17 @@ func (handler *CodexHandler) SetDefaultLocale(locale string) {
 	if locale != "" {
 		handler.defaultLocale = locale
 	}
+}
+
+// SetServedCodexManifestJSON sets the Codex-shaped manifest document whose
+// DigestV2 is returned by GET /codex/v1/. Products that already ship a Codex
+// manifest (for example a theme's types/codex.manifest.json) should pass that
+// JSON rather than the Go delivery projection.
+func (handler *CodexHandler) SetServedCodexManifestJSON(raw []byte) {
+	if handler == nil {
+		return
+	}
+	handler.servedCodexManifestJSON = append([]byte(nil), raw...)
 }
 
 func (handler *CodexHandler) SetAvailableLocales(locales []string) {
