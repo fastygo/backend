@@ -92,6 +92,7 @@ func (handler *CodexHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /codex/v1/taxonomies", handler.canonicalTaxonomies)
 	mux.HandleFunc("GET /codex/v1/terms/{taxonomy_id}", handler.canonicalTerms)
 	mux.HandleFunc("GET /codex/v1/settings", handler.canonicalSettings)
+	mux.HandleFunc("GET /codex/v1/settings/{id}", handler.canonicalSettingsGet)
 }
 
 func (handler *CodexHandler) origin(response http.ResponseWriter, _ *http.Request) {

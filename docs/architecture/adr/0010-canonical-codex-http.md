@@ -22,10 +22,17 @@ record: one locale per body, unflattened public metadata, JCS bytes, and
 | `/codex/v1` | Any Codex-conform admin | Canonical v0.4 records |
 
 `GET /codex/v1/` returns `{codex_version, profile:"codex-entry/v1",
-manifest_digest}` where `manifest_digest` is `codex-manifest/v2:sha256:…`.
-List routes wrap `{data, pagination}`. A single entry is the raw JCS of
-`codex-entry/v1` with `Codex-Digest` and `ETag`. Public reads only; everything
-else is 404. Errors use the gocms-02 shape with `validation_error` / `not_found`.
+manifest_digest}` where `manifest_digest` is `codex-manifest/v2:sha256:…`
+over JCS of the full `Canonical()` manifest (empty optionals omitted only at
+top level). Every `/codex/v1` body is RFC 8785 JCS with no trailing newline
+and no `encoding/json` HTML/`U+2028` escapes. List routes wrap
+`{data, pagination}`. A single entry is the raw JCS of `codex-entry/v1` with
+`Codex-Digest` and `ETag`. `GET /codex/v1/settings` lists SettingsV04 records
+(own type, not `kind=setting` entries); `GET /codex/v1/settings/{id}` is raw
+JCS with digest headers. Terms use `codex-term/v1` and omit `count`. Default
+locale is `settings.language`, else `"en"`. Public reads only; everything
+else is 404. Errors use the gocms-02 shape with `validation_error` /
+`not_found`; `request_id` is optional.
 
 Storage keeps v0.3-shaped chrome maps and FormSet locale documents in private
 sidecar metadata so `/go-json/go/v2` can still reconstruct maps. Domain

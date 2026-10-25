@@ -2,8 +2,6 @@ package rest
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -15,10 +13,8 @@ import (
 	application "github.com/fastygo/backend/internal/application/content"
 	"github.com/fastygo/backend/internal/contentcompat"
 	"github.com/fastygo/backend/internal/domain/authz"
-	"github.com/fastygo/backend/internal/domain/schema"
 	"github.com/fastygo/codex/canonical"
 	domaincontent "github.com/fastygo/codex/content"
-	"github.com/fastygo/codex/taxonomy"
 	"github.com/fastygo/framework/pkg/core"
 )
 
@@ -41,18 +37,6 @@ type canonicalListDocument struct {
 	Pagination paginationDocument `json:"pagination"`
 }
 
-type canonicalErrorDocument struct {
-	Error canonicalErrorBody `json:"error"`
-}
-
-type canonicalErrorBody struct {
-	Code      string         `json:"code"`
-	Message   string         `json:"message"`
-	Status    int            `json:"status"`
-	Details   map[string]any `json:"details,omitempty"`
-	RequestID string         `json:"request_id,omitempty"`
-}
-
 func (handler *CodexHandler) canonicalDiscovery(response http.ResponseWriter, request *http.Request) {
 	if err := rejectUnknownQuery(request); err != nil {
 		writeCanonicalError(response, request, err)
@@ -63,10 +47,10 @@ func (handler *CodexHandler) canonicalDiscovery(response http.ResponseWriter, re
 		writeCanonicalError(response, request, core.WrapDomainError(core.ErrorCodeInternal, "manifest digest failed", err))
 		return
 	}
-	writeJSON(response, http.StatusOK, map[string]any{
+	writeCanonicalJCS(response, http.StatusOK, map[string]any{
 		"codex_version":   codexVersionValue,
-		"profile":         canonical.EntryProfile,
 		"manifest_digest": digest,
+		"profile":         canonical.EntryProfile,
 	})
 }
 
@@ -75,7 +59,11 @@ func (handler *CodexHandler) canonicalList(response http.ResponseWriter, request
 }
 
 func (handler *CodexHandler) canonicalSettings(response http.ResponseWriter, request *http.Request) {
-	handler.serveCanonicalList(response, request, domaincontent.KindSetting, false)
+	handler.serveCanonicalSettings(response, request, "")
+}
+
+func (handler *CodexHandler) canonicalSettingsGet(response http.ResponseWriter, request *http.Request) {
+	handler.serveCanonicalSettings(response, request, strings.TrimSpace(request.PathValue("id")))
 }
 
 func (handler *CodexHandler) serveCanonicalList(
@@ -86,12 +74,12 @@ func (handler *CodexHandler) serveCanonicalList(
 ) {
 	ctx, cancel := context.WithTimeout(request.Context(), codexV1Timeout)
 	defer cancel()
-	query, err := parseCanonicalQuery(request, handler.defaultLocale)
+	query, err := handler.parseCanonicalQuery(request)
 	if err != nil {
 		writeCanonicalError(response, request, err)
 		return
 	}
-	if !handler.localeAllowed(query.locale) {
+	if !handler.localeAllowed(query.locale, query.defaultLocale) {
 		writeCanonicalError(response, request, canonicalNotFound("locale was not found"))
 		return
 	}
@@ -125,18 +113,18 @@ func (handler *CodexHandler) serveCanonicalList(
 		}
 		return leftLocale < rightLocale
 	})
-	writeJSON(response, http.StatusOK, paginateCanonical(items, query.page, query.perPage))
+	writeCanonicalJCS(response, http.StatusOK, paginateCanonical(items, query.page, query.perPage))
 }
 
 func (handler *CodexHandler) canonicalGet(response http.ResponseWriter, request *http.Request) {
 	ctx, cancel := context.WithTimeout(request.Context(), codexV1Timeout)
 	defer cancel()
-	query, err := parseCanonicalQuery(request, handler.defaultLocale)
+	query, err := handler.parseCanonicalQuery(request)
 	if err != nil {
 		writeCanonicalError(response, request, err)
 		return
 	}
-	if !handler.localeAllowed(query.locale) {
+	if !handler.localeAllowed(query.locale, query.defaultLocale) {
 		writeCanonicalError(response, request, canonicalNotFound("locale was not found"))
 		return
 	}
@@ -166,12 +154,12 @@ func (handler *CodexHandler) canonicalGet(response http.ResponseWriter, request 
 func (handler *CodexHandler) canonicalTaxonomies(response http.ResponseWriter, request *http.Request) {
 	ctx, cancel := context.WithTimeout(request.Context(), codexV1Timeout)
 	defer cancel()
-	query, err := parseCanonicalQuery(request, handler.defaultLocale)
+	query, err := handler.parseCanonicalQuery(request)
 	if err != nil {
 		writeCanonicalError(response, request, err)
 		return
 	}
-	if !handler.localeAllowed(query.locale) {
+	if !handler.localeAllowed(query.locale, query.defaultLocale) {
 		writeCanonicalError(response, request, canonicalNotFound("locale was not found"))
 		return
 	}
@@ -191,25 +179,25 @@ func (handler *CodexHandler) canonicalTaxonomies(response http.ResponseWriter, r
 		if query.locale != "" && item.Locale != "" && item.Locale != query.locale {
 			continue
 		}
-		body, err := json.Marshal(item)
+		body, err := canonicalizeTaxonomy(item)
 		if err != nil {
 			writeCanonicalError(response, request, core.WrapDomainError(core.ErrorCodeInternal, "taxonomy encoding failed", err))
 			return
 		}
 		encoded = append(encoded, body)
 	}
-	writeJSON(response, http.StatusOK, paginateCanonical(encoded, query.page, query.perPage))
+	writeCanonicalJCS(response, http.StatusOK, paginateCanonical(encoded, query.page, query.perPage))
 }
 
 func (handler *CodexHandler) canonicalTerms(response http.ResponseWriter, request *http.Request) {
 	ctx, cancel := context.WithTimeout(request.Context(), codexV1Timeout)
 	defer cancel()
-	query, err := parseCanonicalQuery(request, handler.defaultLocale)
+	query, err := handler.parseCanonicalQuery(request)
 	if err != nil {
 		writeCanonicalError(response, request, err)
 		return
 	}
-	if !handler.localeAllowed(query.locale) {
+	if !handler.localeAllowed(query.locale, query.defaultLocale) {
 		writeCanonicalError(response, request, canonicalNotFound("locale was not found"))
 		return
 	}
@@ -239,19 +227,73 @@ func (handler *CodexHandler) canonicalTerms(response http.ResponseWriter, reques
 		}
 		return leftLocale < rightLocale
 	})
-	writeJSON(response, http.StatusOK, paginateCanonical(encoded, query.page, query.perPage))
+	writeCanonicalJCS(response, http.StatusOK, paginateCanonical(encoded, query.page, query.perPage))
+}
+
+func (handler *CodexHandler) serveCanonicalSettings(response http.ResponseWriter, request *http.Request, id string) {
+	ctx, cancel := context.WithTimeout(request.Context(), codexV1Timeout)
+	defer cancel()
+	query, err := handler.parseCanonicalQuery(request)
+	if err != nil {
+		writeCanonicalError(response, request, err)
+		return
+	}
+	if !handler.localeAllowed(query.locale, query.defaultLocale) {
+		writeCanonicalError(response, request, canonicalNotFound("locale was not found"))
+		return
+	}
+	items, err := handler.loadCanonicalSettings(ctx)
+	if err != nil {
+		writeCanonicalError(response, request, err)
+		return
+	}
+	matched := make([]domaincontent.Settings, 0, len(items))
+	for _, item := range items {
+		if id != "" && string(item.ID) != id {
+			continue
+		}
+		if query.locale != "" && item.Locale != query.locale {
+			continue
+		}
+		matched = append(matched, item)
+	}
+	if id != "" {
+		if len(matched) == 0 {
+			writeCanonicalError(response, request, canonicalNotFound("settings were not found"))
+			return
+		}
+		body, digest, err := canonicalizeSettings(matched[0])
+		if err != nil {
+			writeCanonicalError(response, request, core.WrapDomainError(core.ErrorCodeInternal, "canonical settings encoding failed", err))
+			return
+		}
+		writeCanonicalBytes(response, http.StatusOK, body, digest)
+		return
+	}
+	encoded := make([]json.RawMessage, 0, len(matched))
+	for _, item := range matched {
+		body, _, err := canonicalizeSettings(item)
+		if err != nil {
+			writeCanonicalError(response, request, core.WrapDomainError(core.ErrorCodeInternal, "canonical settings encoding failed", err))
+			return
+		}
+		encoded = append(encoded, body)
+	}
+	writeCanonicalJCS(response, http.StatusOK, paginateCanonical(encoded, query.page, query.perPage))
 }
 
 type canonicalQuery struct {
-	locale  string
-	page    int
-	perPage int
+	locale        string
+	defaultLocale string
+	page          int
+	perPage       int
 }
 
-func parseCanonicalQuery(request *http.Request, defaultLocale string) (canonicalQuery, error) {
+func (handler *CodexHandler) parseCanonicalQuery(request *http.Request) (canonicalQuery, error) {
 	if err := rejectUnknownQuery(request); err != nil {
 		return canonicalQuery{}, err
 	}
+	defaultLocale := handler.siteDefaultLocale(request.Context())
 	values := request.URL.Query()
 	locale := contentcompat.NormalizeLocale(values.Get("locale"))
 	if locale == "" {
@@ -270,7 +312,7 @@ func parseCanonicalQuery(request *http.Request, defaultLocale string) (canonical
 	if perPage > codexMaxPerPage {
 		perPage = codexMaxPerPage
 	}
-	return canonicalQuery{locale: locale, page: page, perPage: perPage}, nil
+	return canonicalQuery{locale: locale, defaultLocale: defaultLocale, page: page, perPage: perPage}, nil
 }
 
 func rejectUnknownQuery(request *http.Request) error {
@@ -302,9 +344,9 @@ func (handler *CodexHandler) knownKind(kind domaincontent.Kind) bool {
 	return ok
 }
 
-func (handler *CodexHandler) localeAllowed(locale string) bool {
+func (handler *CodexHandler) localeAllowed(locale, defaultLocale string) bool {
 	locale = contentcompat.NormalizeLocale(locale)
-	if locale == "" || locale == handler.defaultLocale {
+	if locale == "" || locale == defaultLocale {
 		return true
 	}
 	for _, item := range handler.availableLocales {
@@ -313,6 +355,33 @@ func (handler *CodexHandler) localeAllowed(locale string) bool {
 		}
 	}
 	return false
+}
+
+// siteDefaultLocale is the one /codex/v1 locale resolver: settings.language, else "en".
+func (handler *CodexHandler) siteDefaultLocale(ctx context.Context) string {
+	items, err := handler.loadCanonicalSettings(ctx)
+	if err == nil {
+		for _, item := range items {
+			language := contentcompat.NormalizeLocale(item.Language)
+			if domaincontent.ValidLocale(language) {
+				return language
+			}
+		}
+	}
+	return "en"
+}
+
+func (handler *CodexHandler) loadCanonicalSettings(ctx context.Context) ([]domaincontent.Settings, error) {
+	entries, err := handler.loadPublicKind(ctx, domaincontent.KindSetting)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]domaincontent.Settings, 0, len(entries))
+	for _, entry := range entries {
+		items = append(items, settingsFromEntry(contentcompat.PublicCodex(entry)))
+	}
+	sortSettings(items)
+	return items, nil
 }
 
 func (handler *CodexHandler) loadPublicKind(ctx context.Context, kind domaincontent.Kind) ([]domaincontent.Entry, error) {
@@ -377,29 +446,6 @@ func projectCanonicalMedia(entry domaincontent.Entry) domaincontent.Entry {
 		entry.Metadata = nil
 	}
 	return entry
-}
-
-func canonicalizeTerm(item taxonomy.Term) ([]byte, error) {
-	cloned := item.Clone()
-	for key, value := range cloned.Metadata {
-		if value.Private {
-			delete(cloned.Metadata, key)
-		}
-	}
-	if len(cloned.Metadata) == 0 {
-		cloned.Metadata = nil
-	}
-	cloned.CreatedAt = cloned.CreatedAt.UTC().Truncate(time.Second)
-	cloned.UpdatedAt = cloned.UpdatedAt.UTC().Truncate(time.Second)
-	raw, err := json.Marshal(cloned)
-	if err != nil {
-		return nil, err
-	}
-	text, err := canonical.CanonicalJSON(string(raw))
-	if err != nil {
-		return nil, err
-	}
-	return []byte(text), nil
 }
 
 func paginateCanonical(items []json.RawMessage, page, perPage int) canonicalListDocument {
@@ -492,9 +538,18 @@ func writeCanonicalError(response http.ResponseWriter, request *http.Request, er
 			}
 		}
 	}
-	writeJSON(response, status, canonicalErrorDocument{Error: canonicalErrorBody{
-		Code: code, Message: message, Status: status, Details: details, RequestID: requestID(request),
-	}})
+	errorBody := map[string]any{
+		"code":    code,
+		"message": message,
+		"status":  status,
+	}
+	if len(details) > 0 {
+		errorBody["details"] = details
+	}
+	if id := requestID(request); id != "" {
+		errorBody["request_id"] = id
+	}
+	writeCanonicalJCS(response, status, map[string]any{"error": errorBody})
 }
 
 func canonicalErrorCode(code string, status int) string {
@@ -528,27 +583,4 @@ func digestHex(digest string) string {
 		return digest[index+1:]
 	}
 	return digest
-}
-
-func manifestDigestV2(manifest schema.Manifest) (string, error) {
-	canonicalManifest := manifest.Canonical()
-	resources := make([]map[string]any, 0, len(canonicalManifest.Resources))
-	for _, resource := range canonicalManifest.Resources {
-		resources = append(resources, map[string]any{
-			"id":         resource.ID,
-			"collection": resource.Collection,
-		})
-	}
-	raw, err := json.Marshal(map[string]any{
-		"name": canonicalManifest.Name, "version": canonicalManifest.Version, "resources": resources,
-	})
-	if err != nil {
-		return "", err
-	}
-	text, err := canonical.CanonicalJSON(string(raw))
-	if err != nil {
-		return "", err
-	}
-	sum := sha256.Sum256([]byte(text))
-	return canonical.ManifestDigestV2Prefix + hex.EncodeToString(sum[:]), nil
 }
