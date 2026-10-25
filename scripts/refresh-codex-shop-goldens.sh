@@ -31,7 +31,8 @@ if [[ -z "$CHECKOUT" ]]; then
   CLEANUP="$CHECKOUT"
   REPO_URL="$(clone_wp_fasty "$CHECKOUT")"
 else
-  REPO_URL="$(git -C "$CHECKOUT" remote get-url origin)"
+  REPO_URL="$(git -C "$CHECKOUT" remote get-url origin | sed -E 's#https://[^@]+@github.com/#https://github.com/#; s#git@github.com:#https://github.com/#')"
+  REPO_URL="${REPO_URL%.git}.git"
 fi
 
 COMMIT="$(git -C "$CHECKOUT" rev-parse HEAD)"

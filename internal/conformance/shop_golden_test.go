@@ -27,9 +27,7 @@ import (
 
 // TestCodexV1ShopGoldenHTTP boots /codex/v1 with the vendored latte-shop Codex
 // records (wp-fasty shop demo goldens) and compares each golden file's endpoint
-// body byte for byte. request_id is ignored. WP terms goldens still include a
-// sibling `counts` object; Go emits {data, pagination} only, so those three
-// files are compared after dropping counts and re-JCS.
+// body byte for byte. request_id is ignored.
 func TestCodexV1ShopGoldenHTTP(t *testing.T) {
 	root := filepath.Join("testdata", "wp-fasty-latte-shop")
 	goldenDir := filepath.Join(root, "golden")
@@ -106,7 +104,6 @@ func TestCodexV1ShopGoldenHTTP(t *testing.T) {
 	type result struct {
 		file   string
 		path   string
-		exact  bool
 		match  bool
 		detail string
 	}
@@ -124,6 +121,9 @@ func TestCodexV1ShopGoldenHTTP(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)
 		}
+		if bytes.Contains(golden, []byte(`"counts"`)) {
+			t.Fatalf("%s still has counts; refresh goldens from wp-fasty 70dae86+", name)
+		}
 		resp, err := http.Get(server.URL + path)
 		if err != nil {
 			t.Fatalf("GET %s: %v", path, err)
@@ -137,38 +137,29 @@ func TestCodexV1ShopGoldenHTTP(t *testing.T) {
 			t.Fatalf("%s: HTTP %d %s", path, resp.StatusCode, body)
 		}
 		got := stripRequestID(body)
-		want, exactGolden, err := shopGoldenWant(name, golden)
-		if err != nil {
-			t.Fatalf("%s: golden normalize: %v", name, err)
-		}
-		match := bytes.Equal(got, want)
+		match := bytes.Equal(got, golden)
 		detail := ""
 		if !match {
-			detail = fmt.Sprintf("got %s\nwant %s", got, want)
+			detail = fmt.Sprintf("got %s\nwant %s", got, golden)
 		}
-		results = append(results, result{file: name, path: path, exact: exactGolden && match, match: match, detail: detail})
+		results = append(results, result{file: name, path: path, match: match, detail: detail})
 	}
 	sort.Slice(results, func(i, j int) bool { return results[i].file < results[j].file })
-	exact, matched := 0, 0
+	matched := 0
 	for _, item := range results {
-		if item.exact {
-			exact++
-		}
 		if item.match {
 			matched++
 		}
 		status := "MATCH"
 		if !item.match {
 			status = "DIFF"
-		} else if !item.exact {
-			status = "MATCH (terms counts stripped from WP golden)"
 		}
 		t.Logf("%s %s %s", status, item.file, item.path)
 		if !item.match {
 			t.Errorf("%s %s\n%s", item.file, item.path, item.detail)
 		}
 	}
-	t.Logf("shop golden HTTP: %d of %d exact, %d of %d after contract terms envelope", exact, len(results), matched, len(results))
+	t.Logf("shop golden HTTP: %d of %d", matched, len(results))
 	if matched != len(results) {
 		t.Fatalf("shop golden HTTP: %d of %d matched", matched, len(results))
 	}
@@ -338,29 +329,6 @@ func shopGoldenPath(name, locale, settingsID string) (string, bool) {
 	default:
 		return "", false
 	}
-}
-
-func shopGoldenWant(name string, golden []byte) ([]byte, bool, error) {
-	if !strings.HasPrefix(name, "terms.") {
-		return golden, true, nil
-	}
-	var doc map[string]json.RawMessage
-	if err := json.Unmarshal(golden, &doc); err != nil {
-		return nil, false, err
-	}
-	if _, has := doc["counts"]; !has {
-		return golden, true, nil
-	}
-	delete(doc, "counts")
-	raw, err := json.Marshal(doc)
-	if err != nil {
-		return nil, false, err
-	}
-	text, err := canonical.CanonicalJSON(string(raw))
-	if err != nil {
-		return nil, false, err
-	}
-	return []byte(text), false, nil
 }
 
 func stripRequestID(body []byte) []byte {
