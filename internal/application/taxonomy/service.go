@@ -59,6 +59,10 @@ func (service *Service) SaveDefinition(
 		return domaintaxonomy.Definition{}, err
 	}
 	definition.ID = strings.TrimSpace(definition.ID)
+	definition.Locale = strings.TrimSpace(definition.Locale)
+	if definition.Locale == "" {
+		definition.Locale = "en"
+	}
 	definition.Version = expectedVersion + 1
 	if err := definition.Validate(); err != nil {
 		return domaintaxonomy.Definition{}, core.WrapDomainError(
@@ -150,6 +154,15 @@ func (service *Service) SaveTerm(
 	}
 	term.ID = domaintaxonomy.ID(strings.TrimSpace(string(term.ID)))
 	term.TaxonomyID = strings.TrimSpace(term.TaxonomyID)
+	term.Locale = strings.TrimSpace(term.Locale)
+	if term.Locale == "" {
+		term.Locale = "en"
+	}
+	now := service.now().UTC()
+	if term.CreatedAt.IsZero() {
+		term.CreatedAt = now
+	}
+	term.UpdatedAt = now
 	term.Version = expectedVersion + 1
 	err := service.transactor.WithinTaxonomyTransaction(ctx, func(transaction Transaction) error {
 		definition, err := transaction.Taxonomies().GetDefinition(ctx, term.TaxonomyID)

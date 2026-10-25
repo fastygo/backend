@@ -24,7 +24,7 @@ type Asset struct {
 	Size       int64
 	Checksum   string
 	StorageKey string
-	Alt        content.LocalizedText
+	Alt        string
 	Version    uint64
 }
 

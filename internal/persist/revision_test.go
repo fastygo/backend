@@ -17,7 +17,7 @@ func TestEncodeDecodeRevisionRoundTrip(t *testing.T) {
 			Snapshot: content.Entry{
 				ID: "post_1", Kind: content.KindPost, Status: content.StatusDraft,
 				Visibility: content.VisibilityPrivate,
-				Slug:       content.LocalizedText{"en": "draft"}, Title: content.LocalizedText{"en": "Draft"},
+				Slug:       "draft", Title: "Draft",
 				Version: 1, CreatedAt: now, UpdatedAt: now,
 			},
 		},
@@ -33,7 +33,7 @@ func TestEncodeDecodeRevisionRoundTrip(t *testing.T) {
 			if err != nil {
 				t.Fatalf("decode: %v", err)
 			}
-			if decoded.ID != item.ID || decoded.Snapshot.Title["en"] != "Draft" {
+			if decoded.ID != item.ID || decoded.Snapshot.Title != "Draft" {
 				t.Fatalf("revision round-trip diverged: %#v", decoded)
 			}
 		})

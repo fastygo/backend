@@ -3,6 +3,7 @@ package forms
 import (
 	"testing"
 
+	"github.com/fastygo/backend/internal/contentcompat"
 	"github.com/fastygo/backend/internal/domain/schema"
 	domaincontent "github.com/fastygo/codex/content"
 	"github.com/fastygo/formset"
@@ -133,11 +134,11 @@ func TestValidateEntryAcceptsOneLocaleWithoutTheOther(t *testing.T) {
 		ID: "product", Collection: "products",
 		Form: []schema.Field{{ID: "title", Type: schema.FieldString, Required: true}},
 	}
-	if err := ValidateEntry(resource, domaincontent.Entry{
-		Locales: map[string]domaincontent.LocaleDocument{
-			"en": {Data: map[string]any{"title": "Course"}},
-		},
-	}); err != nil {
+	entry := domaincontent.Entry{}
+	contentcompat.SetDocuments(&entry, map[string]contentcompat.LocaleDocument{
+		"en": {Data: map[string]any{"title": "Course"}},
+	})
+	if err := ValidateEntry(resource, entry); err != nil {
 		t.Fatalf("one locale write must not require the others: %v", err)
 	}
 }

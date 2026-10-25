@@ -29,7 +29,7 @@ func TestAdapterPersistsContentAndRevisionsAcrossReopen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create content: %v", err)
 	}
-	created.Title = content.LocalizedText{"en": "Durable title"}
+	created.Title = "Durable title"
 	if _, err := service.Update(context.Background(), principal, created, 1, "durability test"); err != nil {
 		t.Fatalf("update content: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestAdapterPersistsContentAndRevisionsAcrossReopen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read reopened content: %v", err)
 	}
-	if resolved.Version != 2 || resolved.Title["en"] != "Durable title" {
+	if resolved.Version != 2 || resolved.Title != "Durable title" {
 		t.Fatalf("unexpected durable content: %#v", resolved)
 	}
 	if err := adapter.WithinContentTransaction(context.Background(), func(transaction application.Transaction) error {
@@ -109,7 +109,7 @@ func TestAdapterFiltersPublicContentAndTaxonomy(t *testing.T) {
 		}
 		draft := testEntry(now)
 		draft.ID = "post_2"
-		draft.Slug = content.LocalizedText{"en": "draft"}
+		draft.Slug = "draft"
 		draft.Status = content.StatusDraft
 		return transaction.Content().Create(context.Background(), draft)
 	})
@@ -172,9 +172,9 @@ func newTestService(t *testing.T, adapter *Adapter, now time.Time) *application.
 
 func testEntry(now time.Time) content.Entry {
 	return content.Entry{
-		ID: "post_1", Kind: content.KindPost, Status: content.StatusPublished, Visibility: content.VisibilityPublic,
-		Slug: content.LocalizedText{"en": "hello"}, Title: content.LocalizedText{"en": "Hello"},
-		Content: content.LocalizedText{"en": "Body"}, Version: 1,
+		ID: "post_1", Kind: content.KindPost, Locale: "en", Status: content.StatusPublished, Visibility: content.VisibilityPublic,
+		Slug: "hello", Title: "Hello",
+		Content: "Body", Version: 1,
 		CreatedAt: now, UpdatedAt: now, PublishedAt: &now,
 	}
 }

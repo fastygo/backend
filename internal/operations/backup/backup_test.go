@@ -37,14 +37,14 @@ func TestBackupRestoresAcrossBboltAndSQLiteAdapters(t *testing.T) {
 	)
 	now := time.Now().UTC()
 	created, err := contentService.Create(ctx, principal, content.Entry{
-		ID: "post_1", Kind: "post", Status: content.StatusPublished, Visibility: content.VisibilityPublic,
-		Slug: content.LocalizedText{"en": "backup"}, Title: content.LocalizedText{"en": "Backup"},
+		ID: "post_1", Kind: "post", Locale: "en", Status: content.StatusPublished, Visibility: content.VisibilityPublic,
+		Slug: "backup", Title: "Backup",
 		PublishedAt: &now,
 	})
 	if err != nil {
 		t.Fatalf("create source content: %v", err)
 	}
-	created.Title = content.LocalizedText{"en": "Restored"}
+	created.Title = "Restored"
 	if _, err := contentService.Update(ctx, principal, created, 1, "backup test"); err != nil {
 		t.Fatalf("update source content: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestBackupRestoresAcrossBboltAndSQLiteAdapters(t *testing.T) {
 	taxonomyPrincipal := authz.NewPrincipal("admin", authz.CapabilityTaxonomiesManage)
 	definition, err := taxonomyService.SaveDefinition(ctx, taxonomyPrincipal, taxonomy.Definition{
 		ID: "topic", Mode: taxonomy.ModeFlat, Public: true,
-		Label:           content.LocalizedText{"en": "Topics"},
+		Label:           "Topics",
 		AssignedToKinds: []content.Kind{content.KindPost},
 	}, 0)
 	if err != nil {
@@ -60,7 +60,7 @@ func TestBackupRestoresAcrossBboltAndSQLiteAdapters(t *testing.T) {
 	}
 	if _, err := taxonomyService.SaveTerm(ctx, taxonomyPrincipal, taxonomy.Term{
 		ID: "go", TaxonomyID: definition.ID,
-		Name: content.LocalizedText{"en": "Go"}, Slug: content.LocalizedText{"en": "go"},
+		Name: "Go", Slug: "go",
 	}, 0); err != nil {
 		t.Fatalf("create source taxonomy term: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestBackupRestoresAcrossBboltAndSQLiteAdapters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read restored content: %v", err)
 	}
-	if restored.Version != 2 || restored.Title["en"] != "Restored" {
+	if restored.Version != 2 || restored.Title != "Restored" {
 		t.Fatalf("restored content mismatch: %#v", restored)
 	}
 	targetTaxonomies, _ := taxonomyapplication.NewService(target, nil)

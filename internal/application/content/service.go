@@ -217,6 +217,9 @@ func (service *Service) Create(ctx context.Context, principal authz.Principal, e
 	entry.Version = 1
 	entry.CreatedAt = now
 	entry.UpdatedAt = now
+	contentcompat.EnsureLocale(&entry)
+	contentcompat.Lift(&entry)
+	contentcompat.SyncChrome(&entry)
 	normalizeEntrySlugs(&entry)
 	if err := entry.Validate(); err != nil {
 		return domaincontent.Entry{}, core.WrapDomainError(core.ErrorCodeValidation, "content is invalid", err)
@@ -297,6 +300,12 @@ func (service *Service) Update(
 		entry.CreatedAt = current.CreatedAt
 		entry.UpdatedAt = service.now().UTC()
 		entry.Version = current.Version + 1
+		if entry.Locale == "" {
+			entry.Locale = current.Locale
+		}
+		contentcompat.EnsureLocale(&entry)
+		contentcompat.Lift(&entry)
+		contentcompat.SyncChrome(&entry)
 		normalizeEntrySlugs(&entry)
 		if err := entry.Validate(); err != nil {
 			return core.WrapDomainError(core.ErrorCodeValidation, "content is invalid", err)
@@ -319,7 +328,7 @@ func (service *Service) Update(
 			return core.WrapDomainError(core.ErrorCodeInternal, "revision id allocation failed", err)
 		}
 		snapshot := revision.Revision{
-			ID: revisionID, EntryID: current.ID, Version: current.Version, Snapshot: current,
+			ID: revisionID, EntryID: current.ID, Locale: current.Locale, Version: current.Version, Snapshot: current,
 			AuthorID: principal.ID, Reason: strings.TrimSpace(reason), CreatedAt: service.now().UTC(),
 		}
 		if err := snapshot.Validate(); err != nil {
@@ -413,7 +422,7 @@ func (service *Service) applyDeletePolicies(
 					return core.WrapDomainError(core.ErrorCodeInternal, "relation revision id allocation failed", err)
 				}
 				snapshot := revision.Revision{
-					ID: revisionID, EntryID: before.ID, Version: before.Version, Snapshot: before,
+					ID: revisionID, EntryID: before.ID, Locale: before.Locale, Version: before.Version, Snapshot: before,
 					AuthorID: principal.ID, Reason: "relation on_delete " + string(field.Relation.OnDelete),
 					CreatedAt: service.now().UTC(),
 				}
@@ -602,7 +611,7 @@ func (service *Service) validateManifest(
 		declared[field.ID] = struct{}{}
 	}
 	for id := range entry.Metadata {
-		if strings.HasPrefix(id, "payload_") {
+		if contentcompat.IsInternalMeta(id) {
 			continue
 		}
 		if _, exists := declared[id]; !exists {
@@ -1114,7 +1123,11 @@ func authorizeStatus(principal authz.Principal, before, after domaincontent.Stat
 }
 
 func ensureUniqueSlugs(ctx context.Context, repository Repository, entry domaincontent.Entry, exclude domaincontent.ID) error {
-	for locale, slug := range entry.Slug {
+	chrome := contentcompat.ChromeFrom(entry)
+	if len(chrome.Slug) == 0 && entry.Slug != "" {
+		chrome.Slug = contentcompat.LocalizedText{contentcompat.DefaultLocale(entry): entry.Slug}
+	}
+	for locale, slug := range chrome.Slug {
 		exists, err := repository.SlugExists(ctx, entry.Kind, locale, slug, exclude)
 		if err != nil {
 			return core.WrapDomainError(core.ErrorCodeInternal, "slug uniqueness check failed", err)
@@ -1127,9 +1140,17 @@ func ensureUniqueSlugs(ctx context.Context, repository Repository, entry domainc
 }
 
 func normalizeEntrySlugs(entry *domaincontent.Entry) {
-	for locale, slug := range entry.Slug {
-		entry.Slug[locale] = domaincontent.NormalizeSlug(slug)
+	if entry == nil {
+		return
 	}
+	chrome := contentcompat.ChromeFrom(*entry)
+	if len(chrome.Slug) == 0 && entry.Slug != "" {
+		chrome.Slug = contentcompat.LocalizedText{contentcompat.DefaultLocale(*entry): entry.Slug}
+	}
+	for locale, slug := range chrome.Slug {
+		chrome.Slug[locale] = domaincontent.NormalizeSlug(slug)
+	}
+	contentcompat.AttachChrome(entry, chrome)
 }
 
 func lifecycleName(before, after domaincontent.Status) string {

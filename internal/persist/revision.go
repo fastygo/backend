@@ -12,6 +12,7 @@ import (
 type Revision struct {
 	ID        revision.ID `json:"id"`
 	EntryID   content.ID  `json:"entry_id"`
+	Locale    string      `json:"locale,omitempty"`
 	Version   uint64      `json:"version"`
 	Snapshot  Entry       `json:"snapshot"`
 	AuthorID  string      `json:"author_id"`
@@ -20,17 +21,26 @@ type Revision struct {
 }
 
 func RevisionFromDomain(item revision.Revision) Revision {
+	locale := item.Locale
+	if locale == "" {
+		locale = item.Snapshot.Locale
+	}
 	return Revision{
-		ID: item.ID, EntryID: item.EntryID, Version: item.Version,
+		ID: item.ID, EntryID: item.EntryID, Locale: locale, Version: item.Version,
 		Snapshot: EntryFromDomain(item.Snapshot), AuthorID: item.AuthorID,
 		Reason: item.Reason, CreatedAt: item.CreatedAt,
 	}
 }
 
 func (item Revision) Domain() revision.Revision {
+	snapshot := item.Snapshot.Domain()
+	locale := item.Locale
+	if locale == "" {
+		locale = snapshot.Locale
+	}
 	return revision.Revision{
-		ID: item.ID, EntryID: item.EntryID, Version: item.Version,
-		Snapshot: item.Snapshot.Domain(), AuthorID: item.AuthorID,
+		ID: item.ID, EntryID: item.EntryID, Locale: locale, Version: item.Version,
+		Snapshot: snapshot, AuthorID: item.AuthorID,
 		Reason: item.Reason, CreatedAt: item.CreatedAt,
 	}
 }

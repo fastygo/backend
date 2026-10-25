@@ -13,4 +13,5 @@ Read: [glossary](glossary.md) → [contract](contract.md) → [architecture](arc
 
 Runtime API contracts are generated from the active manifest:
 `/go-json/go/v2/openapi.json`, `/go-json/go/v2/schema`, and optional
-`/go-json/go/v2/graphql.sdl`.
+`/go-json/go/v2/graphql.sdl`. Canonical Codex reads live at `/codex/v1`
+(ADR-0010).

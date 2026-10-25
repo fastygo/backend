@@ -11,6 +11,7 @@ import (
 	"time"
 
 	application "github.com/fastygo/backend/internal/application/content"
+	"github.com/fastygo/backend/internal/contentcompat"
 	"github.com/fastygo/backend/internal/domain/authz"
 	"github.com/fastygo/backend/internal/persist"
 	"github.com/fastygo/codex/content"
@@ -34,7 +35,7 @@ func TestSQLitePersistsContentRevisionsAndSlugs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create content: %v", err)
 	}
-	created.Title = content.LocalizedText{"en": "Updated"}
+	created.Title = "Updated"
 	if _, err := service.Update(context.Background(), principal, created, 1, "SQL revision"); err != nil {
 		t.Fatalf("update content: %v", err)
 	}
@@ -49,7 +50,7 @@ func TestSQLitePersistsContentRevisionsAndSlugs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read reopened content: %v", err)
 	}
-	if resolved.Version != 2 || resolved.Title["en"] != "Updated" {
+	if resolved.Version != 2 || resolved.Title != "Updated" {
 		t.Fatalf("unexpected reopened entry: %#v", resolved)
 	}
 	err = adapter.WithinContentTransaction(context.Background(), func(transaction application.Transaction) error {
@@ -119,39 +120,42 @@ func TestSQLiteListFiltersSortsAndPaginatesInSQL(t *testing.T) {
 	now := time.Date(2026, time.August, 25, 13, 0, 0, 0, time.UTC)
 	entries := []content.Entry{
 		sqlEntry(now),
-		{
-			ID: "product_2", Kind: "product", Status: content.StatusPublished,
+		withChrome(content.Entry{
+			ID: "product_2", Kind: "product", Locale: "en", Status: content.StatusPublished,
 			Visibility: content.VisibilityPublic, AuthorID: "author-2",
-			Title:    content.LocalizedText{"en": "Alpha", "ru": "Альфа"},
-			Content:  content.LocalizedText{"en": "Needle description", "ru": "Описание"},
+			Title: "Alpha", Content: "Needle description", Slug: "product-2",
 			Terms:    []content.TermRef{{Taxonomy: "catalog", TermID: "featured"}},
 			Metadata: map[string]content.MetadataValue{"brand": {Value: "brand_1"}},
 			Version:  1, CreatedAt: now.Add(time.Minute), UpdatedAt: now.Add(time.Minute),
 			PublishedAt: timePointer(now),
-		},
+		}, contentcompat.Chrome{
+			Title:   contentcompat.LocalizedText{"en": "Alpha", "ru": "Альфа"},
+			Content: contentcompat.LocalizedText{"en": "Needle description", "ru": "Описание"},
+			Slug:    contentcompat.LocalizedText{"en": "product-2"},
+		}),
 		{
 			ID: "product_3", Kind: "product", Status: content.StatusDraft,
 			Visibility: content.VisibilityPublic,
-			Title:      content.LocalizedText{"en": "Hidden needle"},
+			Title:      "Hidden needle",
 			Version:    1, CreatedAt: now.Add(2 * time.Minute), UpdatedAt: now.Add(2 * time.Minute),
 		},
 		{
 			ID: "product_4", Kind: "product", Status: content.StatusPublished,
 			Visibility: content.VisibilityPublic, AuthorID: "legacy",
-			Title:   content.LocalizedText{"en": "Zebra"},
+			Title:   "Zebra",
 			Version: 1, CreatedAt: now.Add(3 * time.Minute), UpdatedAt: now.Add(3 * time.Minute),
 		},
 		{
 			ID: "product_5", Kind: "product", Status: content.StatusPublished,
 			Visibility: content.VisibilityPublic, AuthorID: "legacy",
-			Title:   content.LocalizedText{"en": "Deleted"},
+			Title:   "Deleted",
 			Version: 1, CreatedAt: now.Add(4 * time.Minute), UpdatedAt: now.Add(4 * time.Minute),
 			DeletedAt: timePointer(now),
 		},
 		{
 			ID: "product_6", Kind: "product", Status: content.StatusPublished,
 			Visibility: content.VisibilityPublic, AuthorID: "legacy",
-			Title:   content.LocalizedText{"en": "apple"},
+			Title:   "apple",
 			Version: 1, CreatedAt: now.Add(5 * time.Minute), UpdatedAt: now.Add(5 * time.Minute),
 		},
 	}
@@ -238,7 +242,7 @@ func TestSQLiteMigrationBackfillsContentProjections(t *testing.T) {
 	entry.Terms = []content.TermRef{{Taxonomy: "catalog", TermID: "legacy"}}
 	for index := range 105 {
 		entry.ID = content.ID(fmt.Sprintf("legacy_%03d", index))
-		entry.Slug = content.LocalizedText{"en": string(entry.ID)}
+		entry.Slug = string(entry.ID)
 		encoded, err := persist.EncodeEntry(entry)
 		if err != nil {
 			t.Fatalf("encode legacy content %d: %v", index, err)
@@ -324,20 +328,20 @@ func TestLiveSQLDialects(t *testing.T) {
 			t.Cleanup(func() { _ = adapter.Close() })
 			entry := sqlEntry(time.Now().UTC())
 			entry.ID = content.ID(fmt.Sprintf("live_%s_%d", test.dialect, time.Now().UnixNano()))
-			entry.Slug = content.LocalizedText{"en": string(entry.ID)}
-			entry.Title = content.LocalizedText{"en": "Live indexed " + string(entry.ID)}
+			entry.Slug = string(entry.ID)
+			entry.Title = "Live indexed " + string(entry.ID)
 			entry.Terms = []content.TermRef{{Taxonomy: "live", TermID: "indexed"}}
 			upper := entry
 			upper.ID += "_upper"
-			upper.Slug = content.LocalizedText{"en": string(upper.ID)}
-			upper.Title = content.LocalizedText{"en": "Zebra"}
+			upper.Slug = string(upper.ID)
+			upper.Title = "Zebra"
 			upper.AuthorID = string(entry.ID)
 			upper.PublishedAt = nil
 			upper.Terms = nil
 			lower := upper
 			lower.ID = entry.ID + "_lower"
-			lower.Slug = content.LocalizedText{"en": string(lower.ID)}
-			lower.Title = content.LocalizedText{"en": "apple"}
+			lower.Slug = string(lower.ID)
+			lower.Title = "apple"
 			entries := []content.Entry{entry, upper, lower}
 			err = adapter.WithinContentTransaction(ctx, func(transaction application.Transaction) error {
 				for _, candidate := range entries {
@@ -417,9 +421,14 @@ func newSQLService(t *testing.T, adapter *Adapter, now time.Time) *application.S
 
 func sqlEntry(now time.Time) content.Entry {
 	return content.Entry{
-		ID: "product_1", Kind: "product", Status: content.StatusPublished, Visibility: content.VisibilityPublic,
-		Slug: content.LocalizedText{"en": "product-one"}, Title: content.LocalizedText{"en": "Product One"},
-		Content: content.LocalizedText{"en": "Description"}, Version: 1,
+		ID: "product_1", Kind: "product", Locale: "en", Status: content.StatusPublished, Visibility: content.VisibilityPublic,
+		Slug: "product-one", Title: "Product One",
+		Content: "Description", Version: 1,
 		CreatedAt: now, UpdatedAt: now, PublishedAt: &now,
 	}
+}
+
+func withChrome(entry content.Entry, chrome contentcompat.Chrome) content.Entry {
+	contentcompat.AttachChrome(&entry, chrome)
+	return entry
 }

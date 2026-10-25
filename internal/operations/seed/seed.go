@@ -68,7 +68,7 @@ func applyRecord(
 	record Record,
 ) (bool, error) {
 	entry := entryFromRecord(record)
-	if existing, err := service.GetBySlug(ctx, principal, entry.Kind, "en", entry.Slug.Value("en", "ru")); err == nil && existing.ID != "" {
+	if existing, err := service.GetBySlug(ctx, principal, entry.Kind, "en", entry.Slug); err == nil && existing.ID != "" {
 		return false, nil
 	}
 	if _, err := service.Create(ctx, principal, entry); err != nil {
@@ -85,41 +85,37 @@ func entryFromRecord(record Record) domaincontent.Entry {
 	slug := stringValue(record.Values["slug"])
 	entry := domaincontent.Entry{
 		ID:   domaincontent.ID(uuid.NewSHA1(idempotencyNamespace, []byte(record.IdempotencyKey)).String()),
-		Kind: domaincontent.Kind(record.Resource), Status: domaincontent.Status(stringValue(record.Values["status"])),
+		Kind: domaincontent.Kind(record.Resource), Locale: domaincontent.DefaultLocale,
+		Status:     domaincontent.Status(stringValue(record.Values["status"])),
 		Visibility: domaincontent.Visibility(stringValue(record.Values["visibility"])),
-		Title:      domaincontent.LocalizedText{"en": title, "ru": title},
-		Slug:       domaincontent.LocalizedText{"en": slug, "ru": slug},
-		Content:    domaincontent.LocalizedText{},
-		Excerpt:    domaincontent.LocalizedText{},
-		Metadata:   map[string]domaincontent.MetadataValue{},
-		Locales:    map[string]domaincontent.LocaleDocument{},
+		Title:      title, Slug: slug,
+		Metadata: map[string]domaincontent.MetadataValue{},
+	}
+	chrome := contentcompat.Chrome{
+		Title: contentcompat.LocalizedText{"en": title, "ru": title},
+		Slug:  contentcompat.LocalizedText{"en": slug, "ru": slug},
 	}
 	if raw, ok := record.Values["locales"]; ok {
-		applyLocales(&entry, raw)
+		applyLocales(&entry, &chrome, raw)
 	}
 	if raw, ok := record.Values["payload_ru"]; ok {
-		applyPayloadLocale(&entry, "ru", raw)
+		applyPayloadLocale(&entry, &chrome, "ru", raw)
 	}
 	if raw, ok := record.Values["payload_en"]; ok {
-		applyPayloadLocale(&entry, "en", raw)
+		applyPayloadLocale(&entry, &chrome, "en", raw)
 	}
-	contentcompat.Lift(&entry)
 	if text := stringValue(record.Values["content"]); text != "" {
-		entry.Content["en"] = text
-		if entry.Content["ru"] == "" {
-			entry.Content["ru"] = text
-		}
+		chrome.Content = chrome.Content.Merge(contentcompat.LocalizedText{"en": text, "ru": text})
 	}
 	if text := stringValue(record.Values["excerpt"]); text != "" {
-		entry.Excerpt["en"] = text
-		if entry.Excerpt["ru"] == "" {
-			entry.Excerpt["ru"] = text
-		}
+		chrome.Excerpt = chrome.Excerpt.Merge(contentcompat.LocalizedText{"en": text, "ru": text})
 	}
+	contentcompat.AttachChrome(&entry, chrome)
+	contentcompat.Lift(&entry)
 	return entry
 }
 
-func applyLocales(entry *domaincontent.Entry, raw any) {
+func applyLocales(entry *domaincontent.Entry, chrome *contentcompat.Chrome, raw any) {
 	root, ok := raw.(map[string]any)
 	if !ok {
 		return
@@ -132,28 +128,25 @@ func applyLocales(entry *domaincontent.Entry, raw any) {
 		if data == nil {
 			continue
 		}
-		applyPayloadLocale(entry, domaincontent.NormalizeLocale(locale), data)
+		applyPayloadLocale(entry, chrome, contentcompat.NormalizeLocale(locale), data)
 	}
 }
 
-func applyPayloadLocale(entry *domaincontent.Entry, locale string, raw any) {
+func applyPayloadLocale(entry *domaincontent.Entry, chrome *contentcompat.Chrome, locale string, raw any) {
 	document, ok := raw.(map[string]any)
 	if !ok {
 		return
 	}
-	locale = domaincontent.NormalizeLocale(locale)
-	if entry.Locales == nil {
-		entry.Locales = map[string]domaincontent.LocaleDocument{}
-	}
-	entry.Locales[locale] = domaincontent.LocaleDocument{Data: document, Status: entry.Status}
+	locale = contentcompat.NormalizeLocale(locale)
+	contentcompat.PutDocument(entry, locale, contentcompat.LocaleDocument{Data: document, Status: entry.Status})
 	if text := stringValue(document["title"]); text != "" {
-		entry.Title[locale] = text
+		chrome.Title = chrome.Title.Merge(contentcompat.LocalizedText{locale: text})
 	}
 	if text := stringValue(document["content"]); text != "" {
-		entry.Content[locale] = text
+		chrome.Content = chrome.Content.Merge(contentcompat.LocalizedText{locale: text})
 	}
 	if text := stringValue(document["excerpt"]); text != "" {
-		entry.Excerpt[locale] = text
+		chrome.Excerpt = chrome.Excerpt.Merge(contentcompat.LocalizedText{locale: text})
 	}
 }
 

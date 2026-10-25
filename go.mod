@@ -5,7 +5,7 @@ go 1.25.0
 toolchain go1.25.13
 
 require (
-	github.com/fastygo/codex v0.3.0
+	github.com/fastygo/codex v0.4.0
 	github.com/fastygo/formset v0.2.0
 	github.com/fastygo/framework v0.4.0
 	github.com/fastygo/panel v0.1.0

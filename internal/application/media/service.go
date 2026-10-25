@@ -10,6 +10,7 @@ import (
 	"time"
 
 	contentapplication "github.com/fastygo/backend/internal/application/content"
+	"github.com/fastygo/backend/internal/contentcompat"
 	"github.com/fastygo/backend/internal/domain/authz"
 	domainmedia "github.com/fastygo/backend/internal/domain/media"
 	"github.com/fastygo/codex/content"
@@ -32,7 +33,8 @@ type BlobStore interface {
 type Upload struct {
 	Filename   string
 	MIMEType   string
-	Alt        content.LocalizedText
+	Alt        string
+	Locale     string
 	Status     content.Status
 	Visibility content.Visibility
 	Reader     io.Reader
@@ -90,19 +92,18 @@ func (service *Service) Upload(
 	if err != nil {
 		return domainmedia.Asset{}, core.WrapDomainError(core.ErrorCodeValidation, "media upload failed", err)
 	}
-	title := content.LocalizedText{}
-	for locale, value := range input.Alt {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			title[locale] = trimmed
-		}
+	locale := strings.TrimSpace(input.Locale)
+	if locale == "" {
+		locale = content.DefaultLocale
 	}
-	if len(title) == 0 {
-		title = content.LocalizedText{"en": input.Filename}
+	title := strings.TrimSpace(input.Alt)
+	if title == "" {
+		title = input.Filename
 	}
 	now := service.now().UTC()
 	entry := content.Entry{
-		ID: id, Kind: "media", Status: input.Status, Visibility: input.Visibility,
-		Slug:  content.LocalizedText{"en": content.NormalizeSlug(strings.TrimSuffix(input.Filename, filepath.Ext(input.Filename))) + "-" + string(id[len(id)-8:])},
+		ID: id, Locale: locale, Kind: "media", Status: input.Status, Visibility: input.Visibility,
+		Slug:  content.NormalizeSlug(strings.TrimSuffix(input.Filename, filepath.Ext(input.Filename))) + "-" + string(id[len(id)-8:]),
 		Title: title, AuthorID: principal.ID, Version: 1, CreatedAt: now, UpdatedAt: now,
 		Metadata: map[string]content.MetadataValue{
 			domainmedia.MetadataFilename:   {Value: input.Filename},
@@ -112,6 +113,7 @@ func (service *Service) Upload(
 			domainmedia.MetadataStorageKey: {Value: stored.Key, Private: true},
 		},
 	}
+	contentcompat.SyncChrome(&entry)
 	created, err := service.content.Create(ctx, principal, entry)
 	if err != nil {
 		_ = service.blobs.Delete(context.WithoutCancel(ctx), stored.Key)

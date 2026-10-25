@@ -4,7 +4,7 @@ DIST     ?= dist
 
 SEED ?=
 
-.PHONY: build run test conformance vet lint vuln race live-sql live-sql-up live-sql-down verify-light verify token backup restore seed docker-build docker-test clean
+.PHONY: build run test conformance codex-conform vet lint vuln race live-sql live-sql-up live-sql-down verify-light verify token backup restore seed docker-build docker-test clean
 
 build:
 	mkdir -p $(DIST)
@@ -22,6 +22,9 @@ test:
 
 conformance:
 	$(GO) test -count=1 ./internal/conformance
+# Stand-in for ui8kit/contract codex-conform HTTP CLI (not shipped at 8299fee).
+codex-conform:
+	$(GO) test -count=1 -run TestCodexV1Conform ./internal/conformance
 
 vet:
 	$(GO) vet ./...

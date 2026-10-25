@@ -12,6 +12,8 @@ deployment choice.
 ```text
 BFF published reads / Admin authenticated writes
     -> Codex REST delivery
+       /go-json/go/v2  GoCMS envelope
+       /codex/v1       canonical Codex v0.4 (public)
     -> application services + authorization
     -> tenant storage + media root
 ```

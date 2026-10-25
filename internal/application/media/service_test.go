@@ -29,7 +29,7 @@ func TestMediaUploadPersistsMetadataAndEnforcesPrivateAccess(t *testing.T) {
 
 	asset, err := service.Upload(context.Background(), uploader, applicationmedia.Upload{
 		Filename: "photo.png", MIMEType: "image/png",
-		Alt: content.LocalizedText{"en": "Photo"}, Reader: strings.NewReader("image"),
+		Alt: "Photo", Reader: strings.NewReader("image"),
 		Status: content.StatusDraft, Visibility: content.VisibilityPrivate,
 	})
 	if err != nil {
@@ -44,13 +44,13 @@ func TestMediaUploadPersistsMetadataAndEnforcesPrivateAccess(t *testing.T) {
 
 	blank, err := service.Upload(context.Background(), uploader, applicationmedia.Upload{
 		Filename: "cover.webp", MIMEType: "image/webp",
-		Alt: content.LocalizedText{"en": "  "}, Reader: strings.NewReader("bytes"),
+		Alt: "  ", Reader: strings.NewReader("bytes"),
 		Status: content.StatusDraft, Visibility: content.VisibilityPrivate,
 	})
 	if err != nil {
 		t.Fatalf("upload without alt: %v", err)
 	}
-	if blank.Alt["en"] != "cover.webp" {
+	if blank.Alt != "cover.webp" {
 		t.Fatalf("expected filename alt, got %#v", blank.Alt)
 	}
 

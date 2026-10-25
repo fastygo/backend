@@ -480,29 +480,29 @@ func resourcePage(resource domainschema.Resource, object *graphql.Object) *graph
 
 func entryFromGraphQL(resource domainschema.Resource, input map[string]any) (domaincontent.Entry, error) {
 	entry := domaincontent.Entry{
-		Kind: domaincontent.Kind(resource.ID), Slug: domaincontent.LocalizedText{},
-		Title: domaincontent.LocalizedText{}, Content: domaincontent.LocalizedText{},
-		Excerpt: domaincontent.LocalizedText{}, Metadata: map[string]domaincontent.MetadataValue{},
+		Kind: domaincontent.Kind(resource.ID), Locale: domaincontent.DefaultLocale,
+		Metadata: map[string]domaincontent.MetadataValue{},
 	}
 	applyGraphQLInput(&entry, input)
 	return entry, nil
 }
 
 func applyGraphQLInput(entry *domaincontent.Entry, input map[string]any) {
+	chrome := contentcompat.ChromeFrom(*entry)
 	for key, value := range input {
 		switch key {
 		case "title":
-			entry.Title["en"] = fmt.Sprint(value)
+			chrome.Title = chrome.Title.Merge(contentcompat.LocalizedText{"en": fmt.Sprint(value)})
 		case "slug":
-			entry.Slug["en"] = fmt.Sprint(value)
+			chrome.Slug = chrome.Slug.Merge(contentcompat.LocalizedText{"en": fmt.Sprint(value)})
 		case "titleLocalized":
-			applyLocalizedText(entry.Title, value)
+			chrome.Title = chrome.Title.Merge(localizedFromGraphQL(value))
 		case "slugLocalized":
-			applyLocalizedText(entry.Slug, value)
+			chrome.Slug = chrome.Slug.Merge(localizedFromGraphQL(value))
 		case "contentLocalized":
-			applyLocalizedText(entry.Content, value)
+			chrome.Content = chrome.Content.Merge(localizedFromGraphQL(value))
 		case "excerptLocalized":
-			applyLocalizedText(entry.Excerpt, value)
+			chrome.Excerpt = chrome.Excerpt.Merge(localizedFromGraphQL(value))
 		case "status":
 			entry.Status = domaincontent.Status(fmt.Sprint(value))
 		case "visibility":
@@ -513,46 +513,52 @@ func applyGraphQLInput(entry *domaincontent.Entry, input map[string]any) {
 			entry.Metadata[key] = domaincontent.MetadataValue{Value: value}
 		}
 	}
-	for locale, document := range entry.Locales {
+	contentcompat.AttachChrome(entry, chrome)
+	documents := contentcompat.Documents(*entry)
+	for locale, document := range documents {
 		if document.Status.Valid() {
 			continue
 		}
 		document.Status = entry.Status
-		entry.Locales[locale] = document
+		documents[locale] = document
 	}
+	contentcompat.SetDocuments(entry, documents)
 }
 
-func applyLocalizedText(target domaincontent.LocalizedText, value any) {
+func localizedFromGraphQL(value any) contentcompat.LocalizedText {
+	text := contentcompat.LocalizedText{}
 	switch values := value.(type) {
 	case map[string]any:
 		for locale, localized := range values {
-			target[locale] = fmt.Sprint(localized)
+			text[locale] = fmt.Sprint(localized)
 		}
 	case map[string]string:
 		for locale, localized := range values {
-			target[locale] = localized
+			text[locale] = localized
 		}
 	}
+	return text
 }
 
 func graphQLRecord(entry domaincontent.Entry) map[string]any {
+	chrome := contentcompat.ChromeFrom(entry)
 	record := map[string]any{
-		"id": entry.ID, "version": entry.Version, "title": entry.Title.Value("en", "ru"),
-		"slug": entry.Slug.Value("en", "ru"), "status": entry.Status, "visibility": entry.Visibility,
-		"titleLocalized": entry.Title, "slugLocalized": entry.Slug,
-		"contentLocalized": entry.Content, "excerptLocalized": entry.Excerpt,
+		"id": entry.ID, "version": entry.Version, "title": chrome.Title.Value("en", "ru"),
+		"slug": chrome.Slug.Value("en", "ru"), "status": entry.Status, "visibility": entry.Visibility,
+		"titleLocalized": chrome.Title, "slugLocalized": chrome.Slug,
+		"contentLocalized": chrome.Content, "excerptLocalized": chrome.Excerpt,
 		"createdAt": entry.CreatedAt.UTC().Format(time.RFC3339Nano),
 		"updatedAt": entry.UpdatedAt.UTC().Format(time.RFC3339Nano),
 	}
 	contentcompat.Lift(&entry)
 	locales := map[string]any{}
-	for locale, document := range entry.Locales {
+	for locale, document := range contentcompat.Documents(entry) {
 		locales[locale] = map[string]any{"data": document.Data, "status": document.Status}
 	}
 	record["locales"] = locales
-	record["document"] = entry.ResolveLocale("", "en").Data
+	record["document"] = contentcompat.ResolveDocument(entry, "", "en").Data
 	for key, value := range entry.Metadata {
-		if strings.HasPrefix(key, "payload_") {
+		if contentcompat.IsInternalMeta(key) {
 			continue
 		}
 		record[graphQLField(key)] = value.Value
@@ -565,12 +571,9 @@ func applyGraphQLLocale(entry *domaincontent.Entry, locale string, value any) {
 	if data == nil {
 		return
 	}
-	if entry.Locales == nil {
-		entry.Locales = map[string]domaincontent.LocaleDocument{}
-	}
-	entry.Locales[domaincontent.NormalizeLocale(locale)] = domaincontent.LocaleDocument{
+	contentcompat.PutDocument(entry, contentcompat.NormalizeLocale(locale), contentcompat.LocaleDocument{
 		Data: data, Status: entry.Status,
-	}
+	})
 }
 
 func applyGraphQLLocales(entry *domaincontent.Entry, value any) {

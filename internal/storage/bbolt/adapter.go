@@ -15,6 +15,7 @@ import (
 	contentapplication "github.com/fastygo/backend/internal/application/content"
 	identityapplication "github.com/fastygo/backend/internal/application/identity"
 	taxonomyapplication "github.com/fastygo/backend/internal/application/taxonomy"
+	"github.com/fastygo/backend/internal/contentcompat"
 	"github.com/fastygo/backend/internal/operations/backup"
 	"github.com/fastygo/backend/internal/persist"
 	"github.com/fastygo/codex/content"
@@ -263,7 +264,7 @@ func (repository contentRepository) GetBySlug(_ context.Context, kind content.Ki
 		if err != nil {
 			return err
 		}
-		if entry.Kind == kind && entry.Slug[locale] == slug {
+		if entry.Kind == kind && slugMatches(entry, locale, slug) {
 			resolved = entry
 			return errStopIteration
 		}
@@ -382,7 +383,7 @@ func (repository contentRepository) SlugExists(
 		if err != nil {
 			return err
 		}
-		if entry.Kind == kind && entry.Slug[locale] == slug {
+		if entry.Kind == kind && slugMatches(entry, locale, slug) {
 			exists = true
 			return errStopIteration
 		}
@@ -466,6 +467,14 @@ func (repository revisionRepository) List(
 
 var errStopIteration = errors.New("stop iteration")
 
+func slugMatches(entry content.Entry, locale, slug string) bool {
+	if content.NormalizeSlug(entry.Slug) == slug && (locale == "" || entry.Locale == locale) {
+		return true
+	}
+	chrome := contentcompat.ChromeFrom(entry)
+	return content.NormalizeSlug(chrome.Slug[locale]) == slug
+}
+
 func decodeEntry(value []byte) (content.Entry, error) {
 	return persist.DecodeEntry(value)
 }
@@ -514,8 +523,9 @@ func matches(entry content.Entry, query contentapplication.Query) bool {
 		}
 	}
 	if search := strings.ToLower(strings.TrimSpace(query.Search)); search != "" {
-		title := strings.ToLower(entry.Title.Value(query.Locale, "en"))
-		body := strings.ToLower(entry.Content.Value(query.Locale, "en"))
+		chrome := contentcompat.ChromeFrom(entry)
+		title := strings.ToLower(chrome.Title.Value(query.Locale, "en"))
+		body := strings.ToLower(chrome.Content.Value(query.Locale, "en"))
 		if !strings.Contains(title, search) && !strings.Contains(body, search) {
 			return false
 		}
@@ -546,7 +556,12 @@ func sortEntries(entries []content.Entry, field string, descending bool) {
 		case "created_at":
 			comparison = left.CreatedAt.Compare(right.CreatedAt)
 		case "title":
-			comparison = strings.Compare(left.Title.Value("en", ""), right.Title.Value("en", ""))
+			comparison = strings.Compare(contentcompat.ChromeFrom(left).Title.Value("en", ""), contentcompat.ChromeFrom(right).Title.Value("en", ""))
+		case "id":
+			comparison = strings.Compare(string(left.ID), string(right.ID))
+			if comparison == 0 {
+				comparison = strings.Compare(left.Locale, right.Locale)
+			}
 		default:
 			comparison = left.UpdatedAt.Compare(right.UpdatedAt)
 		}

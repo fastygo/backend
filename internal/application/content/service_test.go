@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fastygo/backend/internal/contentcompat"
 	"github.com/fastygo/backend/internal/domain/audit"
 	"github.com/fastygo/backend/internal/domain/authz"
 	"github.com/fastygo/backend/internal/domain/schema"
@@ -67,7 +68,7 @@ func TestCreateAndUpdateEnforceLifecycleCapabilitiesAndRevision(t *testing.T) {
 		t.Fatalf("create invariants were not applied")
 	}
 
-	created.Title = domaincontent.LocalizedText{"en": "Updated"}
+	created.Title = "Updated"
 	updated, err := service.Update(context.Background(), editor, created, 1, "editor update")
 	if err != nil {
 		t.Fatalf("update content: %v", err)
@@ -226,7 +227,7 @@ func (repository *memoryRepository) Get(_ context.Context, id domaincontent.ID) 
 
 func (repository *memoryRepository) GetBySlug(_ context.Context, kind domaincontent.Kind, locale, slug string) (domaincontent.Entry, error) {
 	for _, entry := range repository.entries {
-		if entry.Kind == kind && entry.Slug[locale] == slug {
+		if entry.Kind == kind && contentcompat.SlugAt(entry, locale) == slug {
 			return entry, nil
 		}
 	}
@@ -290,7 +291,7 @@ func (repository *memoryRepository) Delete(_ context.Context, id domaincontent.I
 
 func (repository *memoryRepository) SlugExists(_ context.Context, kind domaincontent.Kind, locale, slug string, exclude domaincontent.ID) (bool, error) {
 	for id, entry := range repository.entries {
-		if id != exclude && entry.Kind == kind && entry.Slug[locale] == slug {
+		if id != exclude && entry.Kind == kind && contentcompat.SlugAt(entry, locale) == slug {
 			return true, nil
 		}
 	}
@@ -416,8 +417,8 @@ func TestManifestRelationsRequireExistingTypedTargets(t *testing.T) {
 	author, err := service.Create(context.Background(), principal, domaincontent.Entry{
 		ID: "author_1", Kind: "author", Status: domaincontent.StatusDraft,
 		Visibility: domaincontent.VisibilityPublic,
-		Title:      domaincontent.LocalizedText{"en": "Author"},
-		Slug:       domaincontent.LocalizedText{"en": "author"},
+		Title:      "Author",
+		Slug:       "author",
 	})
 	if err != nil {
 		t.Fatalf("create relation target: %v", err)
@@ -425,8 +426,8 @@ func TestManifestRelationsRequireExistingTypedTargets(t *testing.T) {
 	_, err = service.Create(context.Background(), principal, domaincontent.Entry{
 		ID: "post_1", Kind: "post", Status: domaincontent.StatusDraft,
 		Visibility: domaincontent.VisibilityPublic,
-		Title:      domaincontent.LocalizedText{"en": "Post"},
-		Slug:       domaincontent.LocalizedText{"en": "post"},
+		Title:      "Post",
+		Slug:       "post",
 		Metadata: map[string]domaincontent.MetadataValue{
 			"author": {Value: string(author.ID)},
 		},
@@ -437,8 +438,8 @@ func TestManifestRelationsRequireExistingTypedTargets(t *testing.T) {
 	_, err = service.Create(context.Background(), principal, domaincontent.Entry{
 		ID: "post_2", Kind: "post", Status: domaincontent.StatusDraft,
 		Visibility: domaincontent.VisibilityPublic,
-		Title:      domaincontent.LocalizedText{"en": "Broken"},
-		Slug:       domaincontent.LocalizedText{"en": "broken"},
+		Title:      "Broken",
+		Slug:       "broken",
 		Metadata: map[string]domaincontent.MetadataValue{
 			"author": {Value: "missing"},
 		},
@@ -498,8 +499,8 @@ func TestManifestRelationsRequireExistingTypedTargets(t *testing.T) {
 	cascadeTarget, err := service.Create(context.Background(), principal, domaincontent.Entry{
 		ID: "post_3", Kind: "post", Status: domaincontent.StatusDraft,
 		Visibility: domaincontent.VisibilityPublic,
-		Title:      domaincontent.LocalizedText{"en": "Cascade target"},
-		Slug:       domaincontent.LocalizedText{"en": "cascade-target"},
+		Title:      "Cascade target",
+		Slug:       "cascade-target",
 	})
 	if err != nil {
 		t.Fatalf("create cascade target: %v", err)
@@ -507,8 +508,8 @@ func TestManifestRelationsRequireExistingTypedTargets(t *testing.T) {
 	_, err = service.Create(context.Background(), principal, domaincontent.Entry{
 		ID: "comment_1", Kind: "comment", Status: domaincontent.StatusDraft,
 		Visibility: domaincontent.VisibilityPublic,
-		Title:      domaincontent.LocalizedText{"en": "Comment"},
-		Slug:       domaincontent.LocalizedText{"en": "comment"},
+		Title:      "Comment",
+		Slug:       "comment",
 		Metadata: map[string]domaincontent.MetadataValue{
 			"post": {Value: string(cascadeTarget.ID)},
 		},
@@ -551,8 +552,8 @@ func TestManifestValidatesFieldTypesLocalizationAndSensitivity(t *testing.T) {
 	created, err := service.Create(context.Background(), principal, domaincontent.Entry{
 		ID: "product_1", Kind: "product", Status: domaincontent.StatusDraft,
 		Visibility: domaincontent.VisibilityPublic,
-		Title:      domaincontent.LocalizedText{"en": "Typed"},
-		Slug:       domaincontent.LocalizedText{"en": "typed"},
+		Title:      "Typed",
+		Slug:       "typed",
 		Metadata: map[string]domaincontent.MetadataValue{
 			"price":   {Value: "49.95"},
 			"state":   {Value: "active"},
@@ -571,8 +572,8 @@ func TestManifestValidatesFieldTypesLocalizationAndSensitivity(t *testing.T) {
 	_, err = service.Create(context.Background(), principal, domaincontent.Entry{
 		ID: "product_2", Kind: "product", Status: domaincontent.StatusDraft,
 		Visibility: domaincontent.VisibilityPublic,
-		Title:      domaincontent.LocalizedText{"en": "Invalid"},
-		Slug:       domaincontent.LocalizedText{"en": "invalid"},
+		Title:      "Invalid",
+		Slug:       "invalid",
 		Metadata: map[string]domaincontent.MetadataValue{
 			"price": {Value: true},
 			"state": {Value: "unknown"},
@@ -641,8 +642,8 @@ func newTestService(t *testing.T, repository *memoryRepository, now time.Time) *
 
 func entryAt(now time.Time, status domaincontent.Status) domaincontent.Entry {
 	return domaincontent.Entry{
-		ID: "post_1", Kind: domaincontent.KindPost, Status: status, Visibility: domaincontent.VisibilityPublic,
-		Slug: domaincontent.LocalizedText{"en": "hello"}, Title: domaincontent.LocalizedText{"en": "Hello"},
+		ID: "post_1", Kind: domaincontent.KindPost, Locale: "en", Status: status, Visibility: domaincontent.VisibilityPublic,
+		Slug: "hello", Title: "Hello",
 		Version: 1, CreatedAt: now.Add(-time.Hour), UpdatedAt: now,
 	}
 }

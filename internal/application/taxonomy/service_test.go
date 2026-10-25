@@ -31,7 +31,7 @@ func TestTaxonomyLifecycleAndContentAssignment(t *testing.T) {
 		authz.CapabilityContentCreate,
 	)
 	definition, err := service.SaveDefinition(ctx, admin, taxonomy.Definition{
-		ID: "category", Label: content.LocalizedText{"en": "Categories"},
+		ID: "category", Label: "Categories",
 		Mode: taxonomy.ModeHierarchical, AssignedToKinds: []content.Kind{content.KindPost},
 		Public: true,
 	}, 0)
@@ -40,16 +40,16 @@ func TestTaxonomyLifecycleAndContentAssignment(t *testing.T) {
 	}
 	parent, err := service.SaveTerm(ctx, admin, taxonomy.Term{
 		ID: "technology", TaxonomyID: definition.ID,
-		Name: content.LocalizedText{"en": "Technology"},
-		Slug: content.LocalizedText{"en": "technology"},
+		Name: "Technology",
+		Slug: "technology",
 	}, 0)
 	if err != nil {
 		t.Fatalf("save parent term: %v", err)
 	}
 	child, err := service.SaveTerm(ctx, admin, taxonomy.Term{
 		ID: "go", TaxonomyID: definition.ID, ParentID: parent.ID,
-		Name: content.LocalizedText{"en": "Go"},
-		Slug: content.LocalizedText{"en": "go"},
+		Name: "Go",
+		Slug: "go",
 	}, 0)
 	if err != nil {
 		t.Fatalf("save child term: %v", err)
@@ -65,8 +65,8 @@ func TestTaxonomyLifecycleAndContentAssignment(t *testing.T) {
 	}
 	_, err = contentService.Create(ctx, admin, content.Entry{
 		Kind: content.KindPost, Status: content.StatusDraft, Visibility: content.VisibilityPublic,
-		Title: content.LocalizedText{"en": "Typed taxonomies"},
-		Slug:  content.LocalizedText{"en": "typed-taxonomies"},
+		Title: "Typed taxonomies",
+		Slug:  "typed-taxonomies",
 		Terms: []content.TermRef{{Taxonomy: definition.ID, TermID: string(child.ID)}},
 	})
 	if err != nil {

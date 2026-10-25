@@ -53,7 +53,7 @@ func Schema(resource schema.Resource) (formset.JSONSchema, error) {
 func LocaleDocumentsFromEntry(entry domaincontent.Entry) map[string]map[string]any {
 	contentcompat.Lift(&entry)
 	documents := map[string]map[string]any{}
-	for locale, document := range entry.Locales {
+	for locale, document := range contentcompat.Documents(entry) {
 		if document.Data != nil {
 			documents[locale] = document.Data
 		}
@@ -212,7 +212,7 @@ func validatePayloadDocuments(entry domaincontent.Entry) error {
 			return core.NewDomainError(core.ErrorCodeValidation, key+" must be a JSON object")
 		}
 	}
-	for locale, document := range entry.Locales {
+	for locale, document := range contentcompat.Documents(entry) {
 		if document.Data == nil {
 			return core.NewDomainError(core.ErrorCodeValidation, locale+" locale data must be a JSON object")
 		}

@@ -349,6 +349,8 @@ func (repository contentRepository) List(ctx context.Context, query contentappli
 		orderColumn = "i.created_at"
 	case "title":
 		orderColumn = "i.title_sort"
+	case "id":
+		orderColumn = "i.id_sort"
 	}
 	direction := "ASC"
 	if query.Descending {
@@ -517,7 +519,11 @@ func (repository contentRepository) replaceSlugs(ctx context.Context, entry cont
 	statement := bind(repository.dialect,
 		"INSERT INTO content_slugs (kind, locale, slug, entry_id) VALUES (?, ?, ?, ?)",
 	)
-	for locale, slug := range entry.Slug {
+	chrome := contentcompat.ChromeFrom(entry)
+	if len(chrome.Slug) == 0 && entry.Slug != "" {
+		chrome.Slug = contentcompat.LocalizedText{contentcompat.DefaultLocale(entry): entry.Slug}
+	}
+	for locale, slug := range chrome.Slug {
 		if _, err := repository.transaction.ExecContext(
 			ctx, statement, entry.Kind, strings.ToLower(strings.TrimSpace(locale)),
 			content.NormalizeSlug(slug), entry.ID,
@@ -555,16 +561,17 @@ func (repository contentRepository) replaceProjections(ctx context.Context, entr
 			 VALUES (?, ?, ?, ?, ?, ?, ?)`),
 		entry.ID, hex.EncodeToString([]byte(entry.ID)),
 		entry.CreatedAt.UnixNano(), entry.UpdatedAt.UnixNano(),
-		publishedAt, deletedAt, hex.EncodeToString([]byte(entry.Title.Value("en", ""))),
+		publishedAt, deletedAt, hex.EncodeToString([]byte(contentcompat.ChromeFrom(entry).Title.Value("en", ""))),
 	); err != nil {
 		return err
 	}
 
+	chrome := contentcompat.ChromeFrom(entry)
 	locales := map[string]struct{}{"en": {}}
-	for locale := range entry.Title {
+	for locale := range chrome.Title {
 		locales[strings.ToLower(strings.TrimSpace(locale))] = struct{}{}
 	}
-	for locale := range entry.Content {
+	for locale := range chrome.Content {
 		locales[strings.ToLower(strings.TrimSpace(locale))] = struct{}{}
 	}
 	searchStatement := bind(repository.dialect,
@@ -575,7 +582,7 @@ func (repository contentRepository) replaceProjections(ctx context.Context, entr
 			continue
 		}
 		searchText := strings.ToLower(
-			entry.Title.Value(locale, "en") + "\n" + entry.Content.Value(locale, "en"),
+			chrome.Title.Value(locale, "en") + "\n" + chrome.Content.Value(locale, "en"),
 		)
 		if _, err := repository.transaction.ExecContext(
 			ctx, searchStatement, entry.ID, locale, searchText,
@@ -618,7 +625,7 @@ func (repository contentRepository) replaceLocales(ctx context.Context, entry co
 	statement := bind(repository.dialect,
 		"INSERT INTO content_locales (entry_id, locale, status, updated_at, data) VALUES (?, ?, ?, ?, ?)",
 	)
-	for locale, document := range entry.Locales {
+	for locale, document := range contentcompat.Documents(entry) {
 		encoded, err := json.Marshal(document.Data)
 		if err != nil {
 			return err
@@ -632,7 +639,7 @@ func (repository contentRepository) replaceLocales(ctx context.Context, entry co
 			status = entry.Status
 		}
 		if _, err := repository.transaction.ExecContext(
-			ctx, statement, entry.ID, content.NormalizeLocale(locale), status, updatedAt, encoded,
+			ctx, statement, entry.ID, contentcompat.NormalizeLocale(locale), status, updatedAt, encoded,
 		); err != nil {
 			return err
 		}

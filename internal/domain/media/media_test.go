@@ -11,8 +11,8 @@ func TestFromEntryAndValidation(t *testing.T) {
 	t.Parallel()
 	checksum := strings.Repeat("ab", 32)
 	valid := content.Entry{
-		ID: "media_1", Kind: "media", Status: content.StatusPublished, Visibility: content.VisibilityPublic,
-		Title: content.LocalizedText{"en": "Cover"},
+		ID: "media_1", Kind: "media", Locale: "en", Status: content.StatusPublished, Visibility: content.VisibilityPublic,
+		Title: "Cover",
 		Metadata: map[string]content.MetadataValue{
 			MetadataFilename:   {Value: "cover.png"},
 			MetadataMIMEType:   {Value: "image/png"},

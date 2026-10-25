@@ -44,7 +44,7 @@ func NewCodexHandler(
 }
 
 func (handler *CodexHandler) SetDefaultLocale(locale string) {
-	locale = domaincontent.NormalizeLocale(locale)
+	locale = contentcompat.NormalizeLocale(locale)
 	if locale != "" {
 		handler.defaultLocale = locale
 	}
@@ -54,7 +54,7 @@ func (handler *CodexHandler) SetAvailableLocales(locales []string) {
 	seen := map[string]struct{}{}
 	next := make([]string, 0, len(locales))
 	for _, locale := range locales {
-		locale = domaincontent.NormalizeLocale(locale)
+		locale = contentcompat.NormalizeLocale(locale)
 		if locale == "" {
 			continue
 		}
@@ -86,6 +86,12 @@ func (handler *CodexHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /go-json/go/v2/taxonomies", handler.listTaxonomies)
 	mux.HandleFunc("GET /go-json/go/v2/taxonomies/{taxonomy}", handler.listTerms)
 	mux.HandleFunc("GET /go-json/go/v2/search", handler.search)
+	mux.HandleFunc("GET /codex/v1/{$}", handler.canonicalDiscovery)
+	mux.HandleFunc("GET /codex/v1/entries/{kind}", handler.canonicalList)
+	mux.HandleFunc("GET /codex/v1/entries/{kind}/{id}", handler.canonicalGet)
+	mux.HandleFunc("GET /codex/v1/taxonomies", handler.canonicalTaxonomies)
+	mux.HandleFunc("GET /codex/v1/terms/{taxonomy_id}", handler.canonicalTerms)
+	mux.HandleFunc("GET /codex/v1/settings", handler.canonicalSettings)
 }
 
 func (handler *CodexHandler) origin(response http.ResponseWriter, _ *http.Request) {
@@ -400,10 +406,11 @@ func (handler *CodexHandler) collectionFor(kind domaincontent.Kind) string {
 
 func (handler *CodexHandler) codexEntry(entry domaincontent.Entry, requested string) map[string]any {
 	contentcompat.Lift(&entry)
-	resolved := entry.ResolveLocale(requested, handler.defaultLocale)
+	resolved := contentcompat.ResolveDocument(entry, requested, handler.defaultLocale)
+	chrome := contentcompat.ChromeFrom(entry)
 	metadata := make(map[string]any, len(entry.Metadata))
 	for key, value := range entry.Metadata {
-		if strings.HasPrefix(key, "payload_") {
+		if contentcompat.IsInternalMeta(key) {
 			continue
 		}
 		metadata[key] = value.Value
@@ -416,12 +423,12 @@ func (handler *CodexHandler) codexEntry(entry domaincontent.Entry, requested str
 	return map[string]any{
 		"id": entry.ID, "kind": entry.Kind, "version": entry.Version,
 		"status": entry.Status, "visibility": entry.Visibility,
-		"slug": entry.Slug, "title": entry.Title, "content": entry.Content,
-		"excerpt": entry.Excerpt, "author_id": entry.AuthorID,
+		"slug": chrome.Slug, "title": chrome.Title, "content": chrome.Content,
+		"excerpt": chrome.Excerpt, "author_id": entry.AuthorID,
 		"featured_media_id": entry.FeaturedMediaID, "taxonomy_ids": termIDs,
 		"metadata": metadata, "document": resolved.Data,
 		"locale": resolved.Served, "requested": resolved.Requested, "fallback": resolved.Fallback,
-		"locale_status": resolved.Status, "locale_index": entry.LocaleIndex(),
+		"locale_status": resolved.Status, "locale_index": contentcompat.LocaleIndex(entry),
 		"created_at": entry.CreatedAt, "updated_at": entry.UpdatedAt,
 		"published_at": entry.PublishedAt,
 		"links": map[string]string{
@@ -449,40 +456,49 @@ func mergeEntry(target *domaincontent.Entry, patch domaincontent.Entry) {
 	if patch.Visibility != "" {
 		target.Visibility = patch.Visibility
 	}
-	target.Slug = mergeLocalizedText(target.Slug, patch.Slug)
-	target.Title = mergeLocalizedText(target.Title, patch.Title)
-	target.Content = mergeLocalizedText(target.Content, patch.Content)
-	target.Excerpt = mergeLocalizedText(target.Excerpt, patch.Excerpt)
-	if patch.Metadata != nil {
-		target.Metadata = patch.Metadata
+	chrome := contentcompat.ChromeFrom(*target)
+	patchChrome := contentcompat.ChromeFrom(patch)
+	chrome.Slug = chrome.Slug.Merge(patchChrome.Slug)
+	chrome.Title = chrome.Title.Merge(patchChrome.Title)
+	chrome.Content = chrome.Content.Merge(patchChrome.Content)
+	chrome.Excerpt = chrome.Excerpt.Merge(patchChrome.Excerpt)
+	if patch.Locale != "" {
+		target.Locale = patch.Locale
 	}
-	if len(patch.Locales) > 0 {
-		if merged, err := domaincontent.MergeLocales(target.Locales, patch.Locales); err == nil {
-			target.Locales = merged
+	documents := contentcompat.Documents(*target)
+	patchDocuments := contentcompat.Documents(patch)
+	if patch.Metadata != nil {
+		merged := make(map[string]domaincontent.MetadataValue, len(target.Metadata)+len(patch.Metadata))
+		for key, value := range target.Metadata {
+			if contentcompat.IsInternalMeta(key) {
+				merged[key] = value
+			}
 		}
-		for locale, document := range target.Locales {
+		for key, value := range patch.Metadata {
+			if contentcompat.IsInternalMeta(key) {
+				continue
+			}
+			merged[key] = value
+		}
+		target.Metadata = merged
+	}
+	contentcompat.AttachChrome(target, chrome)
+	if len(patchDocuments) > 0 {
+		merged := contentcompat.MergeDocuments(documents, patchDocuments)
+		for locale, document := range merged {
 			if document.Status.Valid() {
 				continue
 			}
 			document.Status = target.Status
-			target.Locales[locale] = document
+			merged[locale] = document
 		}
+		contentcompat.SetDocuments(target, merged)
+	} else {
+		contentcompat.SetDocuments(target, documents)
 	}
 	if patch.Terms != nil {
 		target.Terms = patch.Terms
 	}
 	contentcompat.Lift(target)
-}
-
-func mergeLocalizedText(target, patch domaincontent.LocalizedText) domaincontent.LocalizedText {
-	if len(patch) == 0 {
-		return target
-	}
-	if target == nil {
-		target = domaincontent.LocalizedText{}
-	}
-	for locale, value := range patch {
-		target[locale] = value
-	}
-	return target
+	contentcompat.SyncChrome(target)
 }

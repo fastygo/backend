@@ -164,3 +164,79 @@ func TestCodexRegistersManifestPostTypes(t *testing.T) {
 		t.Fatalf("core posts %d: %s", posts.Code, posts.Body.String())
 	}
 }
+
+func TestGoV2EnvelopeUnchanged(t *testing.T) {
+	t.Parallel()
+	adapter, err := bboltstorage.Open(filepath.Join(t.TempDir(), "gov2.db"), 0o600, nil)
+	if err != nil {
+		t.Fatalf("open storage: %v", err)
+	}
+	t.Cleanup(func() { _ = adapter.Close() })
+	service, err := application.NewService(adapter, nil, restClock{time.Now().UTC()})
+	if err != nil {
+		t.Fatalf("create service: %v", err)
+	}
+	taxonomies, err := applicationtaxonomy.NewService(adapter, nil)
+	if err != nil {
+		t.Fatalf("create taxonomy service: %v", err)
+	}
+	manifest := schema.WithCoreResources(schema.Manifest{Name: "headless", Version: "1"})
+	if err := service.SetManifest(manifest); err != nil {
+		t.Fatalf("set manifest: %v", err)
+	}
+	editor := authz.NewPrincipal(
+		"editor",
+		authz.CapabilityContentCreate,
+		authz.CapabilityContentPublish,
+		authz.CapabilityContentReadPrivate,
+	)
+	handler, err := NewCodexHandler(service, taxonomies, fixedPrincipal{principal: editor}, manifest)
+	if err != nil {
+		t.Fatalf("create handler: %v", err)
+	}
+	contentHandler, err := NewContentHandler(service, fixedPrincipal{principal: editor}, manifest)
+	if err != nil {
+		t.Fatalf("create content handler: %v", err)
+	}
+	collectionRouter, err := NewCollectionRouter(handler, contentHandler)
+	if err != nil {
+		t.Fatalf("create collection router: %v", err)
+	}
+	mux := http.NewServeMux()
+	handler.Routes(mux)
+	contentHandler.Routes(mux)
+	collectionRouter.Routes(mux)
+
+	created := performJSON(mux, http.MethodPost, "/go-json/go/v2/posts", `{
+		"title":{"en":"Envelope"},"slug":{"en":"envelope"},"content":{"en":"Body"},
+		"status":"published","visibility":"public"
+	}`, "")
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create %d: %s", created.Code, created.Body.String())
+	}
+	var document struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(created.Body.Bytes(), &document); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	title, _ := document.Data["title"].(map[string]any)
+	if title["en"] != "Envelope" {
+		t.Fatalf("go/v2 title must stay a locale map: %#v", document.Data["title"])
+	}
+	for _, key := range []string{"document", "requested", "fallback", "links", "taxonomy_ids", "locale_index"} {
+		if _, ok := document.Data[key]; !ok {
+			t.Fatalf("go/v2 missing %s: %#v", key, document.Data)
+		}
+	}
+	metadata, _ := document.Data["metadata"].(map[string]any)
+	if _, leaked := metadata["__chrome__"]; leaked {
+		t.Fatalf("chrome sidecar leaked: %#v", metadata)
+	}
+	if _, leaked := metadata["__locales__"]; leaked {
+		t.Fatalf("locales sidecar leaked: %#v", metadata)
+	}
+	if created.Header().Get("Codex-Digest") != "" {
+		t.Fatal("go/v2 must not set Codex-Digest")
+	}
+}

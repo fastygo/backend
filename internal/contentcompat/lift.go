@@ -1,4 +1,3 @@
-// Package contentcompat keeps GoBackend storage migrations that are not part of Codex.
 package contentcompat
 
 import (
@@ -7,14 +6,12 @@ import (
 	"github.com/fastygo/codex/content"
 )
 
-// Lift moves legacy payload_<locale> metadata into locale documents.
+// Lift moves legacy payload_<locale> metadata into FormSet locale documents.
 func Lift(entry *content.Entry) {
 	if entry == nil {
 		return
 	}
-	if entry.Locales == nil {
-		entry.Locales = map[string]content.LocaleDocument{}
-	}
+	documents := Documents(*entry)
 	if entry.Metadata == nil {
 		return
 	}
@@ -23,7 +20,7 @@ func Lift(entry *content.Entry) {
 		if !ok {
 			continue
 		}
-		locale = content.NormalizeLocale(locale)
+		locale = NormalizeLocale(locale)
 		if locale == "" {
 			continue
 		}
@@ -31,12 +28,10 @@ func Lift(entry *content.Entry) {
 		if document == nil {
 			continue
 		}
-		if _, exists := entry.Locales[locale]; !exists {
-			entry.Locales[locale] = content.LocaleDocument{
-				Data:   document,
-				Status: entry.Status,
-			}
+		if _, exists := documents[locale]; !exists {
+			documents[locale] = LocaleDocument{Data: document, Status: entry.Status}
 		}
 		delete(entry.Metadata, key)
 	}
+	SetDocuments(entry, documents)
 }
