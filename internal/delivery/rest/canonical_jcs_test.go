@@ -2,8 +2,6 @@ package rest
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -15,43 +13,24 @@ import (
 	"github.com/fastygo/codex/taxonomy"
 )
 
-func TestEncodeJCSNoHTMLEscapeOrNewline(t *testing.T) {
+func TestWriteCanonicalJCSUsesCodex(t *testing.T) {
 	t.Parallel()
-	text, err := encodeJCS(map[string]any{
-		"message": "A < B\u2028C",
-		"status":  200,
-	})
-	if err != nil {
-		t.Fatalf("encodeJCS: %v", err)
-	}
-	if strings.HasSuffix(text, "\n") {
-		t.Fatalf("trailing newline: %q", text)
-	}
-	if strings.Contains(text, `\u003c`) || strings.Contains(text, `\u2028`) {
-		t.Fatalf("HTML/unicode escape leaked: %s", text)
-	}
-	if !strings.Contains(text, "<") || !strings.Contains(text, "\u2028") {
-		t.Fatalf("raw characters missing: %s", text)
-	}
-	roundTrip, err := canonical.CanonicalJSON(text)
-	if err != nil {
-		t.Fatalf("CanonicalJSON: %v", err)
-	}
-	if roundTrip != text {
-		t.Fatalf("not JCS\n got: %s\nwant: %s", text, roundTrip)
-	}
 	response := httptest.NewRecorder()
-	writeCanonicalJCS(response, 200, map[string]any{"ok": true, "tag": "<x>"})
+	writeCanonicalJCS(response, 200, map[string]any{"tag": "<x>", "line": "A\u2028B"})
 	body := response.Body.Bytes()
 	if bytes.HasSuffix(body, []byte("\n")) {
 		t.Fatal("writer trailing newline")
 	}
-	if bytes.Contains(body, []byte(`\u003c`)) {
-		t.Fatalf("writer escaped <: %s", body)
+	if bytes.Contains(body, []byte(`\u003c`)) || bytes.Contains(body, []byte(`\u2028`)) {
+		t.Fatalf("writer escaped: %s", body)
+	}
+	want := canonical.JCS(map[string]any{"line": "A\u2028B", "tag": "<x>"})
+	if string(body) != want {
+		t.Fatalf("body %s want %s", body, want)
 	}
 }
 
-func TestCanonicalizeTermOmitsCount(t *testing.T) {
+func TestCanonicalizeTermUsesCodexProfile(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, time.October, 25, 12, 0, 0, 0, time.UTC)
 	body, err := canonicalizeTerm(taxonomy.Term{
@@ -64,36 +43,41 @@ func TestCanonicalizeTermOmitsCount(t *testing.T) {
 	if bytes.Contains(body, []byte(`"count"`)) {
 		t.Fatalf("codex-term/v1 must not include count: %s", body)
 	}
+	raw := `{"id":"go","locale":"en-US","taxonomy_id":"topic","name":"Go","slug":"go","count":9,"version":1,"created_at":"2026-10-25T12:00:00Z","updated_at":"2026-10-25T12:00:00Z"}`
+	want, err := canonical.CanonicalizeTerm(raw)
+	if err != nil {
+		t.Fatalf("CanonicalizeTerm: %v", err)
+	}
+	if string(body) != want {
+		t.Fatalf("got %s\nwant %s", body, want)
+	}
 }
 
-func TestManifestDigestUsesFullCanonical(t *testing.T) {
+func TestManifestDigestV2MatchesCodexWithoutCanonicalSort(t *testing.T) {
 	t.Parallel()
-	digest, err := manifestDigestV2(schema.WithCoreResources(schema.Manifest{Name: "headless", Version: "1"}))
+	manifest := schema.WithCoreResources(schema.Manifest{Name: "headless", Version: "1"})
+	digest, err := manifestDigestV2(manifest)
 	if err != nil {
 		t.Fatalf("manifestDigestV2: %v", err)
 	}
-	if !strings.HasPrefix(digest, canonical.ManifestDigestV2Prefix) {
-		t.Fatalf("prefix: %s", digest)
-	}
-	reduced, err := encodeJCS(map[string]any{
-		"name": "headless", "version": "1",
-		"resources": []any{
-			map[string]any{"collection": "menus", "id": "menu"},
-			map[string]any{"collection": "pages", "id": "page"},
-			map[string]any{"collection": "posts", "id": "post"},
-			map[string]any{"collection": "settings", "id": "setting"},
-		},
-	})
+	served := ServedCodexManifest(manifest)
+	want, err := served.DigestV2()
 	if err != nil {
-		t.Fatalf("reduced: %v", err)
+		t.Fatalf("DigestV2: %v", err)
 	}
-	sum := sha256.Sum256([]byte(reduced))
-	if digest == canonical.ManifestDigestV2Prefix+hex.EncodeToString(sum[:]) {
-		t.Fatal("digest must not use the reduced {id,collection} formula")
+	if digest != want {
+		t.Fatalf("digest %s want %s", digest, want)
+	}
+	sorted, err := served.Canonical().DigestV2()
+	if err != nil {
+		t.Fatalf("sorted DigestV2: %v", err)
+	}
+	if digest == sorted {
+		t.Fatal("manifest_digest must not use Canonical() resource sorting")
 	}
 }
 
-func TestSettingsDocumentShape(t *testing.T) {
+func TestSettingsCanonicalUsesCodexProfile(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, time.October, 25, 12, 0, 0, 0, time.UTC)
 	settings := settingsFromEntry(domaincontent.Entry{
@@ -104,21 +88,14 @@ func TestSettingsDocumentShape(t *testing.T) {
 			"currency": {Value: "USD"},
 		},
 	})
-	if settings.Language != "en-US" || settings.Currency != "USD" {
-		t.Fatalf("settingsFromEntry: %#v", settings)
-	}
-	document := settingsDocument(settings)
-	if _, ok := document["kind"]; ok {
-		t.Fatalf("SettingsV04 must not include kind: %#v", document)
-	}
 	body, digest, err := canonicalizeSettings(settings)
 	if err != nil {
 		t.Fatalf("canonicalizeSettings: %v", err)
 	}
-	if !strings.HasPrefix(digest, settingsDigestPrefix) {
+	if !strings.HasPrefix(digest, canonical.SettingsDigestPrefix) {
 		t.Fatalf("digest prefix: %s", digest)
 	}
-	if bytes.Contains(body, []byte(`"kind"`)) {
-		t.Fatalf("settings JCS leaked kind: %s", body)
+	if bytes.Contains(body, []byte(`"kind"`)) || bytes.Contains(body, []byte(`"count"`)) {
+		t.Fatalf("settings JCS leaked kind/count: %s", body)
 	}
 }

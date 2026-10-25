@@ -23,7 +23,7 @@ const (
 	codexDefaultPage  = 1
 	codexDefaultSize  = 20
 	codexMaxPerPage   = 100
-	codexVersionValue = "0.4.0"
+	codexVersionValue = "0.4.1"
 )
 
 var canonicalQueryKeys = map[string]struct{}{

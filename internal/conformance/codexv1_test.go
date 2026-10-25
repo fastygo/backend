@@ -150,11 +150,15 @@ func TestCodexV1Conform(t *testing.T) {
 		if err := json.Unmarshal(response.Body.Bytes(), &document); err != nil {
 			t.Fatalf("decode discovery: %v", err)
 		}
-		if document.CodexVersion != "0.4.0" || document.Profile != canonical.EntryProfile {
+		if document.CodexVersion != "0.4.1" || document.Profile != canonical.EntryProfile {
 			t.Fatalf("discovery: %#v", document)
 		}
-		if !strings.HasPrefix(document.ManifestDigest, canonical.ManifestDigestV2Prefix) {
-			t.Fatalf("manifest_digest: %s", document.ManifestDigest)
+		wantDigest, err := rest.ServedCodexManifest(manifest).DigestV2()
+		if err != nil {
+			t.Fatalf("DigestV2: %v", err)
+		}
+		if document.ManifestDigest != wantDigest {
+			t.Fatalf("manifest_digest %s want DigestV2 %s", document.ManifestDigest, wantDigest)
 		}
 	})
 

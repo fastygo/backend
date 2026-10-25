@@ -23,7 +23,7 @@ Hard rules:
   server-side markdown compilation.
 - No second content REST API or duplicate auth/visibility/lifecycle rules.
 - No committed local `replace` for Codex, Framework, Panel, or FormSet.
-  Pin published tags: Codex v0.4.0, FormSet v0.2.0, Framework v0.4.0, Panel v0.1.0.
+  Pin published tags: Codex v0.4.1, FormSet v0.2.0, Framework v0.4.0, Panel v0.1.0.
 - The untagged server binary links bbolt only. SQL drivers use `-tags sqlite`,
   `mysql`, or `postgres`. MariaDB uses the mysql tag.
 - `headless-seed` is a one-shot CLI; do not invent server seed-on-start env.

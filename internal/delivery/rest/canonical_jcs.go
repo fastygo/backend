@@ -1,10 +1,7 @@
 package rest
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -12,32 +9,21 @@ import (
 	"time"
 
 	"github.com/fastygo/backend/internal/domain/schema"
-	"github.com/fastygo/backend/internal/persist"
 	"github.com/fastygo/codex/canonical"
 	domaincontent "github.com/fastygo/codex/content"
+	codexschema "github.com/fastygo/codex/schema"
 	"github.com/fastygo/codex/taxonomy"
-)
-
-const (
-	// Local stand-ins for Codex v0.4.1 profile prefixes. Delete with the bump.
-	settingsProfile      = "codex-settings/v1"
-	settingsDigestPrefix = settingsProfile + ":sha256:"
 )
 
 const fallbackCanonicalErrorJCS = `{"error":{"code":"internal_error","message":"internal server error","status":500}}`
 
-// encodeJCS is a local stand-in for canonical.JCS in Codex v0.4.1.
-// Output is RFC 8785 with no trailing newline and no encoding/json HTML escapes.
-func encodeJCS(value any) (string, error) {
-	ready, err := jcsReady(value)
-	if err != nil {
-		return "", err
-	}
-	return canonical.Format(ready), nil
-}
-
 func writeCanonicalJCS(response http.ResponseWriter, status int, value any) {
-	text, err := encodeJCS(value)
+	raw, err := json.Marshal(value)
+	if err != nil {
+		writeCanonicalBytes(response, http.StatusInternalServerError, []byte(fallbackCanonicalErrorJCS), "")
+		return
+	}
+	text, err := canonical.CanonicalJSON(string(raw))
 	if err != nil {
 		writeCanonicalBytes(response, http.StatusInternalServerError, []byte(fallbackCanonicalErrorJCS), "")
 		return
@@ -45,147 +31,15 @@ func writeCanonicalJCS(response http.ResponseWriter, status int, value any) {
 	writeCanonicalBytes(response, status, []byte(text), "")
 }
 
-func jcsReady(value any) (any, error) {
-	switch typed := value.(type) {
-	case nil, bool, string, float64, json.Number, int, int32, int64, uint64:
-		return typed, nil
-	case uint:
-		return uint64(typed), nil
-	case float32:
-		return float64(typed), nil
-	case json.RawMessage:
-		if len(typed) == 0 {
-			return nil, nil
-		}
-		var parsed any
-		if err := json.Unmarshal(typed, &parsed); err != nil {
-			return nil, err
-		}
-		return jcsReady(parsed)
-	case []byte:
-		return jcsReady(json.RawMessage(typed))
-	case []json.RawMessage:
-		return jcsReadySlice(typed)
-	case []any:
-		items := make([]any, len(typed))
-		for index, item := range typed {
-			ready, err := jcsReady(item)
-			if err != nil {
-				return nil, err
-			}
-			items[index] = ready
-		}
-		return items, nil
-	case []string:
-		items := make([]any, len(typed))
-		for index, item := range typed {
-			items[index] = item
-		}
-		return items, nil
-	case []domaincontent.Kind:
-		items := make([]any, len(typed))
-		for index, item := range typed {
-			items[index] = string(item)
-		}
-		return items, nil
-	case map[string]any:
-		out := make(map[string]any, len(typed))
-		for key, item := range typed {
-			ready, err := jcsReady(item)
-			if err != nil {
-				return nil, err
-			}
-			out[key] = ready
-		}
-		return out, nil
-	case canonicalListDocument:
-		return jcsReady(map[string]any{
-			"data": typed.Data,
-			"pagination": map[string]any{
-				"page":        typed.Pagination.Page,
-				"per_page":    typed.Pagination.PerPage,
-				"total":       typed.Pagination.Total,
-				"total_pages": typed.Pagination.TotalPages,
-			},
-		})
-	default:
-		raw, err := json.Marshal(typed)
-		if err != nil {
-			return nil, err
-		}
-		return jcsReady(json.RawMessage(raw))
-	}
-}
-
-func jcsReadySlice[T any](items []T) (any, error) {
-	out := make([]any, len(items))
-	for index, item := range items {
-		ready, err := jcsReady(item)
-		if err != nil {
-			return nil, err
-		}
-		out[index] = ready
-	}
-	return out, nil
-}
-
-func omitEmptyTopLevel(document map[string]any) map[string]any {
-	for key, value := range document {
-		if canonicalEmpty(value) {
-			delete(document, key)
-		}
-	}
-	return document
-}
-
-func canonicalEmpty(value any) bool {
-	if value == nil {
-		return true
-	}
-	switch typed := value.(type) {
-	case string:
-		return typed == ""
-	case []any:
-		return len(typed) == 0
-	case map[string]any:
-		return len(typed) == 0
-	default:
-		return false
-	}
-}
-
-func rfc3339Z(value time.Time) string {
-	u := value.UTC().Truncate(time.Second)
-	return fmt.Sprintf("%04d-%02d-%02dT%02d:%02d:%02dZ", u.Year(), u.Month(), u.Day(), u.Hour(), u.Minute(), u.Second())
-}
-
-// canonicalizeTerm is a local stand-in for canonical.CanonicalizeTerm (codex-term/v1).
-// The canonical form does not include count.
 func canonicalizeTerm(item taxonomy.Term) ([]byte, error) {
 	cloned := item.Clone()
-	document := map[string]any{
-		"created_at":  rfc3339Z(cloned.CreatedAt),
-		"id":          string(cloned.ID),
-		"locale":      cloned.Locale,
-		"name":        cloned.Name,
-		"slug":        cloned.Slug,
-		"taxonomy_id": cloned.TaxonomyID,
-		"updated_at":  rfc3339Z(cloned.UpdatedAt),
-		"version":     cloned.Version,
+	cloned.CreatedAt = cloned.CreatedAt.UTC().Truncate(time.Second)
+	cloned.UpdatedAt = cloned.UpdatedAt.UTC().Truncate(time.Second)
+	raw, err := json.Marshal(cloned)
+	if err != nil {
+		return nil, err
 	}
-	if cloned.Description != "" {
-		document["description"] = cloned.Description
-	}
-	if cloned.ParentID != "" {
-		document["parent_id"] = string(cloned.ParentID)
-	}
-	if origin := originDocument(cloned.Origin); len(origin) > 0 {
-		document["origin"] = origin
-	}
-	if metadata := publicMetadata(cloned.Metadata); len(metadata) > 0 {
-		document["metadata"] = metadata
-	}
-	text, err := encodeJCS(document)
+	text, err := canonical.CanonicalizeTerm(string(raw))
 	if err != nil {
 		return nil, err
 	}
@@ -193,85 +47,33 @@ func canonicalizeTerm(item taxonomy.Term) ([]byte, error) {
 }
 
 func canonicalizeTaxonomy(item taxonomy.Definition) ([]byte, error) {
-	cloned := item.Canonical()
-	kinds := make([]any, 0, len(cloned.AssignedToKinds))
-	for _, kind := range cloned.AssignedToKinds {
-		kinds = append(kinds, string(kind))
+	raw, err := json.Marshal(item)
+	if err != nil {
+		return nil, err
 	}
-	document := map[string]any{
-		"assigned_to_kinds": kinds,
-		"id":                cloned.ID,
-		"label":             cloned.Label,
-		"locale":            cloned.Locale,
-		"mode":              string(cloned.Mode),
-		"version":           cloned.Version,
-	}
-	if cloned.Public {
-		document["public"] = true
-	}
-	text, err := encodeJCS(document)
+	text, err := canonical.CanonicalJSON(string(raw))
 	if err != nil {
 		return nil, err
 	}
 	return []byte(text), nil
 }
 
-// settingsDocument is the SettingsV04 JSON shape. Isolated so Codex v0.4.1
-// CanonicalizeSettings can replace this helper in one place.
-func settingsDocument(settings domaincontent.Settings) map[string]any {
-	document := map[string]any{
-		"created_at": rfc3339Z(settings.CreatedAt),
-		"id":         string(settings.ID),
-		"language":   settings.Language,
-		"locale":     settings.Locale,
-		"title":      settings.Title,
-		"updated_at": rfc3339Z(settings.UpdatedAt),
-		"version":    settings.Version,
-	}
-	if settings.Description != "" {
-		document["description"] = settings.Description
-	}
-	if settings.Timezone != "" {
-		document["timezone"] = settings.Timezone
-	}
-	if settings.LogoMediaID != "" {
-		document["logo_media_id"] = settings.LogoMediaID
-	}
-	if settings.IconMediaID != "" {
-		document["icon_media_id"] = settings.IconMediaID
-	}
-	if settings.FrontPageID != "" {
-		document["front_page_id"] = settings.FrontPageID
-	}
-	if settings.PostsPageID != "" {
-		document["posts_page_id"] = settings.PostsPageID
-	}
-	if settings.PostsPerPage != nil {
-		document["posts_per_page"] = *settings.PostsPerPage
-	}
-	if settings.CommentsOpen != nil {
-		document["comments_open"] = *settings.CommentsOpen
-	}
-	if settings.Currency != "" {
-		document["currency"] = settings.Currency
-	}
-	if origin := originDocument(settings.Origin); len(origin) > 0 {
-		document["origin"] = origin
-	}
-	if metadata := publicMetadata(settings.Metadata); len(metadata) > 0 {
-		document["metadata"] = metadata
-	}
-	return document
-}
-
-// canonicalizeSettings is a local stand-in for Codex v0.4.1 SettingsV04 canonicalization.
 func canonicalizeSettings(settings domaincontent.Settings) ([]byte, string, error) {
-	text, err := encodeJCS(settingsDocument(settings))
+	settings.CreatedAt = settings.CreatedAt.UTC().Truncate(time.Second)
+	settings.UpdatedAt = settings.UpdatedAt.UTC().Truncate(time.Second)
+	raw, err := json.Marshal(settings)
 	if err != nil {
 		return nil, "", err
 	}
-	sum := sha256.Sum256([]byte(text))
-	return []byte(text), settingsDigestPrefix + hex.EncodeToString(sum[:]), nil
+	text, err := canonical.CanonicalizeSettings(string(raw))
+	if err != nil {
+		return nil, "", err
+	}
+	digest, err := canonical.SettingsDigest(string(raw))
+	if err != nil {
+		return nil, "", err
+	}
+	return []byte(text), digest, nil
 }
 
 func settingsFromEntry(entry domaincontent.Entry) domaincontent.Settings {
@@ -434,79 +236,6 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func originDocument(items []domaincontent.Origin) []any {
-	if len(items) == 0 {
-		return nil
-	}
-	out := make([]any, 0, len(items))
-	for _, item := range items {
-		out = append(out, map[string]any{"id": item.ID, "system": item.System})
-	}
-	return out
-}
-
-func publicMetadata(metadata map[string]domaincontent.MetadataValue) map[string]any {
-	if len(metadata) == 0 {
-		return nil
-	}
-	out := make(map[string]any, len(metadata))
-	for key, value := range metadata {
-		if value.Private {
-			continue
-		}
-		out[key] = map[string]any{"value": value.Value}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
-}
-
-// manifestDigestV2 is a local stand-in for schema.Manifest.DigestV2 in Codex v0.4.1:
-// SHA-256 of JCS(full Canonical() manifest), empty optionals omitted only at top level.
-func manifestDigestV2(manifest schema.Manifest) (string, error) {
-	text, err := encodeJCS(omitEmptyTopLevel(fullCanonicalManifest(manifest)))
-	if err != nil {
-		return "", err
-	}
-	sum := sha256.Sum256([]byte(text))
-	return canonical.ManifestDigestV2Prefix + hex.EncodeToString(sum[:]), nil
-}
-
-func fullCanonicalManifest(manifest schema.Manifest) map[string]any {
-	canonicalManifest := persist.ManifestFromDomain(manifest.Canonical())
-	resources := make([]any, 0, len(canonicalManifest.Resources))
-	for _, resource := range canonicalManifest.Resources {
-		fields := resource.Fields
-		if fields == nil {
-			fields = []persist.Field{}
-		}
-		form := resource.Form
-		if form == nil {
-			form = []persist.Field{}
-		}
-		taxonomies := resource.Taxonomies
-		if taxonomies == nil {
-			taxonomies = []string{}
-		}
-		resources = append(resources, map[string]any{
-			"collection":      resource.Collection,
-			"fields":          fields,
-			"form":            form,
-			"graphql_visible": resource.GraphQLVisible,
-			"id":              resource.ID,
-			"public":          resource.Public,
-			"rest_visible":    resource.RESTVisible,
-			"taxonomies":      taxonomies,
-		})
-	}
-	return map[string]any{
-		"name":      canonicalManifest.Name,
-		"resources": resources,
-		"version":   canonicalManifest.Version,
-	}
-}
-
 func sortSettings(items []domaincontent.Settings) {
 	sort.SliceStable(items, func(i, j int) bool {
 		if items[i].ID != items[j].ID {
@@ -514,4 +243,91 @@ func sortSettings(items []domaincontent.Settings) {
 		}
 		return items[i].Locale < items[j].Locale
 	})
+}
+
+func manifestDigestV2(manifest schema.Manifest) (string, error) {
+	return ServedCodexManifest(manifest).DigestV2()
+}
+
+// ServedCodexManifest projects the delivery schema into a Codex v0.4.1
+// manifest. Resource order is the source order; Canonical() is not applied.
+func ServedCodexManifest(manifest schema.Manifest) codexschema.Manifest {
+	resources := make([]codexschema.Resource, 0, len(manifest.Resources))
+	for _, resource := range manifest.Resources {
+		resources = append(resources, codexResource(resource))
+	}
+	return codexschema.Manifest{
+		Name:      manifest.Name,
+		Version:   manifest.Version,
+		Resources: resources,
+	}
+}
+
+func codexResource(resource schema.Resource) codexschema.Resource {
+	fields := resource.FormFields()
+	if len(resource.Fields) > 0 {
+		fields = resource.Fields
+	}
+	record := codexschema.RecordType{
+		ID:     codexschema.RecordTypeID(resource.ID),
+		Label:  resource.ID,
+		Scope:  codexschema.ScopeTenant,
+		Fields: make([]codexschema.Field, 0, len(fields)),
+	}
+	if resource.Public {
+		record.Visibility = "public"
+	}
+	var relations []codexschema.Relation
+	for _, field := range fields {
+		record.Fields = append(record.Fields, codexField(field))
+		if field.Type == schema.FieldRelation && field.Relation != nil {
+			relations = append(relations, codexschema.Relation{
+				ID:             codexschema.RelationID(field.ID),
+				Source:         record.ID,
+				Target:         codexschema.RecordTypeID(field.Relation.Resource),
+				Cardinality:    codexCardinality(field.Relation.Cardinality),
+				DeleteBehavior: codexschema.DeleteBehavior(field.Relation.OnDelete),
+			})
+		}
+	}
+	record.Relations = relations
+	return codexschema.Resource{Record: record, Taxonomies: resource.Taxonomies}
+}
+
+func codexField(field schema.Field) codexschema.Field {
+	out := codexschema.Field{
+		ID:        codexschema.FieldID(field.ID),
+		Label:     field.ID,
+		Type:      codexschema.FieldType(field.Type),
+		Required:  field.Required,
+		Localized: field.Localized,
+		Sensitive: field.Sensitive,
+	}
+	if field.ReadOnly {
+		out.Rules = append(out.Rules, codexschema.ValidationRule{Name: codexschema.RuleReadOnly})
+	}
+	if field.Nullable {
+		out.Rules = append(out.Rules, codexschema.ValidationRule{Name: codexschema.RuleNullable})
+	}
+	for _, value := range field.Enum {
+		out.Options = append(out.Options, codexschema.Option{Value: value, Label: value})
+	}
+	if field.Items != nil {
+		item := codexField(*field.Items)
+		out.Items = &item
+	}
+	if len(field.Fields) > 0 {
+		out.Fields = make([]codexschema.Field, 0, len(field.Fields))
+		for _, nested := range field.Fields {
+			out.Fields = append(out.Fields, codexField(nested))
+		}
+	}
+	return out
+}
+
+func codexCardinality(cardinality schema.Cardinality) codexschema.RelationCardinality {
+	if cardinality == schema.CardinalityMany {
+		return codexschema.RelationManyToMany
+	}
+	return codexschema.RelationOneToOne
 }
