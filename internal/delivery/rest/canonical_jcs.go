@@ -101,6 +101,18 @@ func settingsFromEntry(entry domaincontent.Entry) domaincontent.Settings {
 	if value, ok := metadataBool(entry.Metadata, bag, "comments_open"); ok {
 		settings.CommentsOpen = &value
 	}
+	if contact, ok := metadataTyped[domaincontent.Contact](entry.Metadata, bag, "contact"); ok {
+		settings.Contact = contact
+	}
+	if hours, ok := metadataTypedSlice[domaincontent.HoursRule](entry.Metadata, bag, "hours"); ok {
+		settings.Hours = hours
+	}
+	if exceptions, ok := metadataTypedSlice[domaincontent.HoursException](entry.Metadata, bag, "hours_exceptions"); ok {
+		settings.HoursExceptions = exceptions
+	}
+	if pin, ok := metadataTyped[domaincontent.MapPin](entry.Metadata, bag, "map"); ok {
+		settings.Map = pin
+	}
 	settings.Metadata = leftoverSettingsMetadata(entry.Metadata)
 	return settings
 }
@@ -109,6 +121,7 @@ var settingsFieldKeys = map[string]struct{}{
 	"language": {}, "timezone": {}, "logo_media_id": {}, "icon_media_id": {},
 	"front_page_id": {}, "posts_page_id": {}, "posts_per_page": {},
 	"comments_open": {}, "currency": {}, "description": {},
+	"contact": {}, "hours": {}, "hours_exceptions": {}, "map": {},
 }
 
 func leftoverSettingsMetadata(metadata map[string]domaincontent.MetadataValue) map[string]domaincontent.MetadataValue {
@@ -146,6 +159,59 @@ func leftoverSettingsMetadata(metadata map[string]domaincontent.MetadataValue) m
 		return nil
 	}
 	return out
+}
+
+func metadataRaw(metadata map[string]domaincontent.MetadataValue, bag map[string]any, key string) (any, bool) {
+	if item, ok := metadata[key]; ok && item.Value != nil {
+		return item.Value, true
+	}
+	if bag != nil {
+		if value, ok := bag[key]; ok && value != nil {
+			return value, true
+		}
+	}
+	return nil, false
+}
+
+func metadataTyped[T any](metadata map[string]domaincontent.MetadataValue, bag map[string]any, key string) (*T, bool) {
+	raw, ok := metadataRaw(metadata, bag, key)
+	if !ok {
+		return nil, false
+	}
+	encoded, err := json.Marshal(raw)
+	if err != nil || isEmptyJSON(encoded) {
+		return nil, false
+	}
+	var out T
+	if err := json.Unmarshal(encoded, &out); err != nil {
+		return nil, false
+	}
+	return &out, true
+}
+
+func metadataTypedSlice[T any](metadata map[string]domaincontent.MetadataValue, bag map[string]any, key string) ([]T, bool) {
+	raw, ok := metadataRaw(metadata, bag, key)
+	if !ok {
+		return nil, false
+	}
+	encoded, err := json.Marshal(raw)
+	if err != nil || isEmptyJSON(encoded) {
+		return nil, false
+	}
+	var out []T
+	if err := json.Unmarshal(encoded, &out); err != nil || len(out) == 0 {
+		return nil, false
+	}
+	return out, true
+}
+
+func isEmptyJSON(encoded []byte) bool {
+	switch string(encoded) {
+	case "", "null", "{}", "[]":
+		return true
+	default:
+		return false
+	}
 }
 
 func metadataBag(metadata map[string]domaincontent.MetadataValue) map[string]any {
@@ -266,7 +332,7 @@ func CodexDeliverySection(delivery map[string]any) (map[string]any, bool) {
 	return section, ok
 }
 
-// ServedCodexManifest projects the delivery schema into a Codex v0.4.1
+// ServedCodexManifest projects the delivery schema into a Codex v0.4
 // manifest. Resource order is the source order; Canonical() is not applied.
 func ServedCodexManifest(manifest schema.Manifest) codexschema.Manifest {
 	resources := make([]codexschema.Resource, 0, len(manifest.Resources))

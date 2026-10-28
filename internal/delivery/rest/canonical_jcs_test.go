@@ -100,6 +100,64 @@ func TestSettingsCanonicalUsesCodexProfile(t *testing.T) {
 	}
 }
 
+func TestSettingsFromEntryCarriesContactBlock(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.October, 25, 12, 0, 0, 0, time.UTC)
+	lat, lng := 39.7817, -89.6501
+	closed := true
+	settings := settingsFromEntry(domaincontent.Entry{
+		ID: "site", Locale: "en-US", Kind: domaincontent.KindSetting,
+		Title: "Latte Shop", Version: 1, CreatedAt: now, UpdatedAt: now,
+		Metadata: map[string]domaincontent.MetadataValue{
+			"language": {Value: "en-US"},
+			"currency": {Value: "USD"},
+			"contact": {Value: map[string]any{
+				"phone": "+12025550143", "email": "hello@example.com",
+				"address": "742 Evergreen Terrace, Springfield, IL 62704, USA",
+				"links": []any{
+					map[string]any{"network": "whatsapp", "handle": "+12025550143"},
+					map[string]any{"network": "telegram", "handle": "latte_shop_demo"},
+					map[string]any{"network": "instagram", "handle": "latte.shop.demo"},
+				},
+			}},
+			"hours": {Value: []any{
+				map[string]any{"days": []any{"mon", "tue", "wed", "thu", "fri"}, "open": "09:00", "close": "18:00"},
+				map[string]any{"days": []any{"sat"}, "open": "10:00", "close": "16:00"},
+			}},
+			"hours_exceptions": {Value: []any{
+				map[string]any{"date": "2026-12-25", "closed": true},
+				map[string]any{"date": "2026-12-31", "open": "10:00", "close": "14:00"},
+			}},
+			"map": {Value: map[string]any{"provider": "osm", "lat": lat, "lng": lng}},
+		},
+	})
+	if settings.Contact == nil || settings.Contact.Phone != "+12025550143" || settings.Contact.Email != "hello@example.com" {
+		t.Fatalf("contact: %#v", settings.Contact)
+	}
+	if len(settings.Contact.Links) != 3 || settings.Contact.Links[1].Network != "telegram" {
+		t.Fatalf("links: %#v", settings.Contact.Links)
+	}
+	if len(settings.Hours) != 2 || settings.Hours[0].Close != "18:00" {
+		t.Fatalf("hours: %#v", settings.Hours)
+	}
+	if len(settings.HoursExceptions) != 2 || settings.HoursExceptions[0].Closed == nil || *settings.HoursExceptions[0].Closed != closed {
+		t.Fatalf("hours_exceptions: %#v", settings.HoursExceptions)
+	}
+	if settings.Map == nil || settings.Map.Provider != "osm" || settings.Map.Lat == nil || *settings.Map.Lat != lat {
+		t.Fatalf("map: %#v", settings.Map)
+	}
+	body, digest, err := canonicalizeSettings(settings)
+	if err != nil {
+		t.Fatalf("canonicalizeSettings: %v", err)
+	}
+	if !strings.HasPrefix(digest, canonical.SettingsDigestPrefix) {
+		t.Fatalf("digest prefix: %s", digest)
+	}
+	if !strings.Contains(string(body), `"contact"`) || !strings.Contains(string(body), `"hours_exceptions"`) {
+		t.Fatalf("contact block missing from JCS: %s", body)
+	}
+}
+
 func TestCodexV04VersionIsSpecNotLibrary(t *testing.T) {
 	t.Parallel()
 	if CodexV04Version != "0.4.0" {

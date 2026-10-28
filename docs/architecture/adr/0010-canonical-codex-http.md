@@ -31,8 +31,9 @@ envelopes are exactly `{data, pagination}`. Empty nested values are kept; only t
 omitted. Every `/codex/v1` body is RFC 8785 JCS with no trailing newline
 and no `encoding/json` HTML/`U+2028` escapes. A single entry is the raw JCS of `codex-entry/v1` with
 `Codex-Digest` and `ETag`. `GET /codex/v1/settings` lists SettingsV04 records
-(own type, not `kind=setting` entries); `GET /codex/v1/settings/{id}` is raw
-JCS with digest headers. Terms use `codex-term/v1` and omit `count`. Default
+(own type, not `kind=setting` entries, including optional `contact` /
+`hours` / `hours_exceptions` / `map`); `GET /codex/v1/settings/{id}` is raw
+JCS with digest headers (`codex-settings/v1`). Terms use `codex-term/v1` and omit `count`. Default
 locale is `settings.language`, else `"en"`. Public reads only; everything
 else is 404. Errors use the gocms-02 shape with `validation_error` /
 `not_found`; `request_id` is optional.

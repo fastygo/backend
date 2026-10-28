@@ -80,7 +80,27 @@ func TestCodexV1Conform(t *testing.T) {
 		Slug: "site", Title: "Example Site", Version: 1,
 		PublishedAt: &published, CreatedAt: now, UpdatedAt: now,
 		Metadata: map[string]domaincontent.MetadataValue{
-			"value": {Value: map[string]any{"language": "en-US", "currency": "USD"}},
+			"value": {Value: map[string]any{
+				"language": "en-US", "currency": "USD",
+				"contact": map[string]any{
+					"phone": "+12025550143", "email": "hello@example.com",
+					"address": "742 Evergreen Terrace, Springfield, IL 62704, USA",
+					"links": []any{
+						map[string]any{"network": "whatsapp", "handle": "+12025550143"},
+						map[string]any{"network": "telegram", "handle": "latte_shop_demo"},
+						map[string]any{"network": "instagram", "handle": "latte.shop.demo"},
+					},
+				},
+				"hours": []any{
+					map[string]any{"days": []any{"mon", "tue", "wed", "thu", "fri"}, "open": "09:00", "close": "18:00"},
+					map[string]any{"days": []any{"sat"}, "open": "10:00", "close": "16:00"},
+				},
+				"hours_exceptions": []any{
+					map[string]any{"date": "2026-12-25", "closed": true},
+					map[string]any{"date": "2026-12-31", "open": "10:00", "close": "14:00"},
+				},
+				"map": map[string]any{"provider": "osm", "lat": 39.7817, "lng": -89.6501},
+			}},
 		},
 	}); err != nil {
 		t.Fatalf("create settings: %v", err)
@@ -411,6 +431,13 @@ func TestCodexV1Conform(t *testing.T) {
 		}
 		if settingsDoc.Data[0]["language"] != "en-US" || settingsDoc.Data[0]["currency"] != "USD" {
 			t.Fatalf("SettingsV04 fields: %#v", settingsDoc.Data[0])
+		}
+		contact, _ := settingsDoc.Data[0]["contact"].(map[string]any)
+		if contact["phone"] != "+12025550143" || contact["email"] != "hello@example.com" {
+			t.Fatalf("settings contact: %#v", settingsDoc.Data[0]["contact"])
+		}
+		if _, hasHours := settingsDoc.Data[0]["hours"]; !hasHours {
+			t.Fatalf("settings hours missing: %#v", settingsDoc.Data[0])
 		}
 		if _, hasKind := settingsDoc.Data[0]["kind"]; hasKind {
 			t.Fatalf("settings must not be entries kind=setting: %#v", settingsDoc.Data[0])

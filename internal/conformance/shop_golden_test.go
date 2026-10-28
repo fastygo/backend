@@ -271,6 +271,28 @@ func settingsEntryFromGolden(raw []byte) (domaincontent.Entry, error) {
 	if settings.CommentsOpen != nil {
 		metadata["comments_open"] = domaincontent.MetadataValue{Value: *settings.CommentsOpen}
 	}
+	putJSON := func(key string, value any) {
+		if value == nil {
+			return
+		}
+		raw, err := json.Marshal(value)
+		if err != nil {
+			return
+		}
+		switch string(raw) {
+		case "", "null", "{}", "[]":
+			return
+		}
+		var native any
+		if err := json.Unmarshal(raw, &native); err != nil {
+			return
+		}
+		metadata[key] = domaincontent.MetadataValue{Value: native}
+	}
+	putJSON("contact", settings.Contact)
+	putJSON("hours", settings.Hours)
+	putJSON("hours_exceptions", settings.HoursExceptions)
+	putJSON("map", settings.Map)
 	return domaincontent.Entry{
 		ID: settings.ID, Kind: domaincontent.KindSetting, Locale: settings.Locale,
 		Status: domaincontent.StatusPublished, Visibility: domaincontent.VisibilityPublic,

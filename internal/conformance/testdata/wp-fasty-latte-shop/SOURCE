@@ -1,7 +1,7 @@
 repo=https://github.com/alexy-os/wp-fasty.git
-commit=70dae8687aaebdb7d7f0bb0de0945b7b9ad39e7e
+commit=35264d49b04c9ad8801f10cec577494c9bb63ebe
 branch=main
 golden=tests/fixtures/codex-draft/golden/latte-shop
 manifest=themes/latte-shop/types/codex.manifest.json
 delivery=themes/latte-shop/types/codex.delivery.json
-note=fastygo/wp-fasty is tried first; alexy-os/wp-fasty is the public fallback. Delivery JSON key is wp. Origin.system in golden bodies is left unchanged. Shop demo PHP is WordPress-only; the HTTP test loads these portable Codex records.
+note=fastygo/wp-fasty is tried first; alexy-os/wp-fasty is the public fallback. The delivery JSON key "wordpress" is stored as "wp". Origin.system in golden bodies is left unchanged. Shop demo PHP is WordPress-only; the HTTP test loads these portable Codex records.
