@@ -7,17 +7,60 @@ slot (usually `incus exec`). See ADR-0012.
 
 ## Forced command
 
-Install the binary as `backend` (or keep `headless-backend` and point the
-command at it). One key per tenant, no PTY, no forwarding:
+Install the binary as `backend` (or `headless-backend`). One key per tenant,
+no PTY, no forwarding. The key's `command=` runs `backend codex ssh-forced`,
+which reads `$SSH_ORIGINAL_COMMAND` (what the client asked for) and applies
+a strict allowlist before any storage is opened:
 
 ```
-command="/usr/bin/incus exec shop -- /usr/local/bin/backend codex import --stdio --tenant=shop",no-agent-forwarding,no-port-forwarding,no-pty,no-X11-forwarding,no-user-rc ssh-ed25519 AAAA... import@desktop
+[incus exec <slot> --] [backend|headless-backend|/usr/local/bin/backend] codex import --stdio --tenant=<id> [--dry-run]
 ```
 
-Dry-run uses the same keying only if you add a second command that includes
-`--dry-run`. Stdin is the NDJSON batch; stdout is per-record reports then the
-tenant `codex-manifest/v2` JCS object. Exit status is non-zero when any line
-is `rejected`.
+- flags in any order, each at most once; `--stdio` and `--tenant` required;
+- `--tenant` must equal the tenant pinned with `ssh-forced --tenant=`;
+- the `incus exec <slot> --` prefix (the cms-console default) is accepted
+  only when `--slot=<slot>` is pinned and matches;
+- only `[A-Za-z0-9 ._=/-]`, at most 256 bytes: quotes, `;`, `&`, `|`, `$`,
+  backticks, tabs and newlines are refused; so are extra arguments and every
+  other subcommand. A refused command exits non-zero with a one-line reason
+  on stderr and writes nothing.
+
+So one key serves both the dry-run and the apply; no second key is needed.
+
+### Backend runs inside the incus slot (sshd on the host)
+
+`$SSH_ORIGINAL_COMMAND` is not inherited by `incus exec`; pass it explicitly.
+The value is expanded once inside double quotes (no word splitting, no
+evaluation) and is then checked by the allowlist:
+
+```
+command="/usr/bin/incus exec shop --env SSH_ORIGINAL_COMMAND=\"$SSH_ORIGINAL_COMMAND\" -- /usr/local/bin/backend codex ssh-forced --tenant=shop --slot=shop",no-agent-forwarding,no-port-forwarding,no-pty,no-X11-forwarding,no-user-rc ssh-ed25519 AAAA... import@desktop
+```
+
+### sshd in the same place as the binary
+
+```
+command="/usr/local/bin/backend codex ssh-forced --tenant=shop",no-agent-forwarding,no-port-forwarding,no-pty,no-X11-forwarding,no-user-rc ssh-ed25519 AAAA... import@desktop
+```
+
+### Client side (cms-console)
+
+The client sends the command it wants, for example
+`incus exec shop -- backend codex import --stdio --tenant=shop --dry-run`
+(cms-console with `slot` + `tenant`) or `codex import --stdio --tenant=shop`
+(`remote_command`). Stdin is the NDJSON batch; stdout is per-record reports
+then the tenant `codex-manifest/v2` JCS object. Exit status is non-zero when
+any line is `rejected`.
+
+Check a key without importing anything:
+
+```bash
+ssh -T -i ~/.ssh/import_shop import@host 'codex import --stdio --tenant=shop --dry-run' < /dev/null
+ssh -T -i ~/.ssh/import_shop import@host 'sh'          # refused: only `codex import` is allowed
+```
+
+Settings, menus and media are **not** imported here: each site ships them to
+its own BFF (cms-console ADR 0011, `cms-site-bff/v1`).
 
 Example upsert and delete:
 
