@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -13,13 +14,20 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
+	if len(os.Args) > 1 && os.Args[1] == "codex" {
+		if err := runCodex(os.Args[2:]); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+	if err := runServer(); err != nil {
 		slog.Error("headless backend stopped", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
+func runServer() error {
 	config, err := bootstrap.LoadConfig()
 	if err != nil {
 		return err

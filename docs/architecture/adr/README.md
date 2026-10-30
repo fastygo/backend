@@ -13,3 +13,4 @@
 | [0009](0009-locale-dimension.md) | Locale is a dimension, not payload_* |
 | [0010](0010-canonical-codex-http.md) | Canonical Codex HTTP surface is `/codex/v1` |
 | [0011](0011-optional-multi-tenancy.md) | Optional multi-tenancy is one implicit default tenant |
+| [0012](0012-codex-import-stdio.md) | Codex import is stdio NDJSON, not a network listener |

@@ -226,25 +226,11 @@ func resolvedTenants(config Config) ([]tenant.Spec, error) {
 }
 
 func buildSite(ctx context.Context, config Config, spec tenant.Spec) (*site, error) {
-	manifest := config.Manifest
-	if path := strings.TrimSpace(spec.Manifest); path != "" {
-		loaded, err := loadManifest(path)
-		if err != nil {
-			return nil, err
-		}
-		manifest = loaded
+	manifest, err := tenantManifest(config, spec)
+	if err != nil {
+		return nil, err
 	}
-	siteConfig := config
-	siteConfig.Storage = spec.Storage.ResolveDriver(config.Storage)
-	if dsn := strings.TrimSpace(spec.Storage.DSN); dsn != "" {
-		siteConfig.DataSource = dsn
-	}
-	if path := strings.TrimSpace(spec.Storage.Path); path != "" {
-		siteConfig.BboltPath = path
-	}
-	if root := strings.TrimSpace(spec.MediaRoot); root != "" {
-		siteConfig.MediaRoot = root
-	}
+	siteConfig := tenantStorageConfig(config, spec)
 	storage, err := OpenStorage(ctx, siteConfig)
 	if err != nil {
 		return nil, fmt.Errorf("tenant %q storage: %w", spec.ID, err)

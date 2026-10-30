@@ -25,6 +25,10 @@ Without `HEADLESS_TENANTS_PATH` the process is one implicit tenant (ADR-0011).
 With it, each `tenants.json` entry has its own storage, media root, and
 manifest; `Host` selects the tenant. Sessions and CSRF do not cross tenants.
 
+Long-read Codex records are imported with `backend codex import --stdio
+--tenant=<id>` (ADR-0012). There is no import HTTP listener. The server does
+not convert markdown.
+
 ## Data operations
 
 - `headless-seed` is a deliberate one-shot bootstrap/import CLI; it is not an

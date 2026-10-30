@@ -10,6 +10,7 @@ Read: [glossary](glossary.md) → [contract](contract.md) → [architecture](arc
 - [Quick start](quickstart.md)
 - [Production checklist](deployment/production-checklist.md)
 - [Runbooks](runbooks/)
+- [Codex import](runbooks/codex-import.md)
 
 Runtime API contracts are generated from the active manifest:
 `/go-json/go/v2/openapi.json`, `/go-json/go/v2/schema`, and optional

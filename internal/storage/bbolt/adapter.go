@@ -468,11 +468,19 @@ func (repository revisionRepository) List(
 var errStopIteration = errors.New("stop iteration")
 
 func slugMatches(entry content.Entry, locale, slug string) bool {
-	if content.NormalizeSlug(entry.Slug) == slug && (locale == "" || entry.Locale == locale) {
+	if content.NormalizeSlug(entry.Slug) == slug && (locale == "" || strings.EqualFold(entry.Locale, locale)) {
 		return true
 	}
 	chrome := contentcompat.ChromeFrom(entry)
-	return content.NormalizeSlug(chrome.Slug[locale]) == slug
+	if content.NormalizeSlug(chrome.Slug[locale]) == slug {
+		return true
+	}
+	for loc, value := range chrome.Slug {
+		if strings.EqualFold(loc, locale) && content.NormalizeSlug(value) == slug {
+			return true
+		}
+	}
+	return false
 }
 
 func decodeEntry(value []byte) (content.Entry, error) {

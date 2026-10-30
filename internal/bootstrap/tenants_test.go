@@ -99,6 +99,20 @@ func TestMultiTenantIsolationSameSlugAndSessions(t *testing.T) {
 	}
 }
 
+func TestLookupTenantDefaultAndMissing(t *testing.T) {
+	config := Config{Storage: "bbolt", BboltPath: "/tmp/x.db", MediaRoot: "/tmp/m", Manifest: DefaultManifest()}
+	spec, err := LookupTenant(config, tenant.DefaultID)
+	if err != nil || spec.ID != tenant.DefaultID {
+		t.Fatalf("default tenant: %#v %v", spec, err)
+	}
+	if _, err := LookupTenant(config, "missing"); err == nil {
+		t.Fatal("missing tenant must fail")
+	}
+	if _, err := LookupTenant(config, ""); err == nil {
+		t.Fatal("empty tenant must fail")
+	}
+}
+
 func TestSingleModeIgnoresHost(t *testing.T) {
 	runtime, err := Build(context.Background(), Config{
 		App: app.Config{
