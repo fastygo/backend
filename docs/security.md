@@ -4,7 +4,10 @@
 
 Codex is private in production; TLS terminates at a trusted proxy. Cookie
 sessions use `/go-json/auth/*`; bearer tokens serve automation. Do not expose
-the database, media root, or unsecured Codex bind to the internet.
+the database, media root, or unsecured Codex bind to the internet. Multi-tenant
+routing uses the `Host` header only (port may be stripped, value is lowercased).
+Do not trust `X-Forwarded-Host`. Session tokens issued in multi mode are bound
+to the tenant; CSRF values from another tenant are rejected.
 
 ## CSRF coverage
 

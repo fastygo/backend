@@ -88,6 +88,43 @@ func TestSignedSessionCookieAndCSRF(t *testing.T) {
 	}
 }
 
+func TestTokenManagerRejectsCrossTenantClaims(t *testing.T) {
+	t.Parallel()
+	shop, err := NewTokenManager("0123456789abcdef0123456789abcdef", "headless")
+	if err != nil {
+		t.Fatalf("shop tokens: %v", err)
+	}
+	shop.BindTenant("shop")
+	press, err := NewTokenManager("0123456789abcdef0123456789abcdef", "headless")
+	if err != nil {
+		t.Fatalf("press tokens: %v", err)
+	}
+	press.BindTenant("press")
+	token, err := shop.Issue(authz.EditorRole().Principal("editor"), time.Hour)
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Set("Authorization", "Bearer "+token)
+	if _, err := press.Resolve(request); err == nil {
+		t.Fatal("shop token must not resolve on press")
+	}
+	if err := press.ValidateCookieCSRF(requestWithCookieCSRF(token, shop.CSRF(token))); err == nil {
+		t.Fatal("shop CSRF must not satisfy press")
+	}
+	principal, err := shop.Resolve(request)
+	if err != nil || principal.ID != "editor" {
+		t.Fatalf("shop token on shop: %#v %v", principal, err)
+	}
+}
+
+func requestWithCookieCSRF(token, csrf string) *http.Request {
+	request := httptest.NewRequest(http.MethodPost, "/", nil)
+	request.AddCookie(&http.Cookie{Name: SessionCookieName, Value: token})
+	request.Header.Set("X-CSRF-Token", csrf)
+	return request
+}
+
 func TestTokenManagerRejectsWeakSecretsAndUnknownCapabilities(t *testing.T) {
 	t.Parallel()
 	if _, err := NewTokenManager("weak", "headless"); err == nil {

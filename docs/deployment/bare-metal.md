@@ -66,12 +66,18 @@ is behind a trusted private network.
 
 ## SQLite or external SQL
 
-For SQLite:
+SQLite (`go build -tags sqlite`) is the documented production storage. For a
+single site:
 
 ```dotenv
 HEADLESS_STORAGE=sqlite
 DATABASE_URL=/var/lib/headless-backend/backend.sqlite
 ```
+
+Several sites in one process use `HEADLESS_TENANTS_PATH` pointing at
+`tenants.json` (ADR-0011). Each tenant has its own `storage.dsn` (SQLite file)
+and `media_root`. Caddy must pass `Host` through; the backend does not read
+`X-Forwarded-Host`. The untagged binary still links bbolt for local installs.
 
 For PostgreSQL:
 

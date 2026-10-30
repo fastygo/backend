@@ -21,6 +21,10 @@ BFF published reads / Admin authenticated writes
 `HEADLESS_MANIFEST_PATH` adds product resources to reserved Codex kinds. The
 manifest is input to the process, not compiled product logic.
 
+Without `HEADLESS_TENANTS_PATH` the process is one implicit tenant (ADR-0011).
+With it, each `tenants.json` entry has its own storage, media root, and
+manifest; `Host` selects the tenant. Sessions and CSRF do not cross tenants.
+
 ## Data operations
 
 - `headless-seed` is a deliberate one-shot bootstrap/import CLI; it is not an

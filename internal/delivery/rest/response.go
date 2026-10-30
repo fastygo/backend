@@ -19,6 +19,11 @@ type errorBody struct {
 	RequestID string `json:"request_id"`
 }
 
+// WriteUnknownHost is the multi-tenant 404 when Host matches no tenant.
+func WriteUnknownHost(response http.ResponseWriter, request *http.Request) {
+	writeError(response, request, core.NewDomainError(core.ErrorCodeNotFound, "tenant was not found"))
+}
+
 func writeError(response http.ResponseWriter, request *http.Request, err error) {
 	domainError := core.NewDomainError(core.ErrorCodeInternal, "internal server error")
 	var resolved core.DomainError

@@ -22,15 +22,17 @@ type Claims struct {
 	Version      int                `json:"v"`
 	Issuer       string             `json:"iss"`
 	Subject      string             `json:"sub"`
+	Tenant       string             `json:"tid,omitempty"`
 	Capabilities []authz.Capability `json:"capabilities"`
 	IssuedAt     int64              `json:"iat"`
 	ExpiresAt    int64              `json:"exp"`
 }
 
 type TokenManager struct {
-	secret string
-	issuer string
-	now    func() time.Time
+	secret   string
+	issuer   string
+	tenantID string
+	now      func() time.Time
 }
 
 func NewTokenManager(secret, issuer string) (*TokenManager, error) {
@@ -42,6 +44,15 @@ func NewTokenManager(secret, issuer string) (*TokenManager, error) {
 		return nil, errors.New("token issuer is required")
 	}
 	return &TokenManager{secret: secret, issuer: issuer, now: time.Now}, nil
+}
+
+// BindTenant scopes issued tokens and CSRF to tenantID. Empty keeps single-site
+// token bytes unchanged. A non-empty id is required in multi-tenant mode.
+func (manager *TokenManager) BindTenant(tenantID string) {
+	if manager == nil {
+		return
+	}
+	manager.tenantID = strings.TrimSpace(tenantID)
 }
 
 func (manager *TokenManager) Issue(principal authz.Principal, ttl time.Duration) (string, error) {
@@ -62,13 +73,18 @@ func (manager *TokenManager) Issue(principal authz.Principal, ttl time.Duration)
 	now := manager.now().UTC()
 	return frameworkauth.SignedEncode(Claims{
 		Version: tokenVersion, Issuer: manager.issuer, Subject: principal.ID,
-		Capabilities: capabilities, IssuedAt: now.Unix(), ExpiresAt: now.Add(ttl).Unix(),
+		Tenant: manager.tenantID, Capabilities: capabilities,
+		IssuedAt: now.Unix(), ExpiresAt: now.Add(ttl).Unix(),
 	}, manager.secret)
 }
 
 func (manager *TokenManager) CSRF(token string) string {
 	mac := hmac.New(sha256.New, []byte(manager.secret))
 	_, _ = mac.Write([]byte("csrf|"))
+	if manager.tenantID != "" {
+		_, _ = mac.Write([]byte(manager.tenantID))
+		_, _ = mac.Write([]byte("|"))
+	}
 	_, _ = mac.Write([]byte(token))
 	return hex.EncodeToString(mac.Sum(nil))
 }
@@ -113,6 +129,8 @@ func (manager *TokenManager) Resolve(request *http.Request) (authz.Principal, er
 		return authz.Principal{}, errors.New("bearer token has expired")
 	case claims.IssuedAt > now+30:
 		return authz.Principal{}, errors.New("bearer token was issued in the future")
+	case !tenantClaimAllowed(manager.tenantID, claims.Tenant):
+		return authz.Principal{}, errors.New("bearer token tenant is invalid")
 	}
 	for _, capability := range claims.Capabilities {
 		if !capability.Valid() {
@@ -120,6 +138,13 @@ func (manager *TokenManager) Resolve(request *http.Request) (authz.Principal, er
 		}
 	}
 	return authz.NewPrincipal(claims.Subject, claims.Capabilities...), nil
+}
+
+func tenantClaimAllowed(bound, claimed string) bool {
+	if bound == "" {
+		return claimed == ""
+	}
+	return claimed == bound
 }
 
 func requestToken(request *http.Request) (string, error) {

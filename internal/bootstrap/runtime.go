@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -23,6 +24,7 @@ import (
 	"github.com/fastygo/backend/internal/persist"
 	"github.com/fastygo/backend/internal/platform"
 	"github.com/fastygo/backend/internal/storage/localmedia"
+	"github.com/fastygo/backend/internal/tenant"
 	"github.com/fastygo/framework/pkg/app"
 )
 
@@ -51,12 +53,23 @@ type Config struct {
 	MediaRoot         string
 	MediaMaxBytes     int64
 	ScheduleInterval  time.Duration
+	TenantsPath       string
+	Tenants           []tenant.Spec
 }
 
 type Runtime struct {
 	App          *app.App
 	ControlPlane *platform.ControlPlane
 	storage      Storage
+	sites        []*site
+}
+
+type site struct {
+	spec     tenant.Spec
+	mux      *http.ServeMux
+	storage  Storage
+	content  *application.Service
+	manifest schema.Manifest
 }
 
 func LoadConfig() (Config, error) {
@@ -86,7 +99,7 @@ func LoadConfig() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	return Config{
+	config := Config{
 		App:               frameworkConfig,
 		Storage:           strings.ToLower(env("HEADLESS_STORAGE", "bbolt")),
 		DataSource:        strings.TrimSpace(os.Getenv("DATABASE_URL")),
@@ -101,7 +114,16 @@ func LoadConfig() (Config, error) {
 		MediaRoot:         env("HEADLESS_MEDIA_ROOT", "var/lib/headless/media"),
 		MediaMaxBytes:     mediaMaxBytes,
 		ScheduleInterval:  scheduleInterval,
-	}, nil
+		TenantsPath:       strings.TrimSpace(os.Getenv("HEADLESS_TENANTS_PATH")),
+	}
+	if config.TenantsPath != "" {
+		specs, err := tenant.LoadFile(config.TenantsPath)
+		if err != nil {
+			return Config{}, err
+		}
+		config.Tenants = specs
+	}
+	return config, nil
 }
 
 func Build(ctx context.Context, config Config) (*Runtime, error) {
@@ -111,118 +133,47 @@ func Build(ctx context.Context, config Config) (*Runtime, error) {
 	if config.Principal == nil && strings.TrimSpace(config.TokenSecret) == "" && !config.AllowInsecureAuth {
 		return nil, errors.New("HEADLESS_TOKEN_SECRET is required unless insecure anonymous mode is explicitly enabled")
 	}
-	storage, err := OpenStorage(ctx, config)
+	specs, err := resolvedTenants(config)
 	if err != nil {
 		return nil, err
 	}
-	service, err := application.NewService(storage, nil, nil)
-	if err != nil {
-		_ = storage.Close()
-		return nil, err
-	}
-	if err := service.SetManifest(config.Manifest); err != nil {
-		_ = storage.Close()
-		return nil, err
-	}
-	principal := config.Principal
-	var tokenManager *identity.TokenManager
-	if principal == nil && config.TokenSecret != "" {
-		tokenManager, err = identity.NewTokenManager(config.TokenSecret, config.TokenIssuer)
-		if err != nil {
-			_ = storage.Close()
-			return nil, err
-		}
-		principal = tokenManager
-	}
-	handler, err := rest.NewContentHandler(service, principal, config.Manifest)
-	if err != nil {
-		_ = storage.Close()
-		return nil, err
-	}
-	taxonomyService, err := applicationtaxonomy.NewService(storage, nil)
-	if err != nil {
-		_ = storage.Close()
-		return nil, err
-	}
-	taxonomyHandler, err := rest.NewTaxonomyHandler(taxonomyService, principal)
-	if err != nil {
-		_ = storage.Close()
-		return nil, err
-	}
-	codexHandler, err := rest.NewCodexHandler(service, taxonomyService, principal, config.Manifest)
-	if err != nil {
-		_ = storage.Close()
-		return nil, err
-	}
-	codexHandler.SetDefaultLocale(config.App.DefaultLocale)
-	locales := config.App.AvailableLocales
-	if len(locales) == 0 && config.App.DefaultLocale != "" {
-		locales = []string{config.App.DefaultLocale}
-	}
-	codexHandler.SetAvailableLocales(locales)
-	collectionRouter, err := rest.NewCollectionRouter(codexHandler, handler)
-	if err != nil {
-		_ = storage.Close()
-		return nil, err
-	}
-	identityService, err := applicationidentity.NewService(storage, tokenManager, nil)
-	if err != nil {
-		_ = storage.Close()
-		return nil, err
-	}
-	if err := identityService.Initialize(ctx, config.AdminEmail, config.AdminPassword); err != nil {
-		_ = storage.Close()
-		return nil, err
-	}
-	identityHandler, err := rest.NewIdentityHandler(identityService, principal)
-	if err != nil {
-		_ = storage.Close()
-		return nil, err
-	}
-	var sessionHandler platform.RouteRegistrar
-	if tokenManager != nil {
-		sessionHandler, err = rest.NewSessionHandler(identityService, tokenManager, config.CookieSecure)
-		if err != nil {
-			_ = storage.Close()
-			return nil, err
+	sites := make([]*site, 0, len(specs))
+	cleanup := func() {
+		for _, item := range sites {
+			_ = item.storage.Close()
 		}
 	}
-	blobStore, err := localmedia.Open(config.MediaRoot)
-	if err != nil {
-		_ = storage.Close()
-		return nil, err
+	for _, spec := range specs {
+		item, err := buildSite(ctx, config, spec)
+		if err != nil {
+			cleanup()
+			return nil, err
+		}
+		sites = append(sites, item)
 	}
-	mediaService, err := applicationmedia.NewService(service, blobStore)
-	if err != nil {
-		_ = storage.Close()
-		return nil, err
+	byHost := map[string]*site{}
+	for _, item := range sites {
+		for _, host := range item.spec.Hosts {
+			byHost[tenant.NormalizeHost(host)] = item
+		}
 	}
-	mediaHandler, err := rest.NewMediaHandler(mediaService, principal, config.MediaMaxBytes)
-	if err != nil {
-		_ = storage.Close()
-		return nil, err
+	storages := make(resourceGroup, 0, len(sites))
+	for _, item := range sites {
+		storages = append(storages, item.storage)
 	}
-	graphQL, err := graphqlapi.New(service, config.Manifest, principal)
+	router := &hostMux{multi: config.multi(), byHost: byHost, fallback: sites[0]}
+	feature, err := platform.NewRuntimeFeature("headless-content", router, storages, storages)
 	if err != nil {
-		_ = storage.Close()
-		return nil, err
-	}
-	routes := platform.RouteGroup{handler, codexHandler, collectionRouter, taxonomyHandler, identityHandler, mediaHandler, graphQL}
-	if sessionHandler != nil {
-		routes = append(routes, sessionHandler)
-	}
-	feature, err := platform.NewRuntimeFeature("headless-content", routes, storage, storage)
-	if err != nil {
-		_ = storage.Close()
+		cleanup()
 		return nil, err
 	}
 	controlPlane, err := platform.NewControlPlane("headless", "Content", "/go-admin")
 	if err != nil {
-		_ = storage.Close()
+		cleanup()
 		return nil, err
 	}
-	if err := controlPlane.RegisterManifest(config.Manifest); err != nil {
-		_ = storage.Close()
+	if err := controlPlane.RegisterManifest(sites[0].manifest); err != nil {
+		cleanup()
 		return nil, err
 	}
 	builder := app.New(config.App).
@@ -236,19 +187,178 @@ func Build(ctx context.Context, config Config) (*Runtime, error) {
 	builder.AddBackgroundTask(app.BackgroundTask{
 		Name: "scheduled-publication", Interval: interval,
 		Run: func(ctx context.Context) {
-			if _, err := service.PublishDue(ctx, 100); err != nil {
-				slog.Error("scheduled publication failed", "error", err)
+			for _, item := range sites {
+				if _, err := item.content.PublishDue(ctx, 100); err != nil {
+					slog.Error("scheduled publication failed", "error", err, "tenant", item.spec.ID)
+				}
 			}
 		},
 	})
 	if config.App.MetricsPath != "" {
 		builder.WithMetricsEndpoint(config.App.MetricsPath)
 	}
-	return &Runtime{App: builder.Build(), ControlPlane: controlPlane, storage: storage}, nil
+	return &Runtime{
+		App: builder.Build(), ControlPlane: controlPlane,
+		storage: sites[0].storage, sites: sites,
+	}, nil
+}
+
+func (config Config) multi() bool {
+	return len(config.Tenants) > 0
+}
+
+func resolvedTenants(config Config) ([]tenant.Spec, error) {
+	if len(config.Tenants) > 0 {
+		if err := tenant.Validate(config.Tenants, true); err != nil {
+			return nil, err
+		}
+		return config.Tenants, nil
+	}
+	return []tenant.Spec{{
+		ID: tenant.DefaultID,
+		Storage: tenant.Storage{
+			Driver: config.Storage,
+			DSN:    config.DataSource,
+			Path:   config.BboltPath,
+		},
+		MediaRoot: config.MediaRoot,
+	}}, nil
+}
+
+func buildSite(ctx context.Context, config Config, spec tenant.Spec) (*site, error) {
+	manifest := config.Manifest
+	if path := strings.TrimSpace(spec.Manifest); path != "" {
+		loaded, err := loadManifest(path)
+		if err != nil {
+			return nil, err
+		}
+		manifest = loaded
+	}
+	siteConfig := config
+	siteConfig.Storage = spec.Storage.ResolveDriver(config.Storage)
+	if dsn := strings.TrimSpace(spec.Storage.DSN); dsn != "" {
+		siteConfig.DataSource = dsn
+	}
+	if path := strings.TrimSpace(spec.Storage.Path); path != "" {
+		siteConfig.BboltPath = path
+	}
+	if root := strings.TrimSpace(spec.MediaRoot); root != "" {
+		siteConfig.MediaRoot = root
+	}
+	storage, err := OpenStorage(ctx, siteConfig)
+	if err != nil {
+		return nil, fmt.Errorf("tenant %q storage: %w", spec.ID, err)
+	}
+	fail := func(err error) (*site, error) {
+		_ = storage.Close()
+		return nil, err
+	}
+	service, err := application.NewService(storage, nil, nil)
+	if err != nil {
+		return fail(err)
+	}
+	if err := service.SetManifest(manifest); err != nil {
+		return fail(err)
+	}
+	principal := config.Principal
+	var tokenManager *identity.TokenManager
+	if principal == nil && config.TokenSecret != "" {
+		tokenManager, err = identity.NewTokenManager(config.TokenSecret, config.TokenIssuer)
+		if err != nil {
+			return fail(err)
+		}
+		if config.multi() {
+			tokenManager.BindTenant(spec.ID)
+		}
+		principal = tokenManager
+	}
+	handler, err := rest.NewContentHandler(service, principal, manifest)
+	if err != nil {
+		return fail(err)
+	}
+	taxonomyService, err := applicationtaxonomy.NewService(storage, nil)
+	if err != nil {
+		return fail(err)
+	}
+	taxonomyHandler, err := rest.NewTaxonomyHandler(taxonomyService, principal)
+	if err != nil {
+		return fail(err)
+	}
+	codexHandler, err := rest.NewCodexHandler(service, taxonomyService, principal, manifest)
+	if err != nil {
+		return fail(err)
+	}
+	defaultLocale := config.App.DefaultLocale
+	if language := spec.Language(); language != "" {
+		defaultLocale = language
+	}
+	codexHandler.SetDefaultLocale(defaultLocale)
+	locales := config.App.AvailableLocales
+	if len(locales) == 0 && defaultLocale != "" {
+		locales = []string{defaultLocale}
+	}
+	codexHandler.SetAvailableLocales(locales)
+	collectionRouter, err := rest.NewCollectionRouter(codexHandler, handler)
+	if err != nil {
+		return fail(err)
+	}
+	identityService, err := applicationidentity.NewService(storage, tokenManager, nil)
+	if err != nil {
+		return fail(err)
+	}
+	if err := identityService.Initialize(ctx, config.AdminEmail, config.AdminPassword); err != nil {
+		return fail(err)
+	}
+	identityHandler, err := rest.NewIdentityHandler(identityService, principal)
+	if err != nil {
+		return fail(err)
+	}
+	var sessionHandler platform.RouteRegistrar
+	if tokenManager != nil {
+		sessionHandler, err = rest.NewSessionHandler(identityService, tokenManager, config.CookieSecure)
+		if err != nil {
+			return fail(err)
+		}
+	}
+	blobStore, err := localmedia.Open(siteConfig.MediaRoot)
+	if err != nil {
+		return fail(err)
+	}
+	mediaService, err := applicationmedia.NewService(service, blobStore)
+	if err != nil {
+		return fail(err)
+	}
+	mediaHandler, err := rest.NewMediaHandler(mediaService, principal, config.MediaMaxBytes)
+	if err != nil {
+		return fail(err)
+	}
+	graphQL, err := graphqlapi.New(service, manifest, principal)
+	if err != nil {
+		return fail(err)
+	}
+	routes := platform.RouteGroup{handler, codexHandler, collectionRouter, taxonomyHandler, identityHandler, mediaHandler, graphQL}
+	if sessionHandler != nil {
+		routes = append(routes, sessionHandler)
+	}
+	mux := http.NewServeMux()
+	routes.Routes(mux)
+	return &site{spec: spec, mux: mux, storage: storage, content: service, manifest: manifest}, nil
 }
 
 func (runtime *Runtime) Close() error {
-	if runtime == nil || runtime.storage == nil {
+	if runtime == nil {
+		return nil
+	}
+	if len(runtime.sites) > 0 {
+		var first error
+		for _, item := range runtime.sites {
+			if err := item.storage.Close(); err != nil && first == nil {
+				first = err
+			}
+		}
+		return first
+	}
+	if runtime.storage == nil {
 		return nil
 	}
 	return runtime.storage.Close()
