@@ -15,7 +15,7 @@ func TestBindKeepsUnknownPayloadKeys(t *testing.T) {
 		ID: "product", Collection: "products",
 		Form: []schema.Field{
 			{ID: "title", Type: schema.FieldString, Required: true, Localized: true},
-			{ID: "price", Type: schema.FieldMoney},
+			{ID: "price", Type: schema.FieldNumber, Rules: schema.Rules(schema.RuleMoney)},
 		},
 	}
 	form, err := BindEntry(resource, domaincontent.Entry{
@@ -82,18 +82,20 @@ func TestRecordProjectsRelationAndMediaHints(t *testing.T) {
 	record := Record(schema.Resource{
 		ID: "product", Collection: "products",
 		Form: []schema.Field{
-			{
-				ID: "category_id", Type: schema.FieldRelation,
-				Relation: &schema.Relation{Resource: "course_category", Cardinality: schema.CardinalityOne},
-			},
-			{ID: "cover", Type: schema.FieldMedia},
+			{ID: "category_id", Type: schema.FieldRelation},
+			{ID: "cover", Type: schema.FieldRelation, UIHint: schema.UIHintMedia},
 		},
+		Relations: []schema.Relation{{ID: "category_id", Target: "course_category", Cardinality: schema.OneToOne}},
 	})
 	if len(record.Fields) != 2 {
 		t.Fatalf("fields: %#v", record.Fields)
 	}
-	if record.Fields[0].Type != "relation" || record.Fields[0].UIHint != "course_category" {
-		t.Fatalf("relation projection: %#v", record.Fields[0])
+	if record.Fields[0].Type != "relation" || len(record.Relations) != 1 || record.Relations[0].Target != "course_category" ||
+		record.Relations[0].Source != "product" || record.Relations[0].DeleteBehavior != formset.DeleteRestrict {
+		t.Fatalf("relation projection: %#v %#v", record.Fields[0], record.Relations)
+	}
+	if record.Fields[0].Label != "Category id" {
+		t.Fatalf("label: %q", record.Fields[0].Label)
 	}
 	if record.Fields[1].Type != "relation" || record.Fields[1].UIHint != "media" {
 		t.Fatalf("media projection: %#v", record.Fields[1])
@@ -147,7 +149,7 @@ func TestValidateEntrySkipsStorageFieldsUntilFormIsDeclared(t *testing.T) {
 	t.Parallel()
 	resource := schema.Resource{
 		ID: "product", Collection: "products",
-		Fields: []schema.Field{{ID: "price", Type: schema.FieldMoney, Required: true}},
+		Fields: []schema.Field{{ID: "price", Type: schema.FieldNumber, Rules: schema.Rules(schema.RuleMoney), Required: true}},
 	}
 	if err := ValidateEntry(resource, domaincontent.Entry{
 		Metadata: map[string]domaincontent.MetadataValue{"price": {Value: "49.95"}},

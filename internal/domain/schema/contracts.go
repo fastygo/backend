@@ -25,7 +25,7 @@ func (resource Resource) FormFields() []Field {
 	}
 	fields := make([]Field, 0, len(resource.Fields))
 	for _, field := range resource.Fields {
-		if strings.HasPrefix(field.ID, payloadPrefix) {
+		if strings.HasPrefix(string(field.ID), payloadPrefix) {
 			continue
 		}
 		fields = append(fields, field)
@@ -47,10 +47,14 @@ func (manifest Manifest) JSONSchema(resourceID string) (map[string]any, error) {
 	}
 	required := []string{"status", "visibility"}
 	for _, field := range resource.Fields {
-		projected := fieldJSONSchema(field)
-		properties[field.ID] = projected
+		relation, hasRelation := resource.RelationFor(field.ID)
+		var bound *Relation
+		if hasRelation {
+			bound = &relation
+		}
+		properties[string(field.ID)] = fieldJSONSchema(field, bound)
 		if field.Required {
-			required = append(required, field.ID)
+			required = append(required, string(field.ID))
 		}
 	}
 	return map[string]any{
@@ -218,19 +222,33 @@ func (manifest Manifest) OpenAPI() (map[string]any, error) {
 	}, nil
 }
 
-func fieldJSONSchema(field Field) map[string]any {
-	projected := map[string]any{"type": jsonType(field.Type)}
-	if field.Nullable {
-		projected["type"] = []string{jsonType(field.Type), "null"}
+func fieldJSONSchema(field Field, relation *Relation) map[string]any {
+	semantic := SemanticOf(field)
+	projected := map[string]any{"type": jsonType(semantic)}
+	if format := jsonFormat(semantic); format != "" {
+		projected["format"] = format
 	}
-	if field.ReadOnly {
+	if Nullable(field) {
+		projected["type"] = []string{jsonType(semantic), "null"}
+	}
+	if ReadOnly(field) {
 		projected["readOnly"] = true
 	}
 	if field.Sensitive {
 		projected["writeOnly"] = true
 	}
-	if len(field.Enum) > 0 {
-		projected["enum"] = field.Enum
+	if semantic == SemanticEnum && len(field.Options) > 0 {
+		projected["enum"] = EnumValues(field)
+	}
+	if len(field.Rules) > 0 {
+		names := make([]string, 0, len(field.Rules))
+		for _, rule := range field.Rules {
+			names = append(names, rule.Name)
+		}
+		projected["x-codex-rules"] = names
+	}
+	if relation != nil && Many(*relation) {
+		projected = map[string]any{"type": "array", "items": projected}
 	}
 	if field.Localized {
 		projected = map[string]any{
@@ -240,17 +258,19 @@ func fieldJSONSchema(field Field) map[string]any {
 			},
 		}
 	}
-	if field.Relation != nil {
-		projected["x-resource"] = field.Relation.Resource
-		projected["x-on-delete"] = field.Relation.OnDelete
+	if relation != nil {
+		projected["x-resource"] = string(relation.Target)
+		projected["x-on-delete"] = string(OnDelete(*relation))
+	} else if semantic == SemanticMedia {
+		projected["x-resource"] = MediaTarget
 	}
 	if field.Type == FieldCollection && field.Items != nil {
-		projected["items"] = fieldJSONSchema(*field.Items)
+		projected["items"] = fieldJSONSchema(*field.Items, nil)
 	}
 	if field.Type == FieldObject && len(field.Fields) > 0 {
 		properties := map[string]any{}
 		for _, nested := range field.Fields {
-			properties[nested.ID] = fieldJSONSchema(nested)
+			properties[string(nested.ID)] = fieldJSONSchema(nested, nil)
 		}
 		projected["type"] = "object"
 		projected["properties"] = properties
@@ -258,20 +278,35 @@ func fieldJSONSchema(field Field) map[string]any {
 	return projected
 }
 
-func jsonType(fieldType FieldType) string {
-	switch fieldType {
-	case FieldBoolean:
+func jsonType(semantic Semantic) string {
+	switch semantic {
+	case SemanticBoolean:
 		return "boolean"
-	case FieldInteger:
+	case SemanticInteger, SemanticMoney:
 		return "integer"
-	case FieldNumber, FieldDecimal, FieldMoney:
+	case SemanticNumber, SemanticDecimal:
 		return "number"
-	case FieldJSON, FieldObject:
+	case SemanticJSON, SemanticObject:
 		return "object"
-	case FieldCollection:
+	case SemanticCollection:
 		return "array"
 	default:
 		return "string"
+	}
+}
+
+func jsonFormat(semantic Semantic) string {
+	switch semantic {
+	case SemanticDate:
+		return "date"
+	case SemanticDateTime:
+		return "date-time"
+	case SemanticURI:
+		return "uri"
+	case SemanticUUID:
+		return "uuid"
+	default:
+		return ""
 	}
 }
 
@@ -283,42 +318,46 @@ func writeGraphQLResource(result *strings.Builder, resource Resource) {
 	result.WriteString("  status: String!\n  visibility: String!\n  locales: JSON\n  document: JSON\n  createdAt: DateTime!\n  updatedAt: DateTime!\n")
 	for _, field := range resource.Fields {
 		if !field.Sensitive {
-			result.WriteString("  " + graphQLField(field.ID) + ": " + graphQLType(field, false) + "\n")
+			result.WriteString("  " + graphQLField(string(field.ID)) + ": " + graphQLType(resource, field, false) + "\n")
 		}
 	}
 	result.WriteString("}\n\ninput " + name + "Input {\n")
 	result.WriteString("  title: String\n  slug: String\n  titleLocalized: JSON\n  slugLocalized: JSON\n")
 	result.WriteString("  contentLocalized: JSON\n  excerptLocalized: JSON\n  status: String\n  visibility: String\n  locales: JSON\n")
 	for _, field := range resource.Fields {
-		if !field.ReadOnly {
-			result.WriteString("  " + graphQLField(field.ID) + ": " + graphQLType(field, field.Required && !field.Nullable) + "\n")
+		if !ReadOnly(field) {
+			result.WriteString("  " + graphQLField(string(field.ID)) + ": " + graphQLType(resource, field, field.Required && !Nullable(field)) + "\n")
 		}
 	}
 	result.WriteString("}\n\ntype " + name + "Page { items: [" + name + "!]!, page: Int!, perPage: Int!, total: Int!, totalPages: Int! }\n\n")
 }
 
-func graphQLType(field Field, required bool) string {
-	var resolved string
-	switch field.Type {
-	case FieldBoolean:
-		resolved = "Boolean"
-	case FieldInteger:
-		resolved = "Int"
-	case FieldNumber, FieldDecimal, FieldMoney:
-		resolved = "Float"
-	case FieldUUID, FieldRelation, FieldMedia:
-		resolved = "ID"
-	case FieldJSON, FieldCollection:
-		resolved = "JSON"
-	case FieldDate, FieldDateTime:
-		resolved = "DateTime"
-	default:
-		resolved = "String"
-	}
+// GraphQLScalar is the GraphQL scalar name for a Codex field semantic.
+func GraphQLScalar(field Field) string {
 	if field.Localized {
-		resolved = "JSON"
+		return "JSON"
 	}
-	if field.Relation != nil && field.Relation.Cardinality == CardinalityMany {
+	switch SemanticOf(field) {
+	case SemanticBoolean:
+		return "Boolean"
+	case SemanticInteger, SemanticMoney:
+		return "Int"
+	case SemanticNumber, SemanticDecimal:
+		return "Float"
+	case SemanticUUID, SemanticRelation, SemanticMedia:
+		return "ID"
+	case SemanticJSON, SemanticCollection, SemanticObject:
+		return "JSON"
+	case SemanticDate, SemanticDateTime:
+		return "DateTime"
+	default:
+		return "String"
+	}
+}
+
+func graphQLType(resource Resource, field Field, required bool) string {
+	resolved := GraphQLScalar(field)
+	if relation, ok := resource.RelationFor(field.ID); ok && Many(relation) && !field.Localized {
 		resolved = "[" + resolved + "!]"
 	}
 	if required {

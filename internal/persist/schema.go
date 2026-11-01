@@ -9,35 +9,23 @@ import (
 	"github.com/fastygo/backend/internal/domain/schema"
 )
 
-type Relation struct {
-	Resource    string              `json:"resource"`
-	Cardinality schema.Cardinality  `json:"cardinality"`
-	OnDelete    schema.DeletePolicy `json:"on_delete"`
-}
-
-type Field struct {
-	ID        string           `json:"id"`
-	Type      schema.FieldType `json:"type"`
-	Required  bool             `json:"required,omitempty"`
-	Nullable  bool             `json:"nullable,omitempty"`
-	ReadOnly  bool             `json:"read_only,omitempty"`
-	Sensitive bool             `json:"sensitive,omitempty"`
-	Localized bool             `json:"localized,omitempty"`
-	Enum      []string         `json:"enum,omitempty"`
-	Relation  *Relation        `json:"relation,omitempty"`
-	Items     *Field           `json:"items,omitempty"`
-	Fields    []Field          `json:"fields,omitempty"`
-}
+// Field and Relation are persisted in Codex JSON form (codex/schema tags).
+type (
+	Field    = schema.Field
+	Relation = schema.Relation
+)
 
 type Resource struct {
-	ID             string   `json:"id"`
-	Collection     string   `json:"collection"`
-	Fields         []Field  `json:"fields"`
-	Form           []Field  `json:"form,omitempty"`
-	Taxonomies     []string `json:"taxonomies,omitempty"`
-	Public         bool     `json:"public,omitempty"`
-	RESTVisible    bool     `json:"rest_visible,omitempty"`
-	GraphQLVisible bool     `json:"graphql_visible,omitempty"`
+	ID             string     `json:"id"`
+	Label          string     `json:"label,omitempty"`
+	Collection     string     `json:"collection"`
+	Fields         []Field    `json:"fields"`
+	Form           []Field    `json:"form,omitempty"`
+	Relations      []Relation `json:"relations,omitempty"`
+	Taxonomies     []string   `json:"taxonomies,omitempty"`
+	Public         bool       `json:"public,omitempty"`
+	RESTVisible    bool       `json:"rest_visible,omitempty"`
+	GraphQLVisible bool       `json:"graphql_visible,omitempty"`
 }
 
 // Type is the stable GET /go-json/go/v2/types document for one kind.
@@ -66,10 +54,9 @@ func ManifestFromDomain(manifest schema.Manifest) Manifest {
 }
 
 func TypeFromDomain(resource schema.Resource) Type {
-	form := resource.FormFields()
-	fields := make([]Field, 0, len(form))
-	for _, field := range form {
-		fields = append(fields, FieldFromDomain(field))
+	fields := resource.FormFields()
+	if fields == nil {
+		fields = []Field{}
 	}
 	taxonomies := resource.Taxonomies
 	if taxonomies == nil {
@@ -91,44 +78,13 @@ func TypesFromManifest(manifest schema.Manifest) []Type {
 }
 
 func ResourceFromDomain(resource schema.Resource) Resource {
-	fields := make([]Field, 0, len(resource.Fields))
-	for _, field := range resource.Fields {
-		fields = append(fields, FieldFromDomain(field))
-	}
-	form := make([]Field, 0, len(resource.Form))
-	for _, field := range resource.Form {
-		form = append(form, FieldFromDomain(field))
-	}
+	fields := append([]Field{}, resource.Fields...)
 	return Resource{
-		ID: resource.ID, Collection: resource.Collection, Fields: fields, Form: form,
+		ID: resource.ID, Label: resource.Label, Collection: resource.Collection, Fields: fields,
+		Form: append([]Field(nil), resource.Form...), Relations: append([]Relation(nil), resource.Relations...),
 		Taxonomies: resource.Taxonomies, Public: resource.Public,
 		RESTVisible: resource.RESTVisible, GraphQLVisible: resource.GraphQLVisible,
 	}
-}
-
-func FieldFromDomain(field schema.Field) Field {
-	document := Field{
-		ID: field.ID, Type: field.Type, Required: field.Required, Nullable: field.Nullable,
-		ReadOnly: field.ReadOnly, Sensitive: field.Sensitive, Localized: field.Localized,
-		Enum: field.Enum,
-	}
-	if field.Relation != nil {
-		document.Relation = &Relation{
-			Resource: field.Relation.Resource, Cardinality: field.Relation.Cardinality,
-			OnDelete: field.Relation.OnDelete,
-		}
-	}
-	if field.Items != nil {
-		item := FieldFromDomain(*field.Items)
-		document.Items = &item
-	}
-	if len(field.Fields) > 0 {
-		document.Fields = make([]Field, 0, len(field.Fields))
-		for _, nested := range field.Fields {
-			document.Fields = append(document.Fields, FieldFromDomain(nested))
-		}
-	}
-	return document
 }
 
 func (manifest Manifest) Domain() schema.Manifest {
@@ -140,44 +96,13 @@ func (manifest Manifest) Domain() schema.Manifest {
 }
 
 func (resource Resource) Domain() schema.Resource {
-	fields := make([]schema.Field, 0, len(resource.Fields))
-	for _, field := range resource.Fields {
-		fields = append(fields, field.Domain())
-	}
-	form := make([]schema.Field, 0, len(resource.Form))
-	for _, field := range resource.Form {
-		form = append(form, field.Domain())
-	}
 	return schema.Resource{
-		ID: resource.ID, Collection: resource.Collection, Fields: fields, Form: form,
+		ID: resource.ID, Label: resource.Label, Collection: resource.Collection,
+		Fields: append([]Field{}, resource.Fields...), Form: append([]Field{}, resource.Form...),
+		Relations:  append([]Relation(nil), resource.Relations...),
 		Taxonomies: resource.Taxonomies, Public: resource.Public,
 		RESTVisible: resource.RESTVisible, GraphQLVisible: resource.GraphQLVisible,
 	}
-}
-
-func (field Field) Domain() schema.Field {
-	resolved := schema.Field{
-		ID: field.ID, Type: field.Type, Required: field.Required, Nullable: field.Nullable,
-		ReadOnly: field.ReadOnly, Sensitive: field.Sensitive, Localized: field.Localized,
-		Enum: field.Enum,
-	}
-	if field.Relation != nil {
-		resolved.Relation = &schema.Relation{
-			Resource: field.Relation.Resource, Cardinality: field.Relation.Cardinality,
-			OnDelete: field.Relation.OnDelete,
-		}
-	}
-	if field.Items != nil {
-		item := field.Items.Domain()
-		resolved.Items = &item
-	}
-	if len(field.Fields) > 0 {
-		resolved.Fields = make([]schema.Field, 0, len(field.Fields))
-		for _, nested := range field.Fields {
-			resolved.Fields = append(resolved.Fields, nested.Domain())
-		}
-	}
-	return resolved
 }
 
 func EncodeManifest(manifest schema.Manifest) ([]byte, error) {

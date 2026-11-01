@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/fastygo/backend/internal/domain/authz"
@@ -23,14 +24,12 @@ func TestManifestProjectsToPanelDescriptors(t *testing.T) {
 			{
 				ID: "product", Collection: "products",
 				Fields: []schema.Field{
-					{ID: "price", Type: schema.FieldMoney, Required: true},
-					{
-						ID: "category", Type: schema.FieldRelation,
-						Relation: &schema.Relation{
-							Resource: "category", Cardinality: schema.CardinalityOne, OnDelete: schema.DeleteRestrict,
-						},
-					},
+					{ID: "price", Type: schema.FieldNumber, Rules: schema.Rules(schema.RuleMoney), Required: true},
+					{ID: "category", Type: schema.FieldRelation, Indexed: true},
+					{ID: "sku", Type: schema.FieldString, Indexed: true, Searchable: true},
+					{ID: "secret", Type: schema.FieldString, Indexed: true, Sensitive: true},
 				},
+				Relations: []schema.Relation{{ID: "category", Target: "category", Cardinality: schema.OneToOne, DeleteBehavior: schema.DeleteRestrict}},
 			},
 		},
 	}
@@ -47,6 +46,19 @@ func TestManifestProjectsToPanelDescriptors(t *testing.T) {
 	}
 	if product.Form.Fields[4].Type != panel.FieldNumber || product.Form.Fields[5].Type != panel.FieldRelation {
 		t.Fatalf("field descriptors were not projected")
+	}
+	if product.Form.Fields[4].DataType != schema.FieldNumber || product.Form.Fields[4].Rules[0].Name != schema.RuleMoney {
+		t.Fatalf("codex data type lost: %#v", product.Form.Fields[4])
+	}
+	columns := []string{}
+	for _, column := range product.Table.Columns {
+		columns = append(columns, column.ID)
+	}
+	if got := strings.Join(columns, ","); got != "title,status,category,sku,updated_at" {
+		t.Fatalf("columns = %s (manifest columns must come from Indexed/Searchable, never sensitive)", got)
+	}
+	if product.Plural != "Products" || product.BasePath != "/go-admin/resources/product" {
+		t.Fatalf("labels: %#v", product)
 	}
 	if product.Capabilities[1].Capability != authz.CapabilityContentCreate {
 		t.Fatalf("RBAC capability was not projected")

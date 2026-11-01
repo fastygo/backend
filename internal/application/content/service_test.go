@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -398,11 +399,7 @@ func TestManifestRelationsRequireExistingTypedTargets(t *testing.T) {
 			{ID: "author", Collection: "authors"},
 			{ID: "post", Collection: "posts", Fields: []schema.Field{{
 				ID: "author", Type: schema.FieldRelation, Required: true,
-				Relation: &schema.Relation{
-					Resource: "author", Cardinality: schema.CardinalityOne,
-					OnDelete: schema.DeleteRestrict,
-				},
-			}}},
+			}}, Relations: []schema.Relation{{ID: "author", Target: "author", Cardinality: schema.OneToOne, DeleteBehavior: schema.DeleteRestrict}}},
 		},
 	})
 	if err != nil {
@@ -459,11 +456,7 @@ func TestManifestRelationsRequireExistingTypedTargets(t *testing.T) {
 			{ID: "author", Collection: "authors"},
 			{ID: "post", Collection: "posts", Fields: []schema.Field{{
 				ID: "author", Type: schema.FieldRelation,
-				Relation: &schema.Relation{
-					Resource: "author", Cardinality: schema.CardinalityOne,
-					OnDelete: schema.DeleteNullify,
-				},
-			}}},
+			}}, Relations: []schema.Relation{{ID: "author", Target: "author", Cardinality: schema.OneToOne, DeleteBehavior: schema.DeleteNullify}}},
 		},
 	})
 	if err != nil {
@@ -486,11 +479,7 @@ func TestManifestRelationsRequireExistingTypedTargets(t *testing.T) {
 			{ID: "post", Collection: "posts"},
 			{ID: "comment", Collection: "comments", Fields: []schema.Field{{
 				ID: "post", Type: schema.FieldRelation, Required: true,
-				Relation: &schema.Relation{
-					Resource: "post", Cardinality: schema.CardinalityOne,
-					OnDelete: schema.DeleteCascade,
-				},
-			}}},
+			}}, Relations: []schema.Relation{{ID: "post", Target: "post", Cardinality: schema.OneToOne, DeleteBehavior: schema.DeleteCascade}}},
 		},
 	})
 	if err != nil {
@@ -536,12 +525,13 @@ func TestManifestValidatesFieldTypesLocalizationAndSensitivity(t *testing.T) {
 		Resources: []schema.Resource{{
 			ID: "product", Collection: "products",
 			Fields: []schema.Field{
-				{ID: "price", Type: schema.FieldMoney, Required: true},
-				{ID: "state", Type: schema.FieldEnum, Enum: []string{"active", "inactive"}},
+				{ID: "price", Type: schema.FieldNumber, Rules: schema.Rules(schema.RuleMoney), Required: true},
+				{ID: "state", Type: schema.FieldSelect, Options: schema.Options("active", "inactive")},
 				{ID: "label", Type: schema.FieldString, Localized: true},
 				{ID: "tags", Type: schema.FieldCollection, Items: &schema.Field{ID: "tag", Type: schema.FieldString}},
-				{ID: "website", Type: schema.FieldURI},
+				{ID: "website", Type: schema.FieldString, Rules: schema.Rules(schema.RuleURI)},
 				{ID: "secret", Type: schema.FieldString, Sensitive: true},
+				{ID: "currency", Type: schema.FieldString},
 			},
 		}},
 	}
@@ -555,12 +545,13 @@ func TestManifestValidatesFieldTypesLocalizationAndSensitivity(t *testing.T) {
 		Title:      "Typed",
 		Slug:       "typed",
 		Metadata: map[string]domaincontent.MetadataValue{
-			"price":   {Value: "49.95"},
-			"state":   {Value: "active"},
-			"label":   {Value: map[string]any{"en": "Dress", "ru": "Платье"}},
-			"tags":    {Value: []any{"summer", "sale"}},
-			"website": {Value: "https://example.com/products/1"},
-			"secret":  {Value: "internal"},
+			"price":    {Value: 4995.0},
+			"currency": {Value: "EUR"},
+			"state":    {Value: "active"},
+			"label":    {Value: map[string]any{"en": "Dress", "ru": "Платье"}},
+			"tags":     {Value: []any{"summer", "sale"}},
+			"website":  {Value: "https://example.com/products/1"},
+			"secret":   {Value: "internal"},
 		},
 	})
 	if err != nil {
@@ -581,6 +572,31 @@ func TestManifestValidatesFieldTypesLocalizationAndSensitivity(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatalf("invalid runtime field types were accepted")
+	}
+	for name, metadata := range map[string]map[string]domaincontent.MetadataValue{
+		"money is minor units": {"price": {Value: 49.95}, "currency": {Value: "EUR"}},
+		"money needs currency": {"price": {Value: 100.0}},
+		"currency is ISO 4217": {"price": {Value: 100.0}, "currency": {Value: "euro"}},
+		"uri rule":             {"website": {Value: "not a uri"}},
+		"enum option":          {"state": {Value: "unknown"}},
+		"localized map":        {"label": {Value: "plain"}},
+		"collection items":     {"tags": {Value: []any{1.0}}},
+	} {
+		_, err := service.Create(context.Background(), principal, domaincontent.Entry{
+			ID: domaincontent.ID("bad-" + strings.ReplaceAll(name, " ", "-")), Kind: "product", Status: domaincontent.StatusDraft,
+			Visibility: domaincontent.VisibilityPublic, Title: "Bad", Slug: "bad-" + strings.ReplaceAll(name, " ", "-"),
+			Metadata: metadata,
+		})
+		if err == nil {
+			t.Errorf("%s: invalid value accepted", name)
+		}
+	}
+	service.SetDefaultCurrency("usd")
+	if _, err := service.Create(context.Background(), principal, domaincontent.Entry{
+		ID: "product_3", Kind: "product", Status: domaincontent.StatusDraft, Visibility: domaincontent.VisibilityPublic,
+		Title: "Default currency", Slug: "default-currency", Metadata: map[string]domaincontent.MetadataValue{"price": {Value: 100.0}},
+	}); err != nil {
+		t.Fatalf("default currency: %v", err)
 	}
 }
 

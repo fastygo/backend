@@ -155,7 +155,7 @@ func TestGraphQLFormsetBindsLocaleDocuments(t *testing.T) {
 		Resources: []schema.Resource{{
 			ID: "product", Collection: "products", Public: true, GraphQLVisible: true,
 			Fields: []schema.Field{{ID: "sku", Type: schema.FieldString}},
-			Form:   []schema.Field{{ID: "title", Type: schema.FieldString}, {ID: "price", Type: schema.FieldMoney}},
+			Form:   []schema.Field{{ID: "title", Type: schema.FieldString}, {ID: "price", Type: schema.FieldNumber, Rules: schema.Rules(schema.RuleMoney)}},
 		}},
 	})
 	principal := authz.NewPrincipal(
@@ -169,7 +169,7 @@ func TestGraphQLFormsetBindsLocaleDocuments(t *testing.T) {
 		Resources: []schema.Resource{{
 			ID: "product", Collection: "products", Public: true, GraphQLVisible: true,
 			Fields: []schema.Field{{ID: "sku", Type: schema.FieldString}},
-			Form:   []schema.Field{{ID: "title", Type: schema.FieldString}, {ID: "price", Type: schema.FieldMoney}},
+			Form:   []schema.Field{{ID: "title", Type: schema.FieldString}, {ID: "price", Type: schema.FieldNumber, Rules: schema.Rules(schema.RuleMoney)}},
 		}},
 	}, fixedPrincipal{principal})
 	if err != nil {

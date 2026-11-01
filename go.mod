@@ -6,9 +6,9 @@ toolchain go1.25.13
 
 require (
 	github.com/fastygo/codex v0.4.2
-	github.com/fastygo/formset v0.2.0
+	github.com/fastygo/formset v0.2.1-0.20261101205946-f98b533f0d6a
 	github.com/fastygo/framework v0.4.0
-	github.com/fastygo/panel v0.1.0
+	github.com/fastygo/panel v0.1.1-0.20261101210511-2d590902f69d
 	github.com/go-sql-driver/mysql v1.10.0
 	github.com/google/uuid v1.6.0
 	github.com/graphql-go/graphql v0.8.1

@@ -9,12 +9,12 @@ github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkp
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
 github.com/fastygo/codex v0.4.2 h1:MteZSyOxumUKB0g/j2hB3rbcfUPGqpDu61eEiAXkKmE=
 github.com/fastygo/codex v0.4.2/go.mod h1:cnfm27cLIHfAH7UUbVF5p9AtaE827yVKRG7FG635moU=
-github.com/fastygo/formset v0.2.0 h1:4fRuyuOZFAbu1ceDX5R9oHGHZAv3zdJTsKk3A72eVUQ=
-github.com/fastygo/formset v0.2.0/go.mod h1:7CukK+d/NdCPOAJ+94Fq+T+n39y9jZ+oiEY4GQJQ7mU=
+github.com/fastygo/formset v0.2.1-0.20261101205946-f98b533f0d6a h1:ihoBnrj/mO/a425DULzSYxbzYYiy7xs7kA1qd1Bp7yw=
+github.com/fastygo/formset v0.2.1-0.20261101205946-f98b533f0d6a/go.mod h1:/CWKj/qEhryddSG7QWgLJkjK5Dm7kAfOiuNugnBe13I=
 github.com/fastygo/framework v0.4.0 h1:l02BXSrCp5ZXfyjdNai2oKL+Ova1zgdNAODwNJT0K+E=
 github.com/fastygo/framework v0.4.0/go.mod h1:Uf0fR/rtZq3W/hHnEH90Uc0SC4QP8jqRgjz0w8o0yBM=
-github.com/fastygo/panel v0.1.0 h1:z84v1uKqNqZhn/LDo4H8obMXG6Zorgy0nDFhsacvyZA=
-github.com/fastygo/panel v0.1.0/go.mod h1:WjPcCDq27OZxGzemgEOGQ4YYVrnO7ogFvrTNl2BDkr0=
+github.com/fastygo/panel v0.1.1-0.20261101210511-2d590902f69d h1:9baTReEl3Zxqv/XQPWlheEPwwZtMTxZxuNVTIv5dIfc=
+github.com/fastygo/panel v0.1.1-0.20261101210511-2d590902f69d/go.mod h1:KQXvGBSvaeu90HxgWugd/KcXSHcRBkdXiNSV5ySG4Xs=
 github.com/go-sql-driver/mysql v1.10.0 h1:Q+1LV8DkHJvSYAdR83XzuhDaTykuDx0l6fkXxoWCWfw=
 github.com/go-sql-driver/mysql v1.10.0/go.mod h1:M+cqaI7+xxXGG9swrdeUIoPG3Y3KCkF0pZej+SK+nWk=
 github.com/google/go-cmdtest v0.4.1-0.20220921163831-55ab3332a786 h1:rcv+Ippz6RAtvaGgKxc+8FQIpxHgsF+HBzPyYL2cyVU=

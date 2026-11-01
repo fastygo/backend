@@ -10,7 +10,7 @@ func TestManifestValidation(t *testing.T) {
 	}{
 		"valid commerce schema": {mutate: func(*Manifest) {}},
 		"missing relation target": {
-			mutate:    func(manifest *Manifest) { manifest.Resources[1].Fields[1].Relation.Resource = "missing" },
+			mutate:    func(manifest *Manifest) { manifest.Resources[1].Relations[0].Target = "missing" },
 			wantError: true,
 		},
 		"collection without items": {
@@ -168,7 +168,8 @@ func TestManifestSupportsLocalizedCommerceSchema(t *testing.T) {
 	t.Parallel()
 	manifest := productManifest()
 	product := manifest.Resources[1]
-	if !product.Fields[0].Localized || product.Fields[1].Relation.Cardinality != CardinalityMany {
+	relation, ok := product.RelationFor("categories")
+	if !product.Fields[0].Localized || !ok || !Many(relation) {
 		t.Fatalf("localized or relation contract was lost")
 	}
 }
@@ -189,12 +190,10 @@ func productManifest() Manifest {
 				Taxonomies: []string{"brand", "collection"},
 				Fields: []Field{
 					{ID: "title", Type: FieldString, Required: true, Localized: true},
-					{
-						ID: "categories", Type: FieldRelation,
-						Relation: &Relation{Resource: "category", Cardinality: CardinalityMany, OnDelete: DeleteRestrict},
-					},
-					{ID: "price", Type: FieldMoney, Required: true},
+					{ID: "categories", Type: FieldRelation},
+					{ID: "price", Type: FieldNumber, Required: true, Rules: Rules(RuleMoney)},
 				},
+				Relations: []Relation{{ID: "categories", Target: "category", Cardinality: ManyToMany, DeleteBehavior: DeleteRestrict}},
 			},
 		},
 	}

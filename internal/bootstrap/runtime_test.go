@@ -238,7 +238,7 @@ func TestLoadConfigReadsProductDefinedManifest(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`{
 		"name":"store",
 		"version":"1",
-		"resources":[{"id":"product","collection":"products","fields":[{"id":"price","type":"money","required":true}]}]
+		"resources":[{"id":"product","collection":"products","fields":[{"id":"price","label":"Price","type":"number","required":true,"rules":[{"name":"fastygo.codex/money"}]}]}]
 	}`), 0o600); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}

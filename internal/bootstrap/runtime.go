@@ -243,6 +243,7 @@ func buildSite(ctx context.Context, config Config, spec tenant.Spec) (*site, err
 	if err != nil {
 		return fail(err)
 	}
+	service.SetDefaultCurrency(os.Getenv("HEADLESS_DEFAULT_CURRENCY"))
 	if err := service.SetManifest(manifest); err != nil {
 		return fail(err)
 	}

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"unicode"
 
 	"github.com/fastygo/backend/internal/contentcompat"
 	"github.com/fastygo/backend/internal/domain/schema"
@@ -13,29 +12,29 @@ import (
 	"github.com/fastygo/framework/pkg/core"
 )
 
+// Record is the formset projection of a resource's editor form. It is built
+// from the Codex record (schema.Resource.FormRecord) through formset.FromCodex,
+// the single Codex → formset path; only editor UI hints are added here.
 func Record(resource schema.Resource) formset.RecordType {
-	fields := make([]formset.Field, 0, len(resource.FormFields()))
-	relations := make([]formset.Relation, 0)
-	for _, field := range resource.FormFields() {
-		projected := projectField(field)
-		fields = append(fields, projected)
-		if field.Relation != nil {
-			relations = append(relations, formset.Relation{
-				ID:             formset.RelationID(field.ID),
-				Label:          projected.Label,
-				Source:         formset.RecordTypeID(resource.ID),
-				Target:         formset.RecordTypeID(field.Relation.Resource),
-				Cardinality:    cardinality(field.Relation.Cardinality),
-				DeleteBehavior: deleteBehavior(field.Relation.OnDelete),
-			})
-		}
+	record := formset.FromCodex(resource.FormRecord())
+	record.Scope = formset.ScopeWorkspace
+	for index := range record.Fields {
+		applyUIHint(&record.Fields[index])
 	}
-	return formset.RecordType{
-		ID:        formset.RecordTypeID(resource.ID),
-		Label:     labelFor(resource.ID),
-		Scope:     formset.ScopeWorkspace,
-		Fields:    fields,
-		Relations: relations,
+	return record
+}
+
+func applyUIHint(field *formset.Field) {
+	if field.UIHint != "" {
+		return
+	}
+	switch field.Type {
+	case formset.FieldRichText:
+		field.UIHint = formset.UIHintTipTap
+	case formset.FieldMarkdown:
+		field.UIHint = formset.UIHintMarkdown
+	case formset.FieldTextarea:
+		field.UIHint = formset.UIHintTextarea
 	}
 }
 
@@ -106,93 +105,6 @@ func ValidateEntry(resource schema.Resource, entry domaincontent.Entry) error {
 	return core.NewDomainError(core.ErrorCodeValidation, message)
 }
 
-func projectField(field schema.Field) formset.Field {
-	projected := formset.Field{
-		ID:        formset.FieldID(field.ID),
-		Label:     labelFor(field.ID),
-		Type:      projectType(field),
-		Required:  field.Required,
-		Localized: field.Localized,
-		Sensitive: field.Sensitive,
-	}
-	for _, value := range field.Enum {
-		projected.Options = append(projected.Options, formset.Option{Value: value, Label: labelFor(value)})
-	}
-	switch {
-	case field.Type == schema.FieldMedia:
-		projected.UIHint = "media"
-	case field.Type == schema.FieldRichText:
-		projected.UIHint = formset.UIHintTipTap
-	case field.Type == schema.FieldMarkdown:
-		projected.UIHint = formset.UIHintMarkdown
-	case field.Relation != nil:
-		projected.UIHint = field.Relation.Resource
-		projected.StorageHint = string(field.Relation.Cardinality)
-	}
-	if field.Items != nil {
-		item := projectField(*field.Items)
-		projected.Items = &item
-	}
-	if len(field.Fields) > 0 {
-		projected.Fields = make([]formset.Field, 0, len(field.Fields))
-		for _, nested := range field.Fields {
-			projected.Fields = append(projected.Fields, projectField(nested))
-		}
-	}
-	return projected
-}
-
-func projectType(field schema.Field) formset.FieldType {
-	switch field.Type {
-	case schema.FieldString:
-		return formset.FieldString
-	case schema.FieldText:
-		return formset.FieldTextarea
-	case schema.FieldRichText:
-		return formset.FieldRichText
-	case schema.FieldMarkdown:
-		return formset.FieldMarkdown
-	case schema.FieldBoolean:
-		return formset.FieldBoolean
-	case schema.FieldInteger, schema.FieldNumber, schema.FieldDecimal, schema.FieldMoney:
-		return formset.FieldNumber
-	case schema.FieldDate, schema.FieldDateTime:
-		return formset.FieldDateTime
-	case schema.FieldEnum:
-		return formset.FieldSelect
-	case schema.FieldRelation:
-		return formset.FieldRelation
-	case schema.FieldMedia:
-		return formset.FieldRelation
-	case schema.FieldCollection:
-		return formset.FieldCollection
-	case schema.FieldObject:
-		return formset.FieldObject
-	case schema.FieldJSON:
-		return formset.FieldJSON
-	default:
-		return formset.FieldString
-	}
-}
-
-func cardinality(value schema.Cardinality) formset.RelationCardinality {
-	if value == schema.CardinalityMany {
-		return formset.RelationOneToMany
-	}
-	return formset.RelationOneToOne
-}
-
-func deleteBehavior(policy schema.DeletePolicy) formset.DeleteBehavior {
-	switch policy {
-	case schema.DeleteCascade:
-		return formset.DeleteCascade
-	case schema.DeleteNullify:
-		return formset.DeleteNullify
-	default:
-		return formset.DeleteRestrict
-	}
-}
-
 func metadataDocument(entry domaincontent.Entry) map[string]any {
 	document := map[string]any{}
 	for key, value := range entry.Metadata {
@@ -230,14 +142,4 @@ func asObject(value any) map[string]any {
 	default:
 		return nil
 	}
-}
-
-func labelFor(identifier string) string {
-	identifier = strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(identifier, "_", " "), "-", " "))
-	if identifier == "" {
-		return ""
-	}
-	letters := []rune(identifier)
-	letters[0] = unicode.ToUpper(letters[0])
-	return string(letters)
 }

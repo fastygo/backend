@@ -4,20 +4,31 @@
   "resources": [
     {
       "id": "item",
+      "label": "Item",
       "collection": "items",
       "public": true,
       "rest_visible": true,
       "graphql_visible": true,
       "fields": [
-        {"id": "sku", "type": "string"}
+        {"id": "sku", "label": "SKU", "type": "string", "indexed": true, "searchable": true},
+        {"id": "price", "label": "Price", "type": "number", "indexed": true,
+          "rules": [{"name": "fastygo.codex/money", "args": {"currency_field": "currency"}}]},
+        {"id": "currency", "label": "Currency", "type": "string"},
+        {"id": "stock", "label": "Stock", "type": "number", "rules": [{"name": "fastygo.codex/integer"}]},
+        {"id": "state", "label": "State", "type": "select", "indexed": true,
+          "options": [{"value": "active", "label": "Active"}, {"value": "archived", "label": "Archived"}]},
+        {"id": "cover", "label": "Cover", "type": "relation", "ui_hint": "media"}
+      ],
+      "relations": [
+        {"id": "cover", "source": "item", "target": "media", "cardinality": "one-to-one", "delete_behavior": "nullify"}
       ],
       "form": [
-        {"id": "title", "type": "string", "localized": true},
-        {"id": "summary", "type": "text", "localized": true},
-        {"id": "price", "type": "money"},
-        {"id": "author", "type": "object", "fields": [
-          {"id": "name", "type": "string"},
-          {"id": "role", "type": "string"}
+        {"id": "title", "label": "Title", "type": "string", "localized": true},
+        {"id": "summary", "label": "Summary", "type": "text", "localized": true},
+        {"id": "price", "label": "Price", "type": "number", "rules": [{"name": "fastygo.codex/money"}]},
+        {"id": "author", "label": "Author", "type": "object", "fields": [
+          {"id": "name", "label": "Name", "type": "string"},
+          {"id": "role", "label": "Role", "type": "string"}
         ]}
       ]
     }

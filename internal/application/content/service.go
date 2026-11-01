@@ -5,9 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
-	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -18,6 +15,7 @@ import (
 	"github.com/fastygo/backend/internal/domain/schema"
 	domaincontent "github.com/fastygo/codex/content"
 	"github.com/fastygo/codex/revision"
+	codexschema "github.com/fastygo/codex/schema"
 	domainTaxonomy "github.com/fastygo/codex/taxonomy"
 	"github.com/fastygo/framework/pkg/core"
 	"github.com/google/uuid"
@@ -28,6 +26,14 @@ type Service struct {
 	hooks      Hooks
 	now        func() time.Time
 	manifest   *schema.Manifest
+	// defaultCurrency is the ISO 4217 code used when a money entry carries no
+	// currency field (Codex CheckMoneyCurrency).
+	defaultCurrency string
+}
+
+// SetDefaultCurrency sets the ISO 4217 fallback for Codex money fields.
+func (service *Service) SetDefaultCurrency(code string) {
+	service.defaultCurrency = strings.ToUpper(strings.TrimSpace(code))
 }
 
 func (service *Service) SetManifest(manifest schema.Manifest) error {
@@ -370,15 +376,16 @@ func (service *Service) applyDeletePolicies(
 	}
 	for _, resource := range service.manifest.Resources {
 		for _, field := range resource.Fields {
-			if field.Type != schema.FieldRelation || field.Relation == nil ||
-				field.Relation.Resource != string(target.Kind) {
+			relation, bound := resource.RelationFor(field.ID)
+			if field.Type != schema.FieldRelation || !bound || string(relation.Target) != string(target.Kind) {
 				continue
 			}
+			onDelete := schema.OnDelete(relation)
 			dependents, err := listRelatedContent(
 				ctx,
 				transaction.Content(),
 				domaincontent.Kind(resource.ID),
-				field.ID,
+				string(field.ID),
 				target.ID,
 			)
 			if err != nil {
@@ -389,14 +396,14 @@ func (service *Service) applyDeletePolicies(
 					continue
 				}
 				original := dependent
-				switch field.Relation.OnDelete {
+				switch onDelete {
 				case schema.DeleteRestrict:
 					return core.NewDomainError(
 						core.ErrorCodeConflict,
-						fmt.Sprintf("content is referenced by %s through field %q", dependent.ID, field.ID),
+						fmt.Sprintf("content is referenced by %s through field %q", dependent.ID, string(field.ID)),
 					)
 				case schema.DeleteNullify:
-					nullifyRelation(&dependent, field, string(target.ID))
+					nullifyRelation(&dependent, string(field.ID), relation, string(target.ID))
 				case schema.DeleteCascade:
 					if _, cycle := visiting[dependent.ID]; cycle {
 						return core.NewDomainError(core.ErrorCodeConflict, "cascade relation contains a cycle")
@@ -423,7 +430,7 @@ func (service *Service) applyDeletePolicies(
 				}
 				snapshot := revision.Revision{
 					ID: revisionID, EntryID: before.ID, Locale: before.Locale, Version: before.Version, Snapshot: before,
-					AuthorID: principal.ID, Reason: "relation on_delete " + string(field.Relation.OnDelete),
+					AuthorID: principal.ID, Reason: "relation on_delete " + string(onDelete),
 					CreatedAt: service.now().UTC(),
 				}
 				if err := transaction.Revisions().Save(ctx, snapshot); err != nil {
@@ -434,7 +441,7 @@ func (service *Service) applyDeletePolicies(
 				}
 				if err := saveAudit(ctx, transaction.Audit(), audit.Event{
 					OccurredAt: dependent.UpdatedAt, ActorID: principal.ID,
-					Action: "content.relation_" + string(field.Relation.OnDelete), Resource: string(dependent.Kind),
+					Action: "content.relation_" + string(onDelete), Resource: string(dependent.Kind),
 					ResourceID: string(dependent.ID), BeforeVersion: before.Version, AfterVersion: dependent.Version,
 				}); err != nil {
 					return err
@@ -472,11 +479,8 @@ func listRelatedContent(
 	}
 }
 
-func relationContains(field schema.Field, value any, targetID string) bool {
-	if field.Relation == nil {
-		return false
-	}
-	if field.Relation.Cardinality == schema.CardinalityOne {
+func relationContains(many bool, value any, targetID string) bool {
+	if !many {
 		id := asString(value)
 		return id.ok && id.value == targetID
 	}
@@ -498,15 +502,15 @@ func relationContains(field schema.Field, value any, targetID string) bool {
 	return false
 }
 
-func nullifyRelation(entry *domaincontent.Entry, field schema.Field, targetID string) {
-	if field.Relation == nil || entry.Metadata == nil {
+func nullifyRelation(entry *domaincontent.Entry, fieldID string, relation schema.Relation, targetID string) {
+	if entry.Metadata == nil {
 		return
 	}
-	if field.Relation.Cardinality == schema.CardinalityOne {
-		delete(entry.Metadata, field.ID)
+	if !schema.Many(relation) {
+		delete(entry.Metadata, fieldID)
 		return
 	}
-	metadata := entry.Metadata[field.ID]
+	metadata := entry.Metadata[fieldID]
 	switch values := metadata.Value.(type) {
 	case []string:
 		filtered := make([]string, 0, len(values))
@@ -526,7 +530,7 @@ func nullifyRelation(entry *domaincontent.Entry, field schema.Field, targetID st
 		}
 		metadata.Value = filtered
 	}
-	entry.Metadata[field.ID] = metadata
+	entry.Metadata[fieldID] = metadata
 }
 
 func (service *Service) validateManifest(
@@ -561,54 +565,65 @@ func (service *Service) validateManifest(
 		}
 	}
 	for _, field := range resource.Fields {
-		value, present := entry.Metadata[field.ID]
+		id := string(field.ID)
+		value, present := entry.Metadata[id]
 		if field.Required && (!present || value.Value == nil) {
 			return core.NewDomainError(
 				core.ErrorCodeValidation,
-				fmt.Sprintf("required field %q is missing", field.ID),
+				fmt.Sprintf("required field %q is missing", id),
 			)
 		}
 		if !present {
 			continue
 		}
 		if value.Value == nil {
-			if field.Nullable {
+			if schema.Nullable(field) {
 				continue
 			}
 			return core.NewDomainError(
 				core.ErrorCodeValidation,
-				fmt.Sprintf("field %q cannot be null", field.ID),
+				fmt.Sprintf("field %q cannot be null", id),
 			)
 		}
-		if field.ReadOnly {
+		if schema.ReadOnly(field) {
 			return core.NewDomainError(
 				core.ErrorCodeValidation,
-				fmt.Sprintf("read-only field %q cannot be written", field.ID),
+				fmt.Sprintf("read-only field %q cannot be written", id),
 			)
 		}
 		if field.Sensitive && !value.Private {
 			value.Private = true
-			entry.Metadata[field.ID] = value
+			entry.Metadata[id] = value
 		}
-		if field.Type == schema.FieldRelation {
-			if err := validateRelationValue(ctx, repository, field, value.Value); err != nil {
+		switch schema.SemanticOf(field) {
+		case schema.SemanticRelation:
+			relation, bound := resource.RelationFor(field.ID)
+			if !bound {
+				return core.NewDomainError(core.ErrorCodeInternal, "relation metadata is unavailable")
+			}
+			if err := validateRelationValue(ctx, repository, id, relation, value.Value); err != nil {
 				return err
 			}
-		}
-		if field.Type == schema.FieldMedia {
-			if err := validateRelationIDs(ctx, repository, field.ID, "media", []stringValue{asString(value.Value)}); err != nil {
+		case schema.SemanticMedia:
+			relation, bound := resource.RelationFor(field.ID)
+			if !bound {
+				relation = schema.Relation{Target: schema.MediaTarget, Cardinality: schema.OneToOne}
+			}
+			if err := validateRelationValue(ctx, repository, id, relation, value.Value); err != nil {
 				return err
 			}
-		}
-		if field.Type != schema.FieldRelation && field.Type != schema.FieldMedia {
-			if err := validateFieldValue(field, value.Value); err != nil {
+		default:
+			if err := validateFieldValue(*resource, field, value.Value); err != nil {
 				return err
 			}
 		}
 	}
+	if issue := codexschema.CheckMoneyCurrency(resource.Fields, entry.Metadata, service.defaultCurrency, ""); issue.Code != "" {
+		return core.NewDomainError(core.ErrorCodeValidation, issue.Message)
+	}
 	declared := make(map[string]struct{}, len(resource.Fields))
 	for _, field := range resource.Fields {
-		declared[field.ID] = struct{}{}
+		declared[string(field.ID)] = struct{}{}
 	}
 	for id := range entry.Metadata {
 		if contentcompat.IsInternalMeta(id) {
@@ -635,28 +650,20 @@ func asString(value any) stringValue {
 }
 
 func metadataReferences(value any, targetID string) bool {
-	field := schema.Field{Relation: &schema.Relation{Cardinality: schema.CardinalityOne}}
-	if relationContains(field, value, targetID) {
-		return true
-	}
-	field.Relation.Cardinality = schema.CardinalityMany
-	return relationContains(field, value, targetID)
+	return relationContains(false, value, targetID) || relationContains(true, value, targetID)
 }
 
 func validateRelationValue(
 	ctx context.Context,
 	repository Repository,
-	field schema.Field,
+	fieldID string,
+	relation schema.Relation,
 	value any,
 ) error {
-	if field.Relation == nil {
-		return core.NewDomainError(core.ErrorCodeInternal, "relation metadata is unavailable")
-	}
 	var ids []stringValue
-	switch field.Relation.Cardinality {
-	case schema.CardinalityOne:
+	if !schema.Many(relation) {
 		ids = []stringValue{asString(value)}
-	case schema.CardinalityMany:
+	} else {
 		switch values := value.(type) {
 		case []string:
 			ids = make([]stringValue, 0, len(values))
@@ -671,176 +678,82 @@ func validateRelationValue(
 		default:
 			return core.NewDomainError(
 				core.ErrorCodeValidation,
-				fmt.Sprintf("relation field %q must be an array of ids", field.ID),
+				fmt.Sprintf("relation field %q must be an array of ids", fieldID),
 			)
 		}
 	}
-	return validateRelationIDs(ctx, repository, field.ID, field.Relation.Resource, ids)
+	return validateRelationIDs(ctx, repository, fieldID, string(relation.Target), ids)
 }
 
-func validateFieldValue(field schema.Field, value any) error {
+// validateFieldValue checks one stored value with Codex value rules
+// (codexschema.CheckMetadataFields). Localized fields hold a locale map whose
+// values are each checked as the non-localized field.
+func validateFieldValue(resource schema.Resource, field schema.Field, value any) error {
+	id := string(field.ID)
 	if field.Localized {
 		values, ok := value.(map[string]any)
 		if !ok || len(values) == 0 {
-			return invalidField(field.ID, "must be a non-empty locale map")
+			return invalidField(id, "must be a non-empty locale map")
 		}
 		copyField := field
 		copyField.Localized = false
 		for locale, localized := range values {
 			if strings.TrimSpace(locale) == "" {
-				return invalidField(field.ID, "contains an invalid locale")
+				return invalidField(id, "contains an invalid locale")
 			}
-			if err := validateFieldValue(copyField, localized); err != nil {
+			if err := validateFieldValue(resource, copyField, localized); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
-	switch field.Type {
-	case schema.FieldString, schema.FieldText, schema.FieldRichText, schema.FieldMarkdown:
-		if _, ok := value.(string); !ok {
-			return invalidField(field.ID, "must be a string")
+	if values, ok := value.([]string); ok {
+		converted := make([]any, len(values))
+		for index, item := range values {
+			converted[index] = item
 		}
-	case schema.FieldBoolean:
-		if _, ok := value.(bool); !ok {
-			return invalidField(field.ID, "must be a boolean")
-		}
-	case schema.FieldInteger:
-		number, ok := numericValue(value)
-		if !ok || math.Trunc(number) != number {
-			return invalidField(field.ID, "must be an integer")
-		}
-	case schema.FieldNumber:
-		if _, ok := numericValue(value); !ok {
-			return invalidField(field.ID, "must be a number")
-		}
-	case schema.FieldDecimal, schema.FieldMoney:
-		if _, ok := decimalValue(value); !ok {
-			return invalidField(field.ID, "must be a decimal number")
-		}
-	case schema.FieldDate:
-		resolved, ok := value.(string)
-		if !ok {
-			return invalidField(field.ID, "must be an ISO date")
-		}
-		if _, err := time.Parse("2006-01-02", resolved); err != nil {
-			return invalidField(field.ID, "must be an ISO date")
-		}
-	case schema.FieldDateTime:
-		resolved, ok := value.(string)
-		if !ok {
-			return invalidField(field.ID, "must be an RFC3339 timestamp")
-		}
-		if _, err := time.Parse(time.RFC3339, resolved); err != nil {
-			return invalidField(field.ID, "must be an RFC3339 timestamp")
-		}
-	case schema.FieldURI:
-		resolved, ok := value.(string)
-		if !ok {
-			return invalidField(field.ID, "must be a URI")
-		}
-		parsed, err := url.ParseRequestURI(resolved)
-		if err != nil || parsed.String() == "" {
-			return invalidField(field.ID, "must be a URI")
-		}
-	case schema.FieldUUID:
-		resolved, ok := value.(string)
-		if !ok {
-			return invalidField(field.ID, "must be a UUID")
-		}
-		if _, err := uuid.Parse(resolved); err != nil {
-			return invalidField(field.ID, "must be a UUID")
-		}
-	case schema.FieldEnum:
-		resolved, ok := value.(string)
-		if !ok {
-			return invalidField(field.ID, "must be an enum string")
-		}
-		found := false
-		for _, allowed := range field.Enum {
-			if resolved == allowed {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return invalidField(field.ID, "contains an unsupported enum value")
-		}
-	case schema.FieldCollection:
-		if field.Items == nil {
-			return core.NewDomainError(core.ErrorCodeInternal, "collection item schema is unavailable")
-		}
-		switch values := value.(type) {
-		case []any:
-			for _, item := range values {
-				if err := validateFieldValue(*field.Items, item); err != nil {
-					return err
-				}
-			}
-		case []string:
-			for _, item := range values {
-				if err := validateFieldValue(*field.Items, item); err != nil {
-					return err
-				}
-			}
-		default:
-			return invalidField(field.ID, "must be an array")
-		}
-	case schema.FieldObject:
-		document, ok := value.(map[string]any)
-		if !ok {
-			return invalidField(field.ID, "must be an object")
-		}
-		for _, nested := range field.Fields {
-			item, exists := document[nested.ID]
-			if !exists || item == nil {
-				if nested.Required {
-					return invalidField(nested.ID, "is required")
-				}
-				continue
-			}
-			if err := validateFieldValue(nested, item); err != nil {
-				return err
-			}
-		}
-	case schema.FieldJSON:
-		// JSON values are already decoded into Go scalar, array, or object values.
-	default:
-		return invalidField(field.ID, "has unsupported runtime type")
+		value = converted
+	}
+	metadata := map[string]domaincontent.MetadataValue{id: {Value: normalizeNumbers(value)}}
+	issues := codexschema.CheckMetadataFields(codexschema.Resource{Record: resource.Record()}, []schema.Field{field}, metadata, "metadata", nil)
+	if len(issues) > 0 {
+		return core.NewDomainError(core.ErrorCodeValidation, issues[0].Message)
 	}
 	return nil
 }
 
-func numericValue(value any) (float64, bool) {
-	switch resolved := value.(type) {
-	case float64:
-		return resolved, !math.IsInf(resolved, 0) && !math.IsNaN(resolved)
-	case float32:
-		return float64(resolved), true
-	case int:
-		return float64(resolved), true
-	case int64:
-		return float64(resolved), true
-	case int32:
-		return float64(resolved), true
+// normalizeNumbers converts json.Number and Go integer kinds to float64 so
+// Codex numeric checks see decoded JSON numbers.
+func normalizeNumbers(value any) any {
+	switch typed := value.(type) {
 	case json.Number:
-		number, err := resolved.Float64()
-		return number, err == nil
+		if number, err := typed.Float64(); err == nil {
+			return number
+		}
+		return typed
+	case int:
+		return float64(typed)
+	case int32:
+		return float64(typed)
+	case int64:
+		return float64(typed)
+	case float32:
+		return float64(typed)
+	case []any:
+		out := make([]any, len(typed))
+		for index, item := range typed {
+			out[index] = normalizeNumbers(item)
+		}
+		return out
+	case map[string]any:
+		out := make(map[string]any, len(typed))
+		for key, item := range typed {
+			out[key] = normalizeNumbers(item)
+		}
+		return out
 	default:
-		return 0, false
+		return value
 	}
-}
-
-func decimalValue(value any) (float64, bool) {
-	if number, ok := numericValue(value); ok {
-		return number, true
-	}
-	resolved, ok := value.(string)
-	if !ok || strings.TrimSpace(resolved) == "" {
-		return 0, false
-	}
-	number, err := strconv.ParseFloat(resolved, 64)
-	return number, err == nil && !math.IsInf(number, 0) && !math.IsNaN(number)
 }
 
 func invalidField(id string, reason string) error {

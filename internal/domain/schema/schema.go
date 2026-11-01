@@ -1,74 +1,79 @@
+// Package schema binds Codex records to this backend's delivery surface.
+//
+// The field, relation and rule vocabulary is github.com/fastygo/codex/schema
+// (type aliases below). This package adds only deployment metadata that Codex
+// does not model: the REST collection, visibility flags, a separate editor
+// form, and the reserved core kinds. See docs/architecture/adr/0013.
 package schema
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
+
+	codex "github.com/fastygo/codex/schema"
 )
 
-type FieldType string
-type Cardinality string
-type DeletePolicy string
-
-const (
-	FieldString     FieldType = "string"
-	FieldText       FieldType = "text"
-	FieldBoolean    FieldType = "boolean"
-	FieldInteger    FieldType = "integer"
-	FieldNumber     FieldType = "number"
-	FieldDecimal    FieldType = "decimal"
-	FieldMoney      FieldType = "money"
-	FieldDate       FieldType = "date"
-	FieldDateTime   FieldType = "datetime"
-	FieldURI        FieldType = "uri"
-	FieldUUID       FieldType = "uuid"
-	FieldJSON       FieldType = "json"
-	FieldEnum       FieldType = "enum"
-	FieldRelation   FieldType = "relation"
-	FieldCollection FieldType = "collection"
-	FieldObject     FieldType = "object"
-	FieldMedia      FieldType = "media"
-	FieldRichText   FieldType = "richtext"
-	FieldMarkdown   FieldType = "markdown"
+type (
+	Field          = codex.Field
+	FieldID        = codex.FieldID
+	FieldType      = codex.FieldType
+	Relation       = codex.Relation
+	RelationID     = codex.RelationID
+	Cardinality    = codex.RelationCardinality
+	DeleteBehavior = codex.DeleteBehavior
+	Option         = codex.Option
+	ValidationRule = codex.ValidationRule
 )
 
 const (
-	CardinalityOne  Cardinality = "one"
-	CardinalityMany Cardinality = "many"
+	FieldText       = codex.FieldText
+	FieldString     = codex.FieldString
+	FieldTextarea   = codex.FieldTextarea
+	FieldRichText   = codex.FieldRichText
+	FieldMarkdown   = codex.FieldMarkdown
+	FieldNumber     = codex.FieldNumber
+	FieldBoolean    = codex.FieldBoolean
+	FieldSelect     = codex.FieldSelect
+	FieldDateTime   = codex.FieldDateTime
+	FieldJSON       = codex.FieldJSON
+	FieldObject     = codex.FieldObject
+	FieldRelation   = codex.FieldRelation
+	FieldCollection = codex.FieldCollection
+	FieldComputed   = codex.FieldComputed
+	FieldEncrypted  = codex.FieldEncrypted
 )
 
 const (
-	DeleteRestrict DeletePolicy = "restrict"
-	DeleteNullify  DeletePolicy = "nullify"
-	DeleteCascade  DeletePolicy = "cascade"
+	OneToOne   = codex.RelationOneToOne
+	OneToMany  = codex.RelationOneToMany
+	ManyToMany = codex.RelationManyToMany
 )
 
-type Relation struct {
-	Resource    string
-	Cardinality Cardinality
-	OnDelete    DeletePolicy
-}
+const (
+	DeleteRestrict = codex.DeleteRestrict
+	DeleteNullify  = codex.DeleteNullify
+	DeleteCascade  = codex.DeleteCascade
+)
 
-type Field struct {
-	ID        string
-	Type      FieldType
-	Required  bool
-	Nullable  bool
-	ReadOnly  bool
-	Sensitive bool
-	Localized bool
-	Enum      []string
-	Relation  *Relation
-	Items     *Field
-	Fields    []Field
-}
+// MediaTarget is the built-in relation target for media fields. Media assets
+// live in the media store, not in a manifest resource.
+const MediaTarget = "media"
 
+// Resource is one Codex record bound to a delivery collection.
 type Resource struct {
-	ID             string
-	Collection     string
-	Fields         []Field
-	Form           []Field
+	ID         string
+	Label      string
+	Collection string
+	// Fields are stored in Entry.Metadata and validated on write.
+	Fields []Field
+	// Form is the editor slot schema; empty means Fields (minus payload_*).
+	Form []Field
+	// Relations declare relation fields (Codex: relation ID == field ID).
+	Relations      []Relation
 	Taxonomies     []string
 	Public         bool
 	RESTVisible    bool
@@ -84,22 +89,22 @@ type Manifest struct {
 // CoreResources are the go-codex kinds every profile must keep.
 func CoreResources() []Resource {
 	documentForm := []Field{
-		{ID: "title", Type: FieldString, Localized: true},
-		{ID: "excerpt", Type: FieldText, Localized: true},
-		{ID: "content", Type: FieldText, Localized: true},
+		{ID: "title", Label: "Title", Type: FieldString, Localized: true},
+		{ID: "excerpt", Label: "Excerpt", Type: FieldText, Localized: true},
+		{ID: "content", Label: "Content", Type: FieldText, Localized: true},
 	}
 	return []Resource{
 		{ID: "post", Collection: "posts", Public: true, RESTVisible: true, GraphQLVisible: true, Form: append([]Field(nil), documentForm...)},
 		{ID: "page", Collection: "pages", Public: true, RESTVisible: true, GraphQLVisible: true, Form: append([]Field(nil), documentForm...)},
 		{
 			ID: "menu", Collection: "menus", Public: true, RESTVisible: true, GraphQLVisible: true,
-			Fields: []Field{{ID: "items", Type: FieldJSON}},
-			Form:   []Field{{ID: "items", Type: FieldJSON}},
+			Fields: []Field{{ID: "items", Label: "Items", Type: FieldJSON}},
+			Form:   []Field{{ID: "items", Label: "Items", Type: FieldJSON}},
 		},
 		{
 			ID: "setting", Collection: "settings", Public: true, RESTVisible: true, GraphQLVisible: true,
-			Fields: []Field{{ID: "value", Type: FieldJSON}},
-			Form:   []Field{{ID: "value", Type: FieldJSON}},
+			Fields: []Field{{ID: "value", Label: "Value", Type: FieldJSON}},
+			Form:   []Field{{ID: "value", Label: "Value", Type: FieldJSON}},
 		},
 	}
 }
@@ -131,12 +136,85 @@ func (resource Resource) RegistersCodexCollection() bool {
 	if !resource.RESTVisible {
 		return false
 	}
-	switch resource.Collection {
-	case "media", "taxonomies", "search", "content-types", "types":
-		return false
-	default:
-		return true
+	return !slices.Contains(ReservedCodexCollections(), resource.Collection)
+}
+
+// RelationFor returns the Codex relation declared for a top-level field.
+func (resource Resource) RelationFor(id FieldID) (Relation, bool) {
+	for _, relation := range resource.Relations {
+		if relation.ID == RelationID(id) {
+			return relation, true
+		}
 	}
+	return Relation{}, false
+}
+
+// Record projects the resource into a Codex record type. Storage fields come
+// first, then form-only fields; empty labels default to the field id.
+func (resource Resource) Record() codex.RecordType {
+	label := resource.Label
+	if label == "" {
+		label = HumanLabel(resource.ID)
+	}
+	record := codex.RecordType{
+		ID:        codex.RecordTypeID(resource.ID),
+		Label:     label,
+		Scope:     codex.ScopeTenant,
+		Relations: make([]Relation, 0, len(resource.Relations)),
+	}
+	if resource.Public {
+		record.Visibility = "public"
+	}
+	seen := map[FieldID]struct{}{}
+	for _, field := range append(append([]Field(nil), resource.Fields...), resource.FormFields()...) {
+		if _, dup := seen[field.ID]; dup {
+			continue
+		}
+		seen[field.ID] = struct{}{}
+		record.Fields = append(record.Fields, withLabels(field))
+	}
+	for _, relation := range resource.Relations {
+		if relation.Source == "" {
+			relation.Source = record.ID
+		}
+		if relation.DeleteBehavior == "" {
+			relation.DeleteBehavior = DeleteRestrict
+		}
+		record.Relations = append(record.Relations, relation)
+	}
+	if len(record.Relations) == 0 {
+		record.Relations = nil
+	}
+	return record
+}
+
+// FormRecord is Record restricted to the editor form fields.
+func (resource Resource) FormRecord() codex.RecordType {
+	record := resource.Record()
+	form := resource.FormFields()
+	record.Fields = make([]Field, 0, len(form))
+	for _, field := range form {
+		record.Fields = append(record.Fields, withLabels(field))
+	}
+	return record
+}
+
+func withLabels(field Field) Field {
+	if field.Label == "" {
+		field.Label = HumanLabel(string(field.ID))
+	}
+	if field.Items != nil {
+		item := withLabels(*field.Items)
+		field.Items = &item
+	}
+	if field.Fields != nil {
+		nested := make([]Field, len(field.Fields))
+		for index, child := range field.Fields {
+			nested[index] = withLabels(child)
+		}
+		field.Fields = nested
+	}
+	return field
 }
 
 func (manifest Manifest) Validate() error {
@@ -173,10 +251,8 @@ func (manifest Manifest) Validate() error {
 		}
 	}
 	for _, resource := range manifest.Resources {
-		for _, field := range append(append([]Field(nil), resource.Fields...), resource.Form...) {
-			if err := validateRelationTarget(field, resources); err != nil {
-				return err
-			}
+		if err := validateRelations(resource, resources); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -189,25 +265,22 @@ func (manifest Manifest) Canonical() Manifest {
 		return strings.Compare(left.ID, right.ID)
 	})
 	for index := range canonical.Resources {
-		canonical.Resources[index].Fields = cloneFields(canonical.Resources[index].Fields)
-		slices.SortFunc(canonical.Resources[index].Fields, func(left, right Field) int {
-			return strings.Compare(left.ID, right.ID)
+		resource := &canonical.Resources[index]
+		resource.Fields = cloneFields(resource.Fields)
+		resource.Form = cloneFields(resource.Form)
+		resource.Relations = append([]Relation(nil), resource.Relations...)
+		slices.SortFunc(resource.Relations, func(left, right Relation) int {
+			return strings.Compare(string(left.ID), string(right.ID))
 		})
-		canonical.Resources[index].Form = cloneFields(canonical.Resources[index].Form)
-		slices.SortFunc(canonical.Resources[index].Form, func(left, right Field) int {
-			return strings.Compare(left.ID, right.ID)
-		})
-		canonical.Resources[index].Taxonomies = append([]string(nil), canonical.Resources[index].Taxonomies...)
-		slices.Sort(canonical.Resources[index].Taxonomies)
+		resource.Taxonomies = append([]string(nil), resource.Taxonomies...)
+		slices.Sort(resource.Taxonomies)
 	}
 	return canonical
 }
 
 func validateCodexCollection(resource Resource) error {
-	for _, name := range ReservedCodexCollections() {
-		if resource.Collection == name {
-			return errors.New("resource collection is reserved")
-		}
+	if slices.Contains(ReservedCodexCollections(), resource.Collection) {
+		return errors.New("resource collection is reserved")
 	}
 	if resource.Collection == "menus" && resource.ID != "menu" {
 		return errors.New("menus collection is reserved")
@@ -223,67 +296,76 @@ func cloneFields(fields []Field) []Field {
 	for _, field := range fields {
 		out = append(out, cloneField(field))
 	}
+	slices.SortFunc(out, func(left, right Field) int {
+		return strings.Compare(string(left.ID), string(right.ID))
+	})
 	return out
 }
 
 func cloneField(field Field) Field {
 	cloned := field
-	if field.Relation != nil {
-		relation := *field.Relation
-		cloned.Relation = &relation
-	}
 	if field.Items != nil {
 		item := cloneField(*field.Items)
 		cloned.Items = &item
 	}
-	cloned.Fields = cloneFields(field.Fields)
-	slices.SortFunc(cloned.Fields, func(left, right Field) int {
-		return strings.Compare(left.ID, right.ID)
-	})
-	cloned.Enum = append([]string(nil), field.Enum...)
+	if field.Fields != nil {
+		cloned.Fields = cloneFields(field.Fields)
+	}
+	cloned.Options = append([]Option(nil), field.Options...)
+	if field.Rules != nil {
+		cloned.Rules = append([]ValidationRule(nil), field.Rules...)
+	}
 	return cloned
 }
 
+// KnownType reports whether t is a Codex v0.4 field type.
+func KnownType(fieldType FieldType) bool {
+	switch fieldType {
+	case FieldText, FieldString, FieldTextarea, FieldRichText, FieldMarkdown, FieldNumber,
+		FieldBoolean, FieldSelect, FieldDateTime, FieldJSON, FieldObject, FieldRelation,
+		FieldCollection, FieldComputed, FieldEncrypted:
+		return true
+	default:
+		return false
+	}
+}
+
+// legacyTypes maps pre-Codex backend types to their Codex declaration.
+var legacyTypes = map[FieldType]string{
+	"integer": "number + " + codex.RuleInteger,
+	"decimal": "number + " + codex.RuleDecimal,
+	"money":   "number + " + codex.RuleMoney + " (integer minor units)",
+	"date":    "datetime + " + codex.RuleDate,
+	"uri":     "string + " + codex.RuleURI,
+	"uuid":    "string + " + codex.RuleUUID,
+	"enum":    "select + options",
+	"media":   "relation + ui_hint media",
+}
+
 func validateFields(fields []Field, nested bool) error {
-	seen := make(map[string]struct{}, len(fields))
+	seen := make(map[FieldID]struct{}, len(fields))
 	for _, field := range fields {
-		if !identifier.MatchString(field.ID) || (!nested && field.ID == "id") {
+		if !identifier.MatchString(string(field.ID)) || (!nested && field.ID == "id") {
 			return errors.New("field identifier is invalid or reserved")
 		}
 		if _, exists := seen[field.ID]; exists {
 			return errors.New("field identifier is duplicated")
 		}
 		seen[field.ID] = struct{}{}
-		if !field.Type.Valid() {
+		if !KnownType(field.Type) {
+			if hint, legacy := legacyTypes[field.Type]; legacy {
+				return fmt.Errorf("field %q type %q is not a Codex type; declare %s", field.ID, field.Type, hint)
+			}
 			return errors.New("field type is invalid")
 		}
-		if field.Required && field.Nullable {
-			return errors.New("required field cannot be nullable")
+		if err := withLabels(field).Validate(); err != nil {
+			return err
 		}
-		if field.Type == FieldEnum && len(field.Enum) == 0 {
-			return errors.New("enum field requires values")
+		if err := codex.ValidateFieldProfile(field); err != nil {
+			return err
 		}
-		if field.Type == FieldRelation && field.Relation == nil {
-			return errors.New("relation field requires relation metadata")
-		}
-		if field.Type == FieldRelation && field.Required &&
-			field.Relation != nil && field.Relation.OnDelete == DeleteNullify {
-			return errors.New("required relation cannot use nullify delete policy")
-		}
-		if field.Type != FieldRelation && field.Relation != nil {
-			return errors.New("relation metadata requires relation field type")
-		}
-		if field.Type == FieldCollection && field.Items == nil {
-			return errors.New("collection field requires item schema")
-		}
-		if field.Type == FieldObject && len(field.Fields) == 0 {
-			return errors.New("object field requires nested fields")
-		}
-		if field.Type != FieldCollection && field.Items != nil {
-			return errors.New("item schema requires collection field type")
-		}
-		if field.Type != FieldObject && len(field.Fields) > 0 {
-			return errors.New("nested fields require object field type")
+		if field.Type == FieldSelect && len(field.Options) == 0 {
+			return errors.New("select field requires options")
 		}
 		if field.Items != nil {
 			if err := validateFields([]Field{*field.Items}, true); err != nil {
@@ -297,43 +379,65 @@ func validateFields(fields []Field, nested bool) error {
 	return nil
 }
 
-func validateRelationTarget(field Field, resources map[string]struct{}) error {
-	if field.Relation != nil {
-		if _, exists := resources[field.Relation.Resource]; !exists {
+func validateRelations(resource Resource, resources map[string]struct{}) error {
+	declared := map[RelationID]Relation{}
+	for _, relation := range resource.Relations {
+		if _, dup := declared[relation.ID]; dup {
+			return errors.New("relation identifier is duplicated")
+		}
+		declared[relation.ID] = relation
+		if relation.Source != "" && string(relation.Source) != resource.ID {
+			return errors.New("relation source must be the owning resource")
+		}
+		if _, exists := resources[string(relation.Target)]; !exists && relation.Target != MediaTarget {
 			return errors.New("relation target does not exist")
 		}
-		if !field.Relation.Cardinality.Valid() || !field.Relation.OnDelete.Valid() {
+		switch relation.Cardinality {
+		case OneToOne, OneToMany, ManyToMany:
+		default:
+			return errors.New("relation policy is invalid")
+		}
+		switch relation.DeleteBehavior {
+		case "", DeleteRestrict, DeleteNullify, DeleteCascade:
+		default:
 			return errors.New("relation policy is invalid")
 		}
 	}
-	if field.Items != nil {
-		if err := validateRelationTarget(*field.Items, resources); err != nil {
-			return err
+	used := map[RelationID]struct{}{}
+	for _, field := range append(append([]Field(nil), resource.Fields...), resource.Form...) {
+		if field.Type != FieldRelation {
+			continue
+		}
+		relation, ok := declared[RelationID(field.ID)]
+		if !ok {
+			if IsMedia(field) {
+				continue
+			}
+			return errors.New("relation field requires a declared relation")
+		}
+		used[relation.ID] = struct{}{}
+		if IsMedia(field) && relation.Target != MediaTarget {
+			return errors.New("media field must target media")
+		}
+		if field.Required && relation.DeleteBehavior == DeleteNullify {
+			return errors.New("required relation cannot use nullify delete policy")
 		}
 	}
-	for _, nested := range field.Fields {
-		if err := validateRelationTarget(nested, resources); err != nil {
-			return err
+	for id := range declared {
+		if _, ok := used[id]; !ok {
+			return errors.New("relation is not bound to a relation field")
 		}
 	}
 	return nil
 }
 
-func (fieldType FieldType) Valid() bool {
-	switch fieldType {
-	case FieldString, FieldText, FieldBoolean, FieldInteger, FieldNumber, FieldDecimal,
-		FieldMoney, FieldDate, FieldDateTime, FieldURI, FieldUUID, FieldJSON, FieldEnum,
-		FieldRelation, FieldCollection, FieldObject, FieldMedia, FieldRichText, FieldMarkdown:
-		return true
-	default:
-		return false
+// HumanLabel turns an identifier into a default label ("sale_price" → "Sale price").
+func HumanLabel(identifier string) string {
+	identifier = strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(identifier, "_", " "), "-", " "))
+	if identifier == "" {
+		return ""
 	}
-}
-
-func (cardinality Cardinality) Valid() bool {
-	return cardinality == CardinalityOne || cardinality == CardinalityMany
-}
-
-func (policy DeletePolicy) Valid() bool {
-	return policy == DeleteRestrict || policy == DeleteNullify || policy == DeleteCascade
+	letters := []rune(identifier)
+	letters[0] = unicode.ToUpper(letters[0])
+	return string(letters)
 }

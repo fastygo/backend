@@ -431,10 +431,11 @@ func resourceObject(resource domainschema.Resource, jsonScalar *graphql.Scalar) 
 		"updatedAt":        &graphql.Field{Type: graphql.NewNonNull(graphql.String)},
 	}
 	for _, field := range resource.Fields {
-		if _, reserved := fields[graphQLField(field.ID)]; reserved || field.Sensitive {
+		name := graphQLField(string(field.ID))
+		if _, reserved := fields[name]; reserved || field.Sensitive {
 			continue
 		}
-		fields[graphQLField(field.ID)] = &graphql.Field{Type: outputType(field, jsonScalar)}
+		fields[name] = &graphql.Field{Type: outputType(resource, field, jsonScalar)}
 	}
 	return graphql.NewObject(graphql.ObjectConfig{Name: graphQLName(resource.ID), Fields: fields})
 }
@@ -452,12 +453,12 @@ func resourceInput(resource domainschema.Resource, jsonScalar *graphql.Scalar) *
 		"locales":          &graphql.InputObjectFieldConfig{Type: jsonScalar},
 	}
 	for _, field := range resource.Fields {
-		name := graphQLField(field.ID)
-		if _, reserved := fields[name]; reserved || field.ReadOnly {
+		name := graphQLField(string(field.ID))
+		if _, reserved := fields[name]; reserved || domainschema.ReadOnly(field) {
 			continue
 		}
-		fieldType := inputType(field, jsonScalar)
-		if field.Required && !field.Nullable {
+		fieldType := inputType(resource, field, jsonScalar)
+		if field.Required && !domainschema.Nullable(field) {
 			fieldType = graphql.NewNonNull(fieldType)
 		}
 		fields[name] = &graphql.InputObjectFieldConfig{Type: fieldType}
@@ -594,47 +595,41 @@ func applyGraphQLLocales(entry *domaincontent.Entry, value any) {
 	}
 }
 
-func outputType(field domainschema.Field, jsonScalar *graphql.Scalar) graphql.Output {
-	if field.Localized || field.Type == domainschema.FieldJSON || field.Type == domainschema.FieldCollection {
+// scalarFor maps the Codex field semantic (domainschema.GraphQLScalar) to a
+// runtime scalar. DateTime is served as String at runtime.
+func scalarFor(field domainschema.Field, jsonScalar *graphql.Scalar) *graphql.Scalar {
+	switch domainschema.GraphQLScalar(field) {
+	case "JSON":
 		return jsonScalar
-	}
-	var resolved graphql.Output
-	switch field.Type {
-	case domainschema.FieldBoolean:
-		resolved = graphql.Boolean
-	case domainschema.FieldInteger:
-		resolved = graphql.Int
-	case domainschema.FieldNumber, domainschema.FieldDecimal, domainschema.FieldMoney:
-		resolved = graphql.Float
-	case domainschema.FieldUUID, domainschema.FieldRelation, domainschema.FieldMedia:
-		resolved = graphql.ID
+	case "Boolean":
+		return graphql.Boolean
+	case "Int":
+		return graphql.Int
+	case "Float":
+		return graphql.Float
+	case "ID":
+		return graphql.ID
 	default:
-		resolved = graphql.String
+		return graphql.String
 	}
-	if field.Relation != nil && field.Relation.Cardinality == domainschema.CardinalityMany {
+}
+
+func manyRelation(resource domainschema.Resource, field domainschema.Field) bool {
+	relation, ok := resource.RelationFor(field.ID)
+	return ok && domainschema.Many(relation) && !field.Localized
+}
+
+func outputType(resource domainschema.Resource, field domainschema.Field, jsonScalar *graphql.Scalar) graphql.Output {
+	resolved := scalarFor(field, jsonScalar)
+	if manyRelation(resource, field) {
 		return graphql.NewList(resolved)
 	}
 	return resolved
 }
 
-func inputType(field domainschema.Field, jsonScalar *graphql.Scalar) graphql.Input {
-	if field.Localized || field.Type == domainschema.FieldJSON || field.Type == domainschema.FieldCollection {
-		return jsonScalar
-	}
-	var resolved graphql.Input
-	switch field.Type {
-	case domainschema.FieldBoolean:
-		resolved = graphql.Boolean
-	case domainschema.FieldInteger:
-		resolved = graphql.Int
-	case domainschema.FieldNumber, domainschema.FieldDecimal, domainschema.FieldMoney:
-		resolved = graphql.Float
-	case domainschema.FieldUUID, domainschema.FieldRelation, domainschema.FieldMedia:
-		resolved = graphql.ID
-	default:
-		resolved = graphql.String
-	}
-	if field.Relation != nil && field.Relation.Cardinality == domainschema.CardinalityMany {
+func inputType(resource domainschema.Resource, field domainschema.Field, jsonScalar *graphql.Scalar) graphql.Input {
+	resolved := scalarFor(field, jsonScalar)
+	if manyRelation(resource, field) {
 		return graphql.NewList(resolved)
 	}
 	return resolved
