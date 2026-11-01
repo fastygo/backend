@@ -32,11 +32,11 @@ type Storage struct {
 
 // LoadFile reads tenants.json from path.
 func LoadFile(path string) ([]Spec, error) {
-	file, err := os.Open(path)
+	file, err := os.Open(path) //nolint:gosec // G304: path comes from operator config or a store-resolved root
 	if err != nil {
 		return nil, fmt.Errorf("tenants file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	return Load(file)
 }
 

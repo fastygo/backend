@@ -38,7 +38,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer storage.Close()
+	defer func() { _ = storage.Close() }()
 	service, err := content.NewService(storage, nil, nil)
 	if err != nil {
 		return err
@@ -50,7 +50,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("failed to open seed: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	result, err := seed.Apply(ctx, service, authz.AdministratorRole().Principal("seed"), file)
 	if err != nil {
 		return err

@@ -40,7 +40,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer storage.Close()
+	defer func() { _ = storage.Close() }()
 	service, err := backup.New(storage, config.Manifest)
 	if err != nil {
 		return err
@@ -71,7 +71,7 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		defer mediaSource.Close()
+		defer func() { _ = mediaSource.Close() }()
 		return media.Restore(ctx, mediaSource)
 	default:
 		return errors.New("-mode must be export or restore")
@@ -88,7 +88,7 @@ func exportMediaAtomic(ctx context.Context, store *localmedia.Store, path string
 		return err
 	}
 	temporaryPath := temporary.Name()
-	defer os.Remove(temporaryPath)
+	defer func() { _ = os.Remove(temporaryPath) }()
 	if err := store.Export(ctx, temporary); err != nil {
 		_ = temporary.Close()
 		return err
@@ -113,7 +113,7 @@ func exportAtomic(ctx context.Context, service *backup.Service, path string) err
 		return err
 	}
 	temporaryPath := temporary.Name()
-	defer os.Remove(temporaryPath)
+	defer func() { _ = os.Remove(temporaryPath) }()
 	if err := service.Export(ctx, temporary); err != nil {
 		_ = temporary.Close()
 		return err

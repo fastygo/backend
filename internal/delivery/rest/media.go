@@ -53,14 +53,14 @@ func (handler *MediaHandler) upload(response http.ResponseWriter, request *http.
 		return
 	}
 	if request.MultipartForm != nil {
-		defer request.MultipartForm.RemoveAll()
+		defer func() { _ = request.MultipartForm.RemoveAll() }()
 	}
 	file, header, err := request.FormFile("file")
 	if err != nil {
 		writeError(response, request, core.WrapDomainError(core.ErrorCodeValidation, "media file is required", err))
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	locale := strings.TrimSpace(request.FormValue("locale"))
 	if locale == "" {
 		locale = "en"
@@ -91,7 +91,7 @@ func (handler *MediaHandler) download(response http.ResponseWriter, request *htt
 		writeError(response, request, err)
 		return
 	}
-	defer download.Body.Close()
+	defer func() { _ = download.Body.Close() }()
 	response.Header().Set("Content-Type", download.Asset.MIMEType)
 	response.Header().Set("Content-Length", strconv.FormatInt(download.Asset.Size, 10))
 	response.Header().Set("ETag", `"sha256-`+download.Asset.Checksum+`"`)

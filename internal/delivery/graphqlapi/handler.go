@@ -380,7 +380,7 @@ func (handler *Handler) updateResolver(resource domainschema.Resource) graphql.F
 		input, _ := params.Args["input"].(map[string]any)
 		applyGraphQLInput(&current, input)
 		updated, err := handler.service.Update(
-			params.Context, principal, current, uint64(integerArgument(params.Args, "expectedVersion", 0)), "GraphQL update",
+			params.Context, principal, current, versionArgument(params.Args), "GraphQL update",
 		)
 		if err != nil {
 			return nil, err
@@ -406,7 +406,7 @@ func (handler *Handler) deleteResolver(resource domainschema.Resource) graphql.F
 		entry.DeletedAt = &now
 		_, err = handler.service.Update(
 			params.Context, principal, entry,
-			uint64(integerArgument(params.Args, "expectedVersion", 0)), "GraphQL delete",
+			versionArgument(params.Args), "GraphQL delete",
 		)
 		return err == nil, err
 	}
@@ -582,14 +582,15 @@ func applyGraphQLLocales(entry *domaincontent.Entry, value any) {
 		return
 	}
 	for locale, raw := range root {
-		switch typed := raw.(type) {
-		case map[string]any:
-			if data, ok := typed["data"].(map[string]any); ok {
-				applyGraphQLLocale(entry, locale, data)
-				continue
-			}
-			applyGraphQLLocale(entry, locale, typed)
+		typed, ok := raw.(map[string]any)
+		if !ok {
+			continue
 		}
+		if data, ok := typed["data"].(map[string]any); ok {
+			applyGraphQLLocale(entry, locale, data)
+			continue
+		}
+		applyGraphQLLocale(entry, locale, typed)
 	}
 }
 
@@ -679,6 +680,15 @@ func parseLiteral(value ast.Value) any {
 	default:
 		return nil
 	}
+}
+
+// versionArgument reads expectedVersion; negative values clamp to 0.
+func versionArgument(arguments map[string]any) uint64 {
+	value := integerArgument(arguments, "expectedVersion", 0)
+	if value < 0 {
+		return 0
+	}
+	return uint64(value)
 }
 
 func integerArgument(arguments map[string]any, key string, fallback int) int {

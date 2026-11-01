@@ -51,7 +51,7 @@ func (repository auditRepository) List(
 	if err != nil {
 		return nil, application.Page{}, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	events := make([]audit.Event, 0)
 	for rows.Next() {
 		var encoded []byte

@@ -40,7 +40,7 @@ func (repository taxonomyRepository) ListDefinitions(ctx context.Context) ([]tax
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var items []taxonomy.Definition
 	for rows.Next() {
 		var encoded []byte
@@ -139,7 +139,7 @@ func (repository taxonomyRepository) ListTerms(
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var items []taxonomy.Term
 	for rows.Next() {
 		var encoded []byte

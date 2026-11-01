@@ -85,7 +85,7 @@ func (store *Store) Open(_ context.Context, key string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return os.Open(target)
+	return os.Open(target) //nolint:gosec // G304: path comes from operator config or a store-resolved root
 }
 
 func (store *Store) Delete(_ context.Context, key string) error {

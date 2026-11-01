@@ -118,13 +118,14 @@ func projectField(field schema.Field) formset.Field {
 	for _, value := range field.Enum {
 		projected.Options = append(projected.Options, formset.Option{Value: value, Label: labelFor(value)})
 	}
-	if field.Type == schema.FieldMedia {
+	switch {
+	case field.Type == schema.FieldMedia:
 		projected.UIHint = "media"
-	} else if field.Type == schema.FieldRichText {
+	case field.Type == schema.FieldRichText:
 		projected.UIHint = formset.UIHintTipTap
-	} else if field.Type == schema.FieldMarkdown {
+	case field.Type == schema.FieldMarkdown:
 		projected.UIHint = formset.UIHintMarkdown
-	} else if field.Relation != nil {
+	case field.Relation != nil:
 		projected.UIHint = field.Relation.Resource
 		projected.StorageHint = string(field.Relation.Cardinality)
 	}

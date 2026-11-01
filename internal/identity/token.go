@@ -94,7 +94,13 @@ func (manager *TokenManager) ValidateCookieCSRF(request *http.Request) error {
 		return nil
 	}
 	cookie, err := request.Cookie(SessionCookieName)
-	if err != nil || strings.TrimSpace(cookie.Value) == "" {
+	if errors.Is(err, http.ErrNoCookie) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(cookie.Value) == "" {
 		return nil
 	}
 	expected := manager.CSRF(cookie.Value)
@@ -157,7 +163,13 @@ func requestToken(request *http.Request) (string, error) {
 		return strings.TrimSpace(token), nil
 	}
 	cookie, err := request.Cookie(SessionCookieName)
-	if err != nil || strings.TrimSpace(cookie.Value) == "" {
+	if errors.Is(err, http.ErrNoCookie) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(cookie.Value) == "" {
 		return "", nil
 	}
 	return strings.TrimSpace(cookie.Value), nil

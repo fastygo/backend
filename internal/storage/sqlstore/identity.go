@@ -52,7 +52,7 @@ func (repository identityRepository) ListUsers(ctx context.Context) ([]domainide
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var users []domainidentity.User
 	for rows.Next() {
 		var encoded []byte
@@ -137,7 +137,7 @@ func (repository identityRepository) ListRoles(ctx context.Context) ([]domainide
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var roles []domainidentity.Role
 	for rows.Next() {
 		var encoded []byte

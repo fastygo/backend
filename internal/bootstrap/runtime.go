@@ -355,7 +355,7 @@ func DefaultManifest() schema.Manifest {
 }
 
 func loadDotEnv(path string) {
-	encoded, err := os.ReadFile(path)
+	encoded, err := os.ReadFile(path) //nolint:gosec // G304: path comes from operator config or a store-resolved root
 	if err != nil {
 		return
 	}
@@ -388,11 +388,11 @@ func env(key, fallback string) string {
 }
 
 func loadManifest(path string) (schema.Manifest, error) {
-	file, err := os.Open(path)
+	file, err := os.Open(path) //nolint:gosec // G304: path comes from operator config or a store-resolved root
 	if err != nil {
 		return schema.Manifest{}, fmt.Errorf("failed to open headless manifest: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	var document persist.Manifest
 	decoder := json.NewDecoder(file)
 	decoder.DisallowUnknownFields()

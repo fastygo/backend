@@ -45,7 +45,7 @@ func (store *Store) Export(ctx context.Context, destination io.Writer) error {
 		if err := archive.WriteHeader(header); err != nil {
 			return err
 		}
-		file, err := os.Open(path)
+		file, err := os.Open(path) //nolint:gosec // G304: path comes from operator config or a store-resolved root
 		if err != nil {
 			return err
 		}
@@ -78,7 +78,7 @@ func (store *Store) Restore(ctx context.Context, source io.Reader) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(temporaryRoot)
+	defer func() { _ = os.RemoveAll(temporaryRoot) }()
 	temporary := &Store{root: temporaryRoot}
 	archive := tar.NewReader(source)
 	for {
@@ -93,7 +93,7 @@ func (store *Store) Restore(ctx context.Context, source io.Reader) error {
 			return err
 		}
 		//lint:ignore SA1019 TypeRegA is accepted for compatibility with legacy tar archives.
-		if header.Typeflag != tar.TypeReg && header.Typeflag != tar.TypeRegA {
+		if header.Typeflag != tar.TypeReg {
 			return errors.New("media backup contains unsupported entry type")
 		}
 		key := strings.TrimSpace(header.Name)

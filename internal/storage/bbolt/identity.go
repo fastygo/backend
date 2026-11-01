@@ -76,8 +76,8 @@ func (repository identityRepository) SaveUser(
 	)
 }
 
-func (repository identityRepository) DeleteUser(_ context.Context, id string, expectedVersion uint64) error {
-	user, err := repository.GetUser(context.Background(), id)
+func (repository identityRepository) DeleteUser(ctx context.Context, id string, expectedVersion uint64) error {
+	user, err := repository.GetUser(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -128,8 +128,8 @@ func (repository identityRepository) SaveRole(
 	)
 }
 
-func (repository identityRepository) DeleteRole(_ context.Context, id string, expectedVersion uint64) error {
-	role, err := repository.GetRole(context.Background(), id)
+func (repository identityRepository) DeleteRole(ctx context.Context, id string, expectedVersion uint64) error {
+	role, err := repository.GetRole(ctx, id)
 	if err != nil {
 		return err
 	}

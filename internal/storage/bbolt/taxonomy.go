@@ -66,12 +66,12 @@ func (repository taxonomyRepository) SaveDefinition(
 }
 
 func (repository taxonomyRepository) DeleteDefinition(
-	_ context.Context,
+	ctx context.Context,
 	id string,
 	expectedVersion uint64,
 ) error {
 	bucket := repository.transaction.Bucket(taxonomiesBucket)
-	current, err := repository.GetDefinition(context.Background(), id)
+	current, err := repository.GetDefinition(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -135,12 +135,12 @@ func (repository taxonomyRepository) SaveTerm(
 }
 
 func (repository taxonomyRepository) DeleteTerm(
-	_ context.Context,
+	ctx context.Context,
 	id taxonomy.ID,
 	expectedVersion uint64,
 ) error {
 	bucket := repository.transaction.Bucket(termsBucket)
-	current, err := repository.GetTerm(context.Background(), id)
+	current, err := repository.GetTerm(ctx, id)
 	if err != nil {
 		return err
 	}

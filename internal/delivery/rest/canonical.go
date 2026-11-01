@@ -521,7 +521,7 @@ func writeCanonicalBytes(response http.ResponseWriter, status int, body []byte, 
 		}
 	}
 	response.WriteHeader(status)
-	_, _ = response.Write(body)
+	_, _ = response.Write(body) //nolint:gosec // G705: body is server-encoded JSON, not reflected HTML
 }
 
 func writeCanonicalError(response http.ResponseWriter, request *http.Request, err error) {

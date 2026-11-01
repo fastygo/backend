@@ -71,7 +71,7 @@ func runCodexImport(args []string) error {
 	if err != nil {
 		return err
 	}
-	defer storage.Close()
+	defer func() { _ = storage.Close() }()
 	service, err := application.NewService(storage, nil, nil)
 	if err != nil {
 		return err

@@ -366,7 +366,7 @@ func (repository contentRepository) List(ctx context.Context, query contentappli
 	if err != nil {
 		return contentapplication.ListResult{}, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	entries := make([]content.Entry, 0, query.PerPage)
 	for rows.Next() {
 		var encoded []byte
@@ -406,7 +406,7 @@ func (repository contentRepository) Create(ctx context.Context, entry content.En
 		ctx, statement, entry.ID, entry.Kind, entry.Status, entry.Visibility,
 		entry.AuthorID, entry.Version, entry.UpdatedAt.UnixNano(), encoded,
 	); err != nil {
-		return fmt.Errorf("%w: %v", ErrConflict, err)
+		return fmt.Errorf("%w: %w", ErrConflict, err)
 	}
 	if err := repository.replaceProjections(ctx, entry); err != nil {
 		return err
@@ -528,7 +528,7 @@ func (repository contentRepository) replaceSlugs(ctx context.Context, entry cont
 			ctx, statement, entry.Kind, strings.ToLower(strings.TrimSpace(locale)),
 			content.NormalizeSlug(slug), entry.ID,
 		); err != nil {
-			return fmt.Errorf("%w: %v", ErrConflict, err)
+			return fmt.Errorf("%w: %w", ErrConflict, err)
 		}
 	}
 	return nil
@@ -696,7 +696,7 @@ func (repository revisionRepository) Save(ctx context.Context, item revision.Rev
 		item.ID, item.EntryID, item.Version, item.CreatedAt.UnixNano(), encoded,
 	)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrConflict, err)
+		return fmt.Errorf("%w: %w", ErrConflict, err)
 	}
 	return nil
 }
@@ -742,7 +742,7 @@ func (repository revisionRepository) List(
 	if err != nil {
 		return nil, contentapplication.Page{}, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	items := make([]revision.Revision, 0, perPage)
 	for rows.Next() {
 		var encoded []byte
@@ -775,7 +775,7 @@ func bind(dialect Dialect, statement string) string {
 	index := 1
 	for _, character := range statement {
 		if character == '?' {
-			result.WriteString(fmt.Sprintf("$%d", index))
+			fmt.Fprintf(&result, "$%d", index)
 			index++
 			continue
 		}
