@@ -5,6 +5,7 @@
 | `DATABASE_URL` / `HEADLESS_BBOLT_PATH` | Tenant operator | Durable storage for the implicit default tenant |
 | `HEADLESS_MEDIA_ROOT` | Tenant operator | Durable storage; backed up with metadata |
 | `HEADLESS_MANIFEST_PATH` | Product release | Versioned product schema input |
+| `HEADLESS_DEFAULT_CURRENCY` | Product release | ISO 4217 code for `fastygo.codex/money` fields when a resource has no `currency` field |
 | `HEADLESS_TENANTS_PATH` | Operator | Optional `tenants.json`; unset keeps single-site behaviour (ADR-0011) |
 | `HEADLESS_TOKEN_SECRET` | Operator | Secret, random, rotated by policy |
 | `HEADLESS_ADMIN_*` | Bootstrap operator | Remove after verified initial login |

@@ -67,7 +67,10 @@ Set `HEADLESS_MANIFEST_PATH` to a JSON manifest:
       "graphql_visible": true,
       "taxonomies": ["brand", "collection"],
       "fields": [
-        {"id": "price", "type": "money", "required": true},
+        {"id": "price", "type": "number", "required": true,
+         "rules": [{"name": "fastygo.codex/money", "args": {"currency_field": "currency"}}]},
+        {"id": "currency", "type": "string", "required": true},
+        {"id": "state", "type": "select", "options": [{"value": "active", "label": "Active"}, {"value": "archived", "label": "Archived"}]},
         {"id": "description", "type": "text", "localized": true}
       ]
     }
@@ -77,6 +80,12 @@ Set `HEADLESS_MANIFEST_PATH` to a JSON manifest:
 
 Panel descriptors, REST paths, GraphQL types, JSON Schema, and OpenAPI are generated from this
 manifest.
+
+Field and rule types come from [`github.com/fastygo/codex`](https://github.com/fastygo/codex)
+**v0.4.2** (see `docs/architecture/adr/0013-codex-domain-schema.md`). Money is an integer in
+minor units (`1250` = 12.50) plus an ISO 4217 currency; `HEADLESS_DEFAULT_CURRENCY` applies when
+a resource has no `currency` field. Forms use `github.com/fastygo/formset`, panel resources use
+`github.com/fastygo/panel`.
 
 ## Authentication
 
