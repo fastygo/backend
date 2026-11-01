@@ -1,0 +1,97 @@
+# golangci-lint v2 configuration for this module (copied from github.com/fastygo/framework).
+#
+# Phase 1 minimum viable set: catches concurrency, context, and resource
+# bugs without drowning the team in style noise.
+#
+# Requires golangci-lint >= v2.4.0 (Go 1.25 support — official binaries
+# below v2.4 are built with Go 1.24 and refuse to lint a go1.25 module).
+# CI pins v2.11.4; bump the version in .github/workflows/verify.yml when raising
+# this floor.
+
+version: "2"
+
+linters:
+  default: none
+  enable:
+    # Defaults worth keeping (gosimple + stylecheck are now folded into staticcheck in v2).
+    - errcheck
+    - govet
+    - staticcheck
+    - ineffassign
+    - unused
+
+    # Security and resource hygiene
+    - gosec
+    - bodyclose
+
+    # Context and error handling
+    - contextcheck
+    - noctx
+    - nilerr
+    - errorlint
+
+    # Light style/correctness
+    - gocritic
+
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        # fieldalignment is too aggressive for v0.x APIs; revisit later.
+        - fieldalignment
+        # shadow: 74 pre-existing `err` shadows; idiomatic, revisit later.
+        - shadow
+
+    gosec:
+      excludes:
+        # G404 (math/rand) is fine in tests and worker jitter.
+        - G404
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+      disabled-checks:
+        - hugeParam
+        - rangeValCopy
+
+  exclusions:
+    # Keep v1 behavior: skip standard generated-file headers, plus our own.
+    generated: lax
+    rules:
+      # Tests get a relaxed ruleset:
+      #   - gosec: fmt.Sprintf for table-driven names is fine.
+      #   - noctx: httptest.NewRequest is the canonical Go convention.
+      #   - bodyclose: fire-and-forget HTTP probes are common in lifecycle
+      #     tests where the response is never inspected.
+      #   - errcheck: ignored close errors on listeners/Cleanup are normal.
+      # Production code under pkg/ is still fully linted.
+      - path: _test\.go
+        linters:
+          - gosec
+          - noctx
+          - bodyclose
+          - errcheck
+          - errorlint
+
+      # Generated templ files are not our code.
+      - path: _templ\.go
+        linters:
+          - errcheck
+          - gosec
+          - gocritic
+          - staticcheck
+
+      # Build/CI scripts under scripts/ run on developer machines (not
+      # in production), read paths from argv, and write reports to
+      # stdout/stderr. Standard gosec/errcheck noise (G304 path-from-var,
+      # G703 path-traversal, fmt.Fprintln to stdout) does not apply here.
+      - path: scripts/
+        linters:
+          - errcheck
+          - gosec
+          - gocritic
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
